@@ -19,7 +19,7 @@ END_PROPERTIES()
 
 AGameModeBase::AGameModeBase()
 	: GameState(nullptr)
-	, PlayerSpawnLocation(FVector(0.0f, 0.0f, 100.0f))
+	, PlayerSpawnLocation(FVector(0.0f, 0.0f, 0.0f))
 	, DefaultPawnClass(nullptr)
 	, PlayerControllerClass(nullptr)
 	, PlayerController(nullptr)

@@ -14,8 +14,10 @@
 #pragma once
 #include "ObjectFactory.h"
 #include "Object.h"
+#include "SkeletalMesh.h"
 // ... 기타 include ...
 
+class USkeletalMesh;
 // --- 전방 선언 ---
 class UStaticMesh;
 class FMeshBVH;
@@ -86,6 +88,7 @@ public:
 	FMeshBVH* GetMeshBVH(const FString& ObjPath);
 	FMeshBVH* GetOrBuildMeshBVH(const FString& ObjPath, const struct FStaticMesh* StaticMeshAsset);
 	void SetStaticMeshs();
+	void SetSkeletalMeshs();
 	const TArray<UStaticMesh*>& GetStaticMeshs() { return StaticMeshs; }
 
 	// --- Deprecated (향후 제거될 함수들) ---
@@ -111,6 +114,7 @@ protected:
 	TMap<FString, FString> TextureToShaderMap;
 
 	TArray<UStaticMesh*> StaticMeshs;
+	TArray<USkeletalMesh*> SkeletalMeshs;
 
 	// Deprecated
 	TMap<FString, FResourceData*> ResourceMap;
@@ -232,6 +236,8 @@ ResourceType UResourceManager::GetResourceType()
 {
 	if (T::StaticClass() == UStaticMesh::StaticClass())
 		return ResourceType::StaticMesh;
+	if (T::StaticClass() == USkeletalMesh::StaticClass())
+		return ResourceType::SkeletalMesh;
 	if (T::StaticClass() == UQuad::StaticClass())
 		return ResourceType::Quad;
 	if (T::StaticClass() == UDynamicMesh::StaticClass())

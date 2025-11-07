@@ -114,23 +114,23 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LibraryPath>ThirdParty\DirectXTK\Bin\$(Configuration)\;ThirdParty\DirectXTex\Lib\x64\$(Configuration)\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\$(Configuration)\;$(LibraryPath)</LibraryPath>
+    <LibraryPath>ThirdParty\DirectXTK\Bin\$(Configuration)\;ThirdParty\DirectXTex\Lib\x64\$(Configuration)\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\$(Configuration)\;ThirdParty\FbxSDK\lib\x64\debug\;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)Binaries\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Intermediate\$(ProjectName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IntDir>$(SolutionDir)Intermediate\$(ProjectName)\$(Configuration)\</IntDir>
-    <LibraryPath>ThirdParty\DirectXTK\Bin\$(Configuration)\;ThirdParty\DirectXTex\Lib\x64\$(Configuration)\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\$(Configuration)\;$(LibraryPath)</LibraryPath>
+    <LibraryPath>ThirdParty\DirectXTK\Bin\$(Configuration)\;ThirdParty\DirectXTex\Lib\x64\$(Configuration)\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\$(Configuration)\;ThirdParty\FbxSDK\lib\x64\release\;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)Binaries\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='StandAlone|x64'">
     <IntDir>$(SolutionDir)Intermediate\$(ProjectName)\$(Configuration)\</IntDir>
-    <LibraryPath>ThirdParty\DirectXTK\Bin\Release\;ThirdParty\DirectXTex\Lib\x64\Release\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\Release\;$(LibraryPath)</LibraryPath>
+    <LibraryPath>ThirdParty\DirectXTK\Bin\Release\;ThirdParty\DirectXTex\Lib\x64\Release\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\Release\;ThirdParty\FbxSDK\lib\x64\release\;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)Binaries\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release_StandAlone|x64'">
     <IntDir>$(SolutionDir)Intermediate\$(ProjectName)\StandAlone\</IntDir>
-    <LibraryPath>ThirdParty\DirectXTK\Bin\Release\;ThirdParty\DirectXTex\Lib\x64\Release\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\Release\;$(LibraryPath)</LibraryPath>
+    <LibraryPath>ThirdParty\DirectXTK\Bin\Release\;ThirdParty\DirectXTex\Lib\x64\Release\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\Release\;ThirdParty\FbxSDK\lib\x64\release\;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)Binaries\StandAlone\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -199,14 +199,14 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\Engine\CameraManagement;$(ProjectDir)Source\Runtime\Engine\Audio;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(ProjectDir)ThirdParty;$(ProjectDir)ThirdParty\DirectXTex\Include;$(ProjectDir)ThirdParty\sol;$(ProjectDir)ThirdParty\lua\Include;$(ProjectDir)ThirdParty\FMOD\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\Engine\CameraManagement;$(ProjectDir)Source\Runtime\Engine\Audio;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(ProjectDir)ThirdParty;$(ProjectDir)ThirdParty\DirectXTex\Include;$(ProjectDir)ThirdParty\sol;$(ProjectDir)ThirdParty\lua\Include;$(ProjectDir)ThirdParty\FMOD\include;$(ProjectDir)ThirdParty\FbxSDK\include</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 /bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmodL_vc.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmodL_vc.lib;libfbxsdk-md.lib;libxml2-md.lib;zlib-md.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
@@ -240,7 +240,7 @@ if "$(Configuration)"=="Debug" (
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\Engine\CameraManagement;$(ProjectDir)Source\Runtime\Engine\Audio;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(ProjectDir)ThirdParty;$(ProjectDir)ThirdParty\DirectXTex\Include;$(ProjectDir)ThirdParty\sol;$(ProjectDir)ThirdParty\lua\Include;$(ProjectDir)ThirdParty\FMOD\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\Engine\CameraManagement;$(ProjectDir)Source\Runtime\Engine\Audio;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(ProjectDir)ThirdParty;$(ProjectDir)ThirdParty\DirectXTex\Include;$(ProjectDir)ThirdParty\sol;$(ProjectDir)ThirdParty\lua\Include;$(ProjectDir)ThirdParty\FMOD\include;$(ProjectDir)ThirdParty\FbxSDK\include</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 /bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
@@ -249,7 +249,7 @@ if "$(Configuration)"=="Debug" (
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmod_vc.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmod_vc.lib;libfbxsdk-md.lib;libxml2-md.lib;zlib-md.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
@@ -283,7 +283,7 @@ if "$(Configuration)"=="Debug" (
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\Engine\CameraManagement;$(ProjectDir)Source\Runtime\Engine\Audio;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(ProjectDir)ThirdParty;$(ProjectDir)ThirdParty\DirectXTex\Include;$(ProjectDir)ThirdParty\sol;$(ProjectDir)ThirdParty\lua\Include;$(ProjectDir)ThirdParty\FMOD\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\Engine\CameraManagement;$(ProjectDir)Source\Runtime\Engine\Audio;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(ProjectDir)ThirdParty;$(ProjectDir)ThirdParty\DirectXTex\Include;$(ProjectDir)ThirdParty\sol;$(ProjectDir)ThirdParty\lua\Include;$(ProjectDir)ThirdParty\FMOD\include;$(ProjectDir)ThirdParty\FbxSDK\include</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 /bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
@@ -292,7 +292,7 @@ if "$(Configuration)"=="Debug" (
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmod_vc.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmod_vc.lib;libfbxsdk-md.lib;libxml2-md.lib;zlib-md.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
@@ -321,7 +321,7 @@ if "$(Configuration)"=="Debug" (
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\Engine\CameraManagement;$(ProjectDir)Source\Runtime\Engine\Audio;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(ProjectDir)ThirdParty;$(ProjectDir)ThirdParty\DirectXTex\Include;$(ProjectDir)ThirdParty\sol;$(ProjectDir)ThirdParty\lua\Include;$(ProjectDir)ThirdParty\FMOD\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\Engine\CameraManagement;$(ProjectDir)Source\Runtime\Engine\Audio;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(ProjectDir)ThirdParty;$(ProjectDir)ThirdParty\DirectXTex\Include;$(ProjectDir)ThirdParty\sol;$(ProjectDir)ThirdParty\lua\Include;$(ProjectDir)ThirdParty\FMOD\include;$(ProjectDir)ThirdParty\FbxSDK\include</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 /bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
@@ -330,7 +330,7 @@ if "$(Configuration)"=="Debug" (
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmod_vc.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmod_vc.lib;libfbxsdk-md.lib;libxml2-md.lib;zlib-md.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
@@ -367,6 +367,8 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </None>
     <ClCompile Include="Source\Editor\Clipboard\ClipboardManager.cpp" />
+    <ClCompile Include="Source\Runtime\AssetManagement\FFBXManager.cpp" />
+    <ClCompile Include="Source\Runtime\AssetManagement\SkeletalMesh.cpp" />
     <ClCompile Include="Source\Runtime\AssetManagement\Sound.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Audio\SoundManager.cpp" />
     <ClCompile Include="Source\Runtime\Core\Math\UCurveFloat.cpp" />
@@ -781,6 +783,8 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="Source\Editor\Clipboard\ClipboardManager.h" />
+    <ClInclude Include="Source\Runtime\AssetManagement\FFBXManager.h" />
+    <ClInclude Include="Source\Runtime\AssetManagement\SkeletalMesh.h" />
     <ClInclude Include="Source\Runtime\AssetManagement\Sound.h" />
     <ClInclude Include="Source\Runtime\Core\Math\UCurveFloat.h" />
     <ClInclude Include="Source\Runtime\Core\Math\UPerlinNoiseFloat.h" />

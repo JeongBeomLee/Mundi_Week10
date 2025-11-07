@@ -4,6 +4,7 @@
 #include "DirectXTK/DDSTextureLoader.h"
 #include "DirectXTK/WICTextureLoader.h"
 #include "ObjManager.h"
+#include "FFBXManager.h"
 #include "Quad.h"
 #include "MeshBVH.h"
 #include "Enums.h"
@@ -146,6 +147,11 @@ FMeshBVH* UResourceManager::GetOrBuildMeshBVH(const FString& ObjPath, const FSta
 void UResourceManager::SetStaticMeshs()
 {
     StaticMeshs = GetAll<UStaticMesh>();
+}
+
+void UResourceManager::SetSkeletalMeshs()
+{
+    SkeletalMeshs = GetAll<USkeletalMesh>();
 }
 
 void UResourceManager::CreateAxisMesh(float Length, const FString& FilePath)

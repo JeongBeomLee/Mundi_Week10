@@ -156,7 +156,7 @@ public:
     UClass* GameModeClass = nullptr;
     UClass* DefaultPawnClass = nullptr;
     UClass* PlayerControllerClass = nullptr;
-    FVector PlayerSpawnLocation = FVector(0.0f, 0.0f, 100.0f);
+    FVector PlayerSpawnLocation = FVector(0.0f, 0.0f, 0.0f);
 
 private:
     /** === 에디터 특수 액터 관리 === */

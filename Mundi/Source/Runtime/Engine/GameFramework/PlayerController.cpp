@@ -18,10 +18,6 @@ BEGIN_PROPERTIES(APlayerController)
 	MARK_AS_SPAWNABLE("PlayerController", "플레이어 입력을 처리하는 Controller입니다.")
 END_PROPERTIES()
 
-// ────────────────────────────────────────────────────────────────────────────
-// 생성자 / 소멸자
-// ────────────────────────────────────────────────────────────────────────────
-
 APlayerController::APlayerController()
 	: InputManager(nullptr)
 	, bInputEnabled(true)
@@ -70,10 +66,6 @@ void APlayerController::Tick(float DeltaSeconds)
 		PlayerCameraManager->UpdateCamera(DeltaSeconds);
 	}
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// Pawn 빙의 관련
-// ────────────────────────────────────────────────────────────────────────────
 
 void APlayerController::Possess(APawn* InPawn)
 {
@@ -136,10 +128,6 @@ void APlayerController::ProcessPlayerInput()
 	}
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// 마우스 커서 제어
-// ────────────────────────────────────────────────────────────────────────────
-
 void APlayerController::ShowMouseCursor()
 {
 	bShowMouseCursor = true;
@@ -179,10 +167,6 @@ void APlayerController::UnlockMouseCursor()
 		InputManager->ReleaseCursor();
 	}
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// 카메라 관리 (Phase 1.2에서 추가)
-// ────────────────────────────────────────────────────────────────────────────
 
 UCameraComponent* APlayerController::GetCameraComponentForRendering() const
 {
