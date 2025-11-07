@@ -635,41 +635,42 @@ void FFBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMes
         Cluster->GetTransformMatrix(MeshTransform);
         Cluster->GetTransformLinkMatrix(LinkTransform);
 
-        // InverseBindPose: Mesh Local → Bone Local
+        // InverseBindPoseMatrix: 바인드 포즈에서 월드 좌표 → 본 로컬 좌표 (Model → Bone)
         // = LinkTransform.Inverse() * MeshTransform
-        // = (World → Bone Local) * (Mesh Local → World)
         FbxAMatrix FbxInverseBindPose = LinkTransform.Inverse() * MeshTransform;
 
-        // FBX 열우선 → DirectX 행우선으로 전치 복사
+        // 전치 없이 그대로 복사 (i, j)
         BoneInfo.InverseBindPoseMatrix = FMatrix::Identity();
-        for (int row = 0; row < 4; row++)
+        for (int i = 0; i < 4; i++)
         {
-            for (int col = 0; col < 4; col++)
+            for (int j = 0; j < 4; j++)
             {
-                BoneInfo.InverseBindPoseMatrix.M[row][col] = static_cast<float>(FbxInverseBindPose.Get(col, row));
+                BoneInfo.InverseBindPoseMatrix.M[i][j] = static_cast<float>(FbxInverseBindPose.Get(i, j));
             }
         }
 
         // ========================================
-        // 2. GlobalTransform 계산 (바인드 포즈의 월드 변환)
+        // 2. GlobalTransform: 본 로컬 좌표 → 월드 좌표 (Bone → Model)
         // ========================================
+        // 바인드 포즈 시점의 본 월드 변환
         FbxAMatrix FbxGlobalTransform = LinkTransform;
 
-        // FBX 열우선 → DirectX 행우선으로 전치 복사
+        // 전치 없이 그대로 복사 (i, j)
         BoneInfo.GlobalTransform = FMatrix::Identity();
-        for (int row = 0; row < 4; row++)
+        for (int i = 0; i < 4; i++)
         {
-            for (int col = 0; col < 4; col++)
+            for (int j = 0; j < 4; j++)
             {
-                BoneInfo.GlobalTransform.M[row][col] = static_cast<float>(FbxGlobalTransform.Get(col, row));
+                BoneInfo.GlobalTransform.M[i][j] = static_cast<float>(FbxGlobalTransform.Get(i, j));
             }
         }
 
         // ========================================
-        // 3. SkinningMatrix 계산 (초기값은 InverseBindPoseMatrix와 동일)
+        // 3. SkinningMatrix: InverseBindPoseMatrix × GlobalTransform
         // ========================================
-        // 애니메이션 시 업데이트: SkinningMatrix = InverseBindPoseMatrix * CurrentBoneTransform
-        BoneInfo.SkinningMatrix = BoneInfo.InverseBindPoseMatrix;
+        // = (Model → Bone) × (Bone → Model)
+        // = 바인드 포즈 기준으로 정점을 애니메이션된 본에 맞춰 변형
+        BoneInfo.SkinningMatrix = BoneInfo.InverseBindPoseMatrix * BoneInfo.GlobalTransform;
 
         OutMeshData->Bones.push_back(BoneInfo);
     }

@@ -221,23 +221,23 @@ struct FBoneInfo
     // 스키닝 행렬 (3가지 행렬의 역할)
     // ========================================
 
-    // 1. InverseBindPoseMatrix: 정점을 "본 로컬 공간"으로 변환
-    //    - 바인드 포즈(초기 자세)에서 정점이 본의 로컬 좌표계 기준으로 어디에 있는지 기록
+    // 1. InverseBindPoseMatrix: 월드 좌표 → 본 로컬 좌표 (Model → Bone)
+    //    - 바인드 포즈에서 정점을 본의 로컬 공간으로 변환
     //    - 계산: LinkTransform.Inverse() * MeshTransform
-    //    - 용도: 애니메이션 적용 전 정점을 본 로컬 공간으로 이동
+    //    - 의미: "정점이 본 로컬 공간에서 어디에 있었나"를 기록
     FMatrix InverseBindPoseMatrix;
 
-    // 2. GlobalTransform: 본의 현재 월드 변환
-    //    - 바인드 포즈 시: 초기 본 위치/회전/스케일 (FBX의 LinkTransform)
-    //    - 애니메이션 시: 현재 프레임의 본 변환 (매 프레임 업데이트)
-    //    - 용도: 애니메이션에 따라 본이 어떻게 움직이는지 저장
+    // 2. GlobalTransform: 본 로컬 좌표 → 월드 좌표 (Bone → Model)
+    //    - 바인드 포즈 시: 초기 본의 월드 변환 (LinkTransform)
+    //    - 애니메이션 시: 현재 프레임의 본 월드 변환 (매 프레임 업데이트)
+    //    - 의미: "본이 현재 월드 공간에서 어디에 있나"
     FMatrix GlobalTransform;
 
     // 3. SkinningMatrix: 최종 스키닝 행렬 (셰이더에 전달)
     //    - 계산: InverseBindPoseMatrix * GlobalTransform
-    //    - 의미: 정점을 본 로컬 공간으로 변환 → 애니메이션된 본 공간으로 변환
-    //    - 용도: 정점 셰이더에서 v' = v * SkinningMatrix 로 스키닝 적용
-    //    - 업데이트: 애니메이션 프레임마다 재계산 필요
+    //    - 의미: (Model → Bone) × (Bone → Model) = 바인드 포즈 기준 본 변형
+    //    - 용도: 정점 셰이더에서 v' = v * SkinningMatrix
+    //    - 업데이트: 애니메이션 프레임마다 SkinningMatrix = InverseBindPoseMatrix * AnimatedGlobalTransform
     FMatrix SkinningMatrix;
 };
 
