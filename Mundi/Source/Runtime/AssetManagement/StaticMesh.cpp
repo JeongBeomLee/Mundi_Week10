@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "StaticMesh.h"
 #include "ObjManager.h"
+#include "FFBXManager.h"
 #include "ResourceManager.h"
 
 IMPLEMENT_CLASS(UStaticMesh)
@@ -16,7 +17,31 @@ void UStaticMesh::Load(const FString& InFilePath, ID3D11Device* InDevice, EVerte
 
     SetVertexType(InVertexType);
 
-    StaticMeshAsset = FObjManager::LoadObjStaticMeshAsset(InFilePath);
+    // 파일 확장자 추출
+    FString Extension;
+    size_t DotPos = InFilePath.find_last_of('.');
+    if (DotPos != FString::npos)
+    {
+        Extension = InFilePath.substr(DotPos);
+        // 소문자로 변환
+        std::transform(Extension.begin(), Extension.end(), Extension.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    }
+
+    // 확장자에 따라 적절한 로더 사용
+    if (Extension == ".fbx")
+    {
+        StaticMeshAsset = FFBXManager::LoadFBXStaticMeshAsset(InFilePath);
+    }
+    else if (Extension == ".obj")
+    {
+        StaticMeshAsset = FObjManager::LoadObjStaticMeshAsset(InFilePath);
+    }
+    else
+    {
+        UE_LOG("UStaticMesh::Load: Unsupported file extension '%s' for file '%s'", Extension.c_str(), InFilePath.c_str());
+        return;
+    }
 
     // 빈 버텍스, 인덱스로 버퍼 생성 방지
     if (StaticMeshAsset && 0 < StaticMeshAsset->Vertices.size() && 0 < StaticMeshAsset->Indices.size())

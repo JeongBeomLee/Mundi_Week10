@@ -28,6 +28,7 @@ private:
     static void ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData, TArray<int>& OutVertexToControlPointMap);
     static void ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData);
     static void ParseSkinWeights(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData, const TArray<int>& VertexToControlPointMap);
+    static void LoadMaterials(FbxMesh* FbxMeshNode);
 
     static TMap<FString, FSkeletalMesh*> FBXSkeletalMeshMap;
     static TMap<FString, FStaticMesh*> FBXStaticMeshMap;

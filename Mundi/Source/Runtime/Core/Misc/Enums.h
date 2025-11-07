@@ -214,9 +214,31 @@ struct FStaticMesh
 // Bone 정보
 struct FBoneInfo
 {
-    FString BoneName;
-    int32 ParentIndex;  // -1 for root
-    FMatrix OffsetMatrix;  // Bind pose inverse transform
+    FString BoneName;           // 본 이름
+    int32 ParentIndex;          // 부모 본 인덱스 (-1: 루트 본)
+
+    // ========================================
+    // 스키닝 행렬 (3가지 행렬의 역할)
+    // ========================================
+
+    // 1. InverseBindPoseMatrix: 정점을 "본 로컬 공간"으로 변환
+    //    - 바인드 포즈(초기 자세)에서 정점이 본의 로컬 좌표계 기준으로 어디에 있는지 기록
+    //    - 계산: LinkTransform.Inverse() * MeshTransform
+    //    - 용도: 애니메이션 적용 전 정점을 본 로컬 공간으로 이동
+    FMatrix InverseBindPoseMatrix;
+
+    // 2. GlobalTransform: 본의 현재 월드 변환
+    //    - 바인드 포즈 시: 초기 본 위치/회전/스케일 (FBX의 LinkTransform)
+    //    - 애니메이션 시: 현재 프레임의 본 변환 (매 프레임 업데이트)
+    //    - 용도: 애니메이션에 따라 본이 어떻게 움직이는지 저장
+    FMatrix GlobalTransform;
+
+    // 3. SkinningMatrix: 최종 스키닝 행렬 (셰이더에 전달)
+    //    - 계산: InverseBindPoseMatrix * GlobalTransform
+    //    - 의미: 정점을 본 로컬 공간으로 변환 → 애니메이션된 본 공간으로 변환
+    //    - 용도: 정점 셰이더에서 v' = v * SkinningMatrix 로 스키닝 적용
+    //    - 업데이트: 애니메이션 프레임마다 재계산 필요
+    FMatrix SkinningMatrix;
 };
 
 // Skinning Vertex (Bone Weights + Indices 포함)
