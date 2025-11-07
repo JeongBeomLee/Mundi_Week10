@@ -1,5 +1,5 @@
 ﻿#include "pch.h"
-#include "FBXManager.h"
+#include "FFBXManager.h"
 #include "PathUtils.h"
 #include "ObjectIterator.h"
 #include "SkeletalMesh.h"
@@ -36,17 +36,18 @@ namespace std {
 }
 
 // Static member definition
-TMap<FString, FSkeletalMesh*> FBXManager::FBXSkeletalMeshMap;
+TMap<FString, FSkeletalMesh*> FFBXManager::FBXSkeletalMeshMap;
 
-FBXManager::FBXManager()
+FFBXManager::FFBXManager()
 {
 }
 
-FBXManager::~FBXManager()
+FFBXManager::~FFBXManager()
 {
+    Clear();
 }
 
-void FBXManager::Preload()
+void FFBXManager::Preload()
 {
     const fs::path DataDir(GDataDir);
 
@@ -92,7 +93,7 @@ void FBXManager::Preload()
     UE_LOG("FObjManager::Preload: Loaded %zu .obj files from %s", LoadedCount, DataDir.string().c_str());
 }
 
-void FBXManager::Clear()
+void FFBXManager::Clear()
 {
     for (auto& Pair : FBXSkeletalMeshMap)
     {
@@ -102,8 +103,16 @@ void FBXManager::Clear()
     FBXSkeletalMeshMap.Empty();
 }
 
-FSkeletalMesh* FBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName)
+FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName)
 {
+    FString NormalizedPathStr = NormalizePath(PathFileName);
+
+    // 캐시 확인
+    if (FSkeletalMesh** It = FBXSkeletalMeshMap.Find(NormalizedPathStr))
+    {
+        return *It;
+    }
+
     // FBX SDK 초기화
     FbxManager* SdkManager = FbxManager::Create();
     if (!SdkManager)
@@ -117,9 +126,9 @@ FSkeletalMesh* FBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName)
 
     // FBX Importer 생성
     FbxImporter* Importer = FbxImporter::Create(SdkManager, "");
-    if (!Importer->Initialize(PathFileName.c_str(), -1, SdkManager->GetIOSettings()))
+    if (!Importer->Initialize(NormalizedPathStr.c_str(), -1, SdkManager->GetIOSettings()))
     {
-        UE_LOG("FBXManager: Failed to initialize importer for %s", PathFileName.c_str());
+        UE_LOG("FBXManager: Failed to initialize importer for %s", NormalizedPathStr.c_str());
         UE_LOG("  Error: %s", Importer->GetStatus().GetErrorString());
         Importer->Destroy();
         SdkManager->Destroy();
@@ -130,7 +139,7 @@ FSkeletalMesh* FBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName)
     FbxScene* Scene = FbxScene::Create(SdkManager, "TempScene");
     if (!Importer->Import(Scene))
     {
-        UE_LOG("FBXManager: Failed to import FBX file: %s", PathFileName.c_str());
+        UE_LOG("FBXManager: Failed to import FBX file: %s", NormalizedPathStr.c_str());
         Importer->Destroy();
         Scene->Destroy();
         SdkManager->Destroy();
@@ -164,7 +173,7 @@ FSkeletalMesh* FBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName)
 
     // FSkeletalMesh 생성
     FSkeletalMesh* SkeletalMeshData = new FSkeletalMesh();
-    SkeletalMeshData->PathFileName = PathFileName;
+    SkeletalMeshData->PathFileName = NormalizedPathStr;
 
     // 첫 번째 Mesh 노드 찾기
     FbxNode* RootNode = Scene->GetRootNode();
@@ -186,14 +195,14 @@ FSkeletalMesh* FBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName)
 
     if (!FbxMeshNode)
     {
-        UE_LOG("FBXManager: No mesh found in FBX file: %s", PathFileName.c_str());
+        UE_LOG("FBXManager: No mesh found in FBX file: %s", NormalizedPathStr.c_str());
         delete SkeletalMeshData;
         Scene->Destroy();
         SdkManager->Destroy();
         return nullptr;
     }
 
-    UE_LOG("FBXManager: Loading %s", PathFileName.c_str());
+    UE_LOG("FBXManager: Loading %s", NormalizedPathStr.c_str());
 
     // Parse mesh geometry (vertices, indices, materials)
     ParseMeshGeometry(FbxMeshNode, SkeletalMeshData);
@@ -213,11 +222,14 @@ FSkeletalMesh* FBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName)
     Scene->Destroy();
     SdkManager->Destroy();
 
+    // 맵에 저장하여 메모리 관리
+    FBXSkeletalMeshMap.Add(NormalizedPathStr, SkeletalMeshData);
+
     return SkeletalMeshData;
 }
  
 
-USkeletalMesh* FBXManager::LoadFBXSkeletalMesh(const FString& PathFileName)
+USkeletalMesh* FFBXManager::LoadFBXSkeletalMesh(const FString& PathFileName)
 {
     // 0) 경로
     FString NormalizedPathStr = NormalizePath(PathFileName);
@@ -244,7 +256,7 @@ USkeletalMesh* FBXManager::LoadFBXSkeletalMesh(const FString& PathFileName)
 // Helper Functions
 // ========================================
 
-void FBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData)
+void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData)
 {
     int ControlPointsCount = FbxMeshNode->GetControlPointsCount();
     FbxVector4* ControlPoints = FbxMeshNode->GetControlPoints();
@@ -450,7 +462,7 @@ void FBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshD
     }
 }
 
-void FBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData)
+void FFBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData)
 {
     FbxScene* Scene = FbxMeshNode->GetScene();
     int DeformerCount = FbxMeshNode->GetDeformerCount(FbxDeformer::eSkin);
@@ -517,7 +529,7 @@ void FBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
     UE_LOG("FBXManager: Parsed %d bones", OutMeshData->Bones.size());
 }
 
-void FBXManager::ParseSkinWeights(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData)
+void FFBXManager::ParseSkinWeights(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData)
 {
     int DeformerCount = FbxMeshNode->GetDeformerCount(FbxDeformer::eSkin);
     int ControlPointsCount = FbxMeshNode->GetControlPointsCount();

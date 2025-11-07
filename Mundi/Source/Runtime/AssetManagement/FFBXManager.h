@@ -4,11 +4,11 @@ class USkeletalMesh;
 struct FSkeletalMesh;
 struct FNormalVertex;
 
-class FBXManager
+class FFBXManager
 {
 public:
-    FBXManager();
-    ~FBXManager();
+    FFBXManager();
+    ~FFBXManager();
 
     static void Preload();
     static void Clear();

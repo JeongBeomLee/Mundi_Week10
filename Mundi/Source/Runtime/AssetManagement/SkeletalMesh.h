@@ -21,34 +21,34 @@ public:
     void SetIndexCount(uint32 Cnt) { IndexCount = Cnt; }
     uint32 GetVertexStride() const { return VertexStride; };
 
-	const FString& GetAssetPathFileName() const { return StaticMeshAsset ? StaticMeshAsset->PathFileName : FilePath; }
-    void SetStaticMeshAsset(FStaticMesh* InStaticMesh) { StaticMeshAsset = InStaticMesh; }
-	FStaticMesh* GetStaticMeshAsset() const { return StaticMeshAsset; }
+	const FString& GetAssetPathFileName() const { return SkeletalMeshAsset ? SkeletalMeshAsset->PathFileName : FilePath; }
+    void SetSkeletalMeshAsset(FSkeletalMesh* InSkeletalMesh) { SkeletalMeshAsset = InSkeletalMesh; }
+	FSkeletalMesh* GetSkeletalMeshAsset() const { return SkeletalMeshAsset; }
 
-    const TArray<FGroupInfo>& GetMeshGroupInfo() const { return StaticMeshAsset->GroupInfos; }
-    bool HasMaterial() const { return StaticMeshAsset->bHasMaterial; }
+    const TArray<FGroupInfo>& GetMeshGroupInfo() const { return SkeletalMeshAsset->GroupInfos; }
+    bool HasMaterial() const { return SkeletalMeshAsset->bHasMaterial; }
 
-    uint64 GetMeshGroupCount() const { return StaticMeshAsset->GroupInfos.size(); }
+    uint64 GetMeshGroupCount() const { return SkeletalMeshAsset->GroupInfos.size(); }
     
     FAABB GetLocalBound() const {return LocalBound; }
     
-    bool EraseUsingComponets(UStaticMeshComponent* InStaticMeshComponent);
-    bool AddUsingComponents(UStaticMeshComponent* InStaticMeshComponent);
+    // bool EraseUsingComponets(USkeletalMeshComponent* InSkeletalMeshComponent);
+    // bool AddUsingComponents(USkeletalMeshComponent* InSkeletalMeshComponent);
 
-    TArray<UStaticMeshComponent*>& GetUsingComponents()
-    {
-        return UsingComponents;
-    }
+    // TArray<USkeletalMeshComponent*>& GetUsingComponents()
+    // {
+    //     return UsingComponents;
+    // }
 
     const FString& GetCacheFilePath() const { return CacheFilePath; }
 
 private:
     void CreateVertexBuffer(FMeshData* InMeshData, ID3D11Device* InDevice, EVertexLayoutType InVertexType);
-	void CreateVertexBuffer(FStaticMesh* InStaticMesh, ID3D11Device* InDevice, EVertexLayoutType InVertexType);
+	void CreateVertexBuffer(FSkeletalMesh* InSkeletalMesh, ID3D11Device* InDevice, EVertexLayoutType InVertexType);
     void CreateIndexBuffer(FMeshData* InMeshData, ID3D11Device* InDevice);
-	void CreateIndexBuffer(FStaticMesh* InStaticMesh, ID3D11Device* InDevice);
+	void CreateIndexBuffer(FSkeletalMesh* InSkeletalMesh, ID3D11Device* InDevice);
     void CreateLocalBound(const FMeshData* InMeshData);
-    void CreateLocalBound(const FStaticMesh* InStaticMesh);
+    void CreateLocalBound(const FSkeletalMesh* InSkeletalMesh);
     void ReleaseResources();
 
     FString CacheFilePath;  // 캐시된 소스 경로 (예: DerivedDataCache/cube.obj.bin)
@@ -62,14 +62,14 @@ private:
     EVertexLayoutType VertexType = EVertexLayoutType::PositionColorTexturNormal;  // Stride를 계산하기 위한 버텍스 타입
 
 	// CPU 리소스
-    FStaticMesh* StaticMeshAsset = nullptr;
+    FSkeletalMesh* SkeletalMeshAsset = nullptr;
 
     // 메시 단위 BVH (ResourceManager에서 캐싱, 소유)
     // 초기화되지 않는 멤버변수 (참조도 ResourceManager에서만 이루어짐) 
     // FMeshBVH* MeshBVH = nullptr;
 
-    // 로컬 AABB. (스태틱메시 액터 전체 경계 계산에 사용. StaticMeshAsset 로드할 때마다 갱신)
+    // 로컬 AABB. (스태틱메시 액터 전체 경계 계산에 사용. SkeletalMeshAsset 로드할 때마다 갱신)
     FAABB LocalBound;
     
-    TArray<UStaticMeshComponent*> UsingComponents; // 유저에 의해 Material이 안 바뀐 이 Mesh를 사용 중인 Component들(render state sorting 위함)
+    //TArray<USkeletalMeshComponent*> UsingComponents; // 유저에 의해 Material이 안 바뀐 이 Mesh를 사용 중인 Component들(render state sorting 위함)
 };

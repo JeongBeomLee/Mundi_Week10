@@ -367,7 +367,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </None>
     <ClCompile Include="Source\Editor\Clipboard\ClipboardManager.cpp" />
-    <ClCompile Include="Source\Runtime\AssetManagement\FBXManager.cpp" />
+    <ClCompile Include="Source\Runtime\AssetManagement\FFBXManager.cpp" />
     <ClCompile Include="Source\Runtime\AssetManagement\SkeletalMesh.cpp" />
     <ClCompile Include="Source\Runtime\AssetManagement\Sound.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Audio\SoundManager.cpp" />
@@ -779,7 +779,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="Source\Editor\Clipboard\ClipboardManager.h" />
-    <ClInclude Include="Source\Runtime\AssetManagement\FBXManager.h" />
+    <ClInclude Include="Source\Runtime\AssetManagement\FFBXManager.h" />
     <ClInclude Include="Source\Runtime\AssetManagement\SkeletalMesh.h" />
     <ClInclude Include="Source\Runtime\AssetManagement\Sound.h" />
     <ClInclude Include="Source\Runtime\Core\Math\UCurveFloat.h" />

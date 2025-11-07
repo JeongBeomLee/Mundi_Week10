@@ -14,6 +14,7 @@
 #pragma once
 #include "ObjectFactory.h"
 #include "Object.h"
+#include "SkeletalMesh.h"
 // ... 기타 include ...
 
 class USkeletalMesh;
@@ -235,6 +236,8 @@ ResourceType UResourceManager::GetResourceType()
 {
 	if (T::StaticClass() == UStaticMesh::StaticClass())
 		return ResourceType::StaticMesh;
+	if (T::StaticClass() == USkeletalMesh::StaticClass())
+		return ResourceType::SkeletalMesh;
 	if (T::StaticClass() == UQuad::StaticClass())
 		return ResourceType::Quad;
 	if (T::StaticClass() == UDynamicMesh::StaticClass())

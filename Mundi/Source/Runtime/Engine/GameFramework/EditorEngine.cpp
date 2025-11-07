@@ -10,6 +10,7 @@
 #include "GameStateBase.h"
 #include "RunnerGameMode.h"
 #include "CameraActor.h"
+#include "FFBXManager.h"
 
 float UEditorEngine::ClientWidth = 1024.0f;
 float UEditorEngine::ClientHeight = 1024.0f;
@@ -205,6 +206,7 @@ bool UEditorEngine::Startup(HINSTANCE hInstance)
     USoundManager::GetInstance().Initialize(); // FMOD 사운드 시스템 초기화
 
     FObjManager::Preload();
+    FFBXManager::Preload();
 
     ///////////////////////////////////
     WorldContexts.Add(FWorldContext(NewObject<UWorld>(), EWorldType::Editor));
@@ -352,6 +354,7 @@ void UEditorEngine::Shutdown()
     // because ObjStaticMeshMap is a static member variable that may be destroyed
     // before the global GEngine variable's destructor runs
     FObjManager::Clear();
+    FFBXManager::Clear();
 
     // IMPORTANT: Explicitly release Renderer before RHIDevice destructor runs
     // Renderer may hold references to D3D resources
