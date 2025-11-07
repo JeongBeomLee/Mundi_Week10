@@ -397,6 +397,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClCompile Include="Source\Runtime\Engine\Components\PointLightComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\ProjectileMovementComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\RotatingMovementComponent.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Components\SkeletalMeshComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\SpotLightComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\SpringArmComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\GameFramework\AmbientLightActor.cpp" />
@@ -578,6 +579,8 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClCompile Include="Source\Slate\Widgets\GameControlWindow.cpp" />
     <ClCompile Include="Source\Slate\Widgets\SceneManagerWidget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\TargetActorTransformWidget.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\ComponentDetailRenderer.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\SkeletalMeshEditorWidget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\Widget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\WorldDetailsWidget.cpp" />
     <ClCompile Include="Source\Slate\Windows\ConsoleWindow.cpp" />
@@ -592,6 +595,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClCompile Include="Source\Slate\Windows\SSplitterH.cpp" />
     <ClCompile Include="Source\Slate\Windows\SSplitterV.cpp" />
     <ClCompile Include="Source\Slate\Windows\SViewportWindow.cpp" />
+    <ClCompile Include="Source\Slate\Windows\SSkeletalMeshEditorWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\SWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\UIWindow.cpp" />
   </ItemGroup>
@@ -782,6 +786,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Runtime\Core\Math\UPerlinNoiseFloat.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\Delegate.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\PathUtils.h" />
+    <ClInclude Include="Source\Runtime\Core\Misc\SkeletalMeshTypes.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\WeakPtr.h" />
     <ClInclude Include="Source\Runtime\Core\Object\Property.h" />
     <ClInclude Include="Source\Runtime\Engine\Audio\SoundManager.h" />
@@ -805,6 +810,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Runtime\Engine\Components\ParticleComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\ProjectileMovementComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\RotatingMovementComponent.h" />
+    <ClInclude Include="Source\Runtime\Engine\Components\SkeletalMeshComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\SpringArmComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\AmbientLightActor.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\Character.h" />
@@ -961,6 +967,8 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Slate\Widgets\GameHUDWidget.h" />
     <ClInclude Include="Source\Slate\Widgets\SceneManagerWidget.h" />
     <ClInclude Include="Source\Slate\Widgets\TargetActorTransformWidget.h" />
+    <ClInclude Include="Source\Slate\Widgets\ComponentDetailRenderer.h" />
+    <ClInclude Include="Source\Slate\Widgets\SkeletalMeshEditorWidget.h" />
     <ClInclude Include="Source\Slate\Widgets\Widget.h" />
     <ClInclude Include="Source\Slate\Widgets\WorldDetailsWidget.h" />
     <ClInclude Include="Source\Slate\Windows\ConsoleWindow.h" />
@@ -975,6 +983,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Slate\Windows\SSplitterH.h" />
     <ClInclude Include="Source\Slate\Windows\SSplitterV.h" />
     <ClInclude Include="Source\Slate\Windows\SViewportWindow.h" />
+    <ClInclude Include="Source\Slate\Windows\SSkeletalMeshEditorWindow.h" />
     <ClInclude Include="Source\Slate\Windows\SWindow.h" />
     <ClInclude Include="Source\Slate\Windows\UIWindow.h" />
   </ItemGroup>
