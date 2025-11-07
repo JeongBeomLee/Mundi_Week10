@@ -373,6 +373,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClCompile Include="Source\Runtime\Engine\Audio\SoundManager.cpp" />
     <ClCompile Include="Source\Runtime\Core\Math\UCurveFloat.cpp" />
     <ClCompile Include="Source\Runtime\Core\Math\UPerlinNoiseFloat.cpp" />
+    <ClCompile Include="Source\Runtime\Core\Misc\FBone.cpp" />
     <ClCompile Include="Source\Runtime\Engine\CameraManagement\CameraBlendPreset.cpp" />
     <ClCompile Include="Source\Runtime\Engine\CameraManagement\CameraBlendPresetLibrary.cpp" />
     <ClCompile Include="Source\Runtime\Engine\CameraManagement\CameraTypes.cpp" />

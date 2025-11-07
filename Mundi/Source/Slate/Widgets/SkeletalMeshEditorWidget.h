@@ -33,6 +33,9 @@ private:
 	void RenderBoneTreeNode(int32 BoneIndex);
 	void RenderTransformEditor();
 
+	/** @brief FBX Asset에서 Bone 데이터 로드 (TargetComponent의 SkeletalMesh에서) */
+	void LoadBonesFromAsset();
+
 	// 상태
 	USkeletalMeshComponent* TargetComponent = nullptr;
 	int32 SelectedBoneIndex = -1;

@@ -2,6 +2,8 @@
 #include "SkeletalMeshEditorWidget.h"
 #include "ImGui/imgui.h"
 #include "SkeletalMeshComponent.h"
+#include "SkeletalMesh.h"
+#include "Enums.h"
 
 IMPLEMENT_CLASS(USkeletalMeshEditorWidget)
 
@@ -19,6 +21,20 @@ void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Compo
 {
 	TargetComponent = Component;
 	SelectedBoneIndex = Component ? Component->SelectedBoneIndex : -1;
+
+	// FBX Asset에서 Bone 데이터 로드
+	LoadBonesFromAsset();
+}
+
+void USkeletalMeshEditorWidget::LoadBonesFromAsset()
+{
+	if (!TargetComponent)
+		return;
+
+	// Component의 EditableBones를 사용 (이미 더미 데이터 로드됨)
+	// Editor에서 EditableBones를 수정하면 Component 렌더링에 즉시 반영됨
+	UE_LOG("SkeletalMeshEditorWidget: Using Component's EditableBones (%d bones)",
+		TargetComponent->EditableBones.size());
 }
 
 void USkeletalMeshEditorWidget::Update()
@@ -58,25 +74,28 @@ void USkeletalMeshEditorWidget::RenderBoneHierarchy()
 	ImGui::Separator();
 	ImGui::Spacing();
 
-	if (!TargetComponent)
+	if (!TargetComponent || TargetComponent->EditableBones.empty())
+	{
+		ImGui::TextDisabled("No bones loaded");
 		return;
+	}
 
 	// Root bone부터 재귀 렌더링
-	for (int32 i = 0; i < TargetComponent->GetBoneCount(); ++i)
+	for (size_t i = 0; i < TargetComponent->EditableBones.size(); ++i)
 	{
-		FBone* Bone = TargetComponent->GetBone(i);
-		if (Bone && Bone->ParentIndex < 0)  // Root bone
+		if (TargetComponent->EditableBones[i].ParentIndex < 0)  // Root bone
 		{
-			RenderBoneTreeNode(i);
+			RenderBoneTreeNode(static_cast<int32>(i));
 		}
 	}
 }
 
 void USkeletalMeshEditorWidget::RenderBoneTreeNode(int32 BoneIndex)
 {
-	FBone* Bone = TargetComponent->GetBone(BoneIndex);
-	if (!Bone)
+	if (!TargetComponent || BoneIndex < 0 || BoneIndex >= TargetComponent->EditableBones.size())
 		return;
+
+	FBone& Bone = TargetComponent->EditableBones[BoneIndex];
 
 	// Tree node flags
 	ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow |
@@ -87,10 +106,9 @@ void USkeletalMeshEditorWidget::RenderBoneTreeNode(int32 BoneIndex)
 
 	// 자식 bone 찾기
 	bool bHasChildren = false;
-	for (int32 i = 0; i < TargetComponent->GetBoneCount(); ++i)
+	for (size_t i = 0; i < TargetComponent->EditableBones.size(); ++i)
 	{
-		FBone* Child = TargetComponent->GetBone(i);
-		if (Child && Child->ParentIndex == BoneIndex)
+		if (TargetComponent->EditableBones[i].ParentIndex == BoneIndex)
 		{
 			bHasChildren = true;
 			break;
@@ -102,13 +120,14 @@ void USkeletalMeshEditorWidget::RenderBoneTreeNode(int32 BoneIndex)
 
 	// Tree node 렌더링
 	ImGui::PushID(BoneIndex);
-	bool bOpen = ImGui::TreeNodeEx(Bone->Name.c_str(), flags);
+	bool bOpen = ImGui::TreeNodeEx(Bone.Name.c_str(), flags);
 
 	// 클릭 시 선택
 	if (ImGui::IsItemClicked())
 	{
 		SelectedBoneIndex = BoneIndex;
-		TargetComponent->SelectedBoneIndex = BoneIndex;
+		if (TargetComponent)
+			TargetComponent->SelectedBoneIndex = BoneIndex;
 	}
 
 	// 자식 bone 재귀 렌더링
@@ -116,12 +135,11 @@ void USkeletalMeshEditorWidget::RenderBoneTreeNode(int32 BoneIndex)
 	{
 		if (bHasChildren)
 		{
-			for (int32 i = 0; i < TargetComponent->GetBoneCount(); ++i)
+			for (size_t i = 0; i < TargetComponent->EditableBones.size(); ++i)
 			{
-				FBone* Child = TargetComponent->GetBone(i);
-				if (Child && Child->ParentIndex == BoneIndex)
+				if (TargetComponent->EditableBones[i].ParentIndex == BoneIndex)
 				{
-					RenderBoneTreeNode(i);
+					RenderBoneTreeNode(static_cast<int32>(i));
 				}
 			}
 		}
@@ -137,17 +155,15 @@ void USkeletalMeshEditorWidget::RenderTransformEditor()
 	ImGui::Separator();
 	ImGui::Spacing();
 
-	if (SelectedBoneIndex < 0)
+	if (!TargetComponent || SelectedBoneIndex < 0 || SelectedBoneIndex >= TargetComponent->EditableBones.size())
 	{
 		ImGui::TextDisabled("Select a bone from the hierarchy");
 		return;
 	}
 
-	FBone* SelectedBone = TargetComponent->GetBone(SelectedBoneIndex);
-	if (!SelectedBone)
-		return;
+	FBone& SelectedBone = TargetComponent->EditableBones[SelectedBoneIndex];
 
-	ImGui::Text("Bone: %s (Index: %d)", SelectedBone->Name.c_str(), SelectedBoneIndex);
+	ImGui::Text("Bone: %s (Index: %d)", SelectedBone.Name.c_str(), SelectedBoneIndex);
 	ImGui::Separator();
 	ImGui::Spacing();
 
@@ -156,34 +172,19 @@ void USkeletalMeshEditorWidget::RenderTransformEditor()
 	ImGui::Spacing();
 
 	// Position
-	ImGui::DragFloat3("Position", &SelectedBone->LocalPosition.X, 0.1f);
+	ImGui::DragFloat3("Position", &SelectedBone.LocalPosition.X, 0.1f);
 
 	// Rotation (Euler 저장 패턴으로 gimbal lock UI 문제 방지)
 	// NOTE: SceneComponent와 동일한 패턴 - Euler 입력값을 별도 저장하여 UI 값 뒤집힘 방지
-	FVector euler = SelectedBone->GetLocalRotationEuler();
+	FVector euler = SelectedBone.GetLocalRotationEuler();
 	if (ImGui::DragFloat3("Rotation", &euler.X, 1.0f))
 	{
-		SelectedBone->SetLocalRotationEuler(euler);
+		SelectedBone.SetLocalRotationEuler(euler);
 	}
 
 	// Scale
-	ImGui::DragFloat3("Scale", &SelectedBone->LocalScale.X, 0.01f);
+	ImGui::DragFloat3("Scale", &SelectedBone.LocalScale.X, 0.01f);
 
 	ImGui::Spacing();
-	ImGui::TextDisabled("Note: Transform editing is now functional (dummy skeleton only)");
-
-	// World Transform 표시 (읽기 전용)
-	ImGui::Spacing();
-	ImGui::Separator();
-	ImGui::Text("World Transform (Read-Only):");
-	ImGui::Spacing();
-
-	FTransform WorldTransform = TargetComponent->GetBoneWorldTransform(SelectedBoneIndex);
-	FVector worldPos = WorldTransform.Translation;
-	FVector worldRot = WorldTransform.Rotation.ToEulerZYXDeg();
-	FVector worldScale = WorldTransform.Scale3D;
-
-	ImGui::Text("Position: (%.1f, %.1f, %.1f)", worldPos.X, worldPos.Y, worldPos.Z);
-	ImGui::Text("Rotation: (%.1f, %.1f, %.1f)", worldRot.X, worldRot.Y, worldRot.Z);
-	ImGui::Text("Scale: (%.1f, %.1f, %.1f)", worldScale.X, worldScale.Y, worldScale.Z);
+	ImGui::TextDisabled("Note: Editing dummy FBoneInfo → FBone data");
 }

@@ -43,12 +43,11 @@ public:
 	/** @brief 현재 선택된 bone index (-1 = none) */
 	int32 SelectedBoneIndex = -1;
 
+	/** @brief 편집 가능한 Bone 배열 (Editor Widget이 직접 수정) */
+	TArray<FBone> EditableBones;
+
 	// ===== Viewport 렌더링 (다형성) =====
 
 	/** @brief Bone skeleton을 line으로 시각화 */
 	virtual void RenderDebugVolume(class URenderer* Renderer) const override;
-
-private:
-	/** @brief 더미 skeleton (TODO: 실제 FSkeleton*로 교체) */
-	std::unique_ptr<FDummySkeleton> DummySkeleton;
 };

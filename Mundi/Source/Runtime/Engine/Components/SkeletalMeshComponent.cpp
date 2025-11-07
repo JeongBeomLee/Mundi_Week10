@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "SkeletalMeshComponent.h"
 #include "Renderer.h"
+#include "SkeletalMesh.h"
 
 IMPLEMENT_CLASS(USkeletalMeshComponent)
 
@@ -10,41 +11,93 @@ END_PROPERTIES()
 
 USkeletalMeshComponent::USkeletalMeshComponent()
 {
-	// 더미 skeleton 생성 (하드코딩)
-	DummySkeleton = std::make_unique<FDummySkeleton>();
+	// 더미 FBoneInfo 데이터 생성 (테스트용)
+	TArray<FBoneInfo> DummyBoneInfos;
 
-	UE_LOG("SkeletalMeshComponent: Dummy skeleton created with %d bones", DummySkeleton->GetBoneCount());
+	// Root
+	FBoneInfo rootInfo;
+	rootInfo.BoneName = "Root";
+	rootInfo.ParentIndex = -1;
+	rootInfo.OffsetMatrix = FMatrix::Identity().InverseAffine();
+	DummyBoneInfos.push_back(rootInfo);
+
+	// Spine (Root의 자식, Z+10)
+	FBoneInfo spineInfo;
+	spineInfo.BoneName = "Spine";
+	spineInfo.ParentIndex = 0;
+	FMatrix spineWorld = FMatrix::Identity();
+	spineWorld.M[3][2] = 10.0f;
+	spineInfo.OffsetMatrix = spineWorld.InverseAffine();
+	DummyBoneInfos.push_back(spineInfo);
+
+	// Head (Spine의 자식, World Z+15)
+	FBoneInfo headInfo;
+	headInfo.BoneName = "Head";
+	headInfo.ParentIndex = 1;
+	FMatrix headWorld = FMatrix::Identity();
+	headWorld.M[3][2] = 25.0f;
+	headInfo.OffsetMatrix = headWorld.InverseAffine();
+	DummyBoneInfos.push_back(headInfo);
+
+	// LeftArm (Spine의 자식, X-8, Z+18)
+	FBoneInfo leftArmInfo;
+	leftArmInfo.BoneName = "LeftArm";
+	leftArmInfo.ParentIndex = 1;
+	FMatrix leftArmWorld = FMatrix::Identity();
+	leftArmWorld.M[3][0] = -8.0f;
+	leftArmWorld.M[3][2] = 18.0f;
+	leftArmInfo.OffsetMatrix = leftArmWorld.InverseAffine();
+	DummyBoneInfos.push_back(leftArmInfo);
+
+	// RightArm (Spine의 자식, X+8, Z+18)
+	FBoneInfo rightArmInfo;
+	rightArmInfo.BoneName = "RightArm";
+	rightArmInfo.ParentIndex = 1;
+	FMatrix rightArmWorld = FMatrix::Identity();
+	rightArmWorld.M[3][0] = 8.0f;
+	rightArmWorld.M[3][2] = 18.0f;
+	rightArmInfo.OffsetMatrix = rightArmWorld.InverseAffine();
+	DummyBoneInfos.push_back(rightArmInfo);
+
+	// FBoneInfo → FBone 변환
+	for (size_t i = 0; i < DummyBoneInfos.size(); i++)
+	{
+		FBone bone = FBone::FromBoneInfo(static_cast<int32>(i), DummyBoneInfos);
+		EditableBones.push_back(bone);
+	}
+
+	UE_LOG("SkeletalMeshComponent: Loaded %d bones from dummy FBoneInfo data", EditableBones.size());
 }
 
 int32 USkeletalMeshComponent::GetBoneCount() const
 {
-	return DummySkeleton ? DummySkeleton->GetBoneCount() : 0;
+	return static_cast<int32>(EditableBones.size());
 }
 
 FBone* USkeletalMeshComponent::GetBone(int32 Index)
 {
-	return DummySkeleton ? DummySkeleton->GetBone(Index) : nullptr;
+	if (Index >= 0 && Index < static_cast<int32>(EditableBones.size()))
+		return &EditableBones[Index];
+	return nullptr;
 }
 
 FTransform USkeletalMeshComponent::GetBoneWorldTransform(int32 BoneIndex) const
 {
-	if (!DummySkeleton)
+	if (BoneIndex < 0 || BoneIndex >= static_cast<int32>(EditableBones.size()))
 		return FTransform();
 
-	FBone* Bone = DummySkeleton->GetBone(BoneIndex);
-	if (!Bone)
-		return FTransform();
+	const FBone& Bone = EditableBones[BoneIndex];
 
 	// Local transform 생성
 	FTransform LocalTransform;
-	LocalTransform.Translation = Bone->LocalPosition;
-	LocalTransform.Rotation = Bone->LocalRotation;
-	LocalTransform.Scale3D = Bone->LocalScale;
+	LocalTransform.Translation = Bone.LocalPosition;
+	LocalTransform.Rotation = Bone.LocalRotation;
+	LocalTransform.Scale3D = Bone.LocalScale;
 
 	// Parent transform 재귀 누적
-	if (Bone->ParentIndex >= 0)
+	if (Bone.ParentIndex >= 0)
 	{
-		FTransform ParentWorldTransform = GetBoneWorldTransform(Bone->ParentIndex);
+		FTransform ParentWorldTransform = GetBoneWorldTransform(Bone.ParentIndex);
 		return ParentWorldTransform.GetWorldTransform(LocalTransform);
 	}
 
@@ -61,7 +114,7 @@ void USkeletalMeshComponent::SetBoneLocalTransform(int32 BoneIndex, const FTrans
 
 void USkeletalMeshComponent::RenderDebugVolume(URenderer* Renderer) const
 {
-	if (!DummySkeleton || !Renderer)
+	if (EditableBones.empty() || !Renderer)
 		return;
 
 	// Bone skeleton을 line으로 시각화
@@ -70,16 +123,16 @@ void USkeletalMeshComponent::RenderDebugVolume(URenderer* Renderer) const
 	// 1. Parent → Child 연결선 렌더링
 	for (int32 i = 0; i < GetBoneCount(); ++i)
 	{
-		FBone* Bone = DummySkeleton->GetBone(i);
-		if (!Bone || Bone->ParentIndex < 0)
+		const FBone& Bone = EditableBones[i];
+		if (Bone.ParentIndex < 0)
 			continue;  // Root bone은 line 없음
 
 		// Parent → Child 연결선
-		FVector ParentPos = GetBoneWorldTransform(Bone->ParentIndex).Translation;
+		FVector ParentPos = GetBoneWorldTransform(Bone.ParentIndex).Translation;
 		FVector ChildPos = GetBoneWorldTransform(i).Translation;
 
 		// 선택된 bone은 빨간색, 나머지는 노란색
-		FVector4 Color = (i == SelectedBoneIndex || Bone->ParentIndex == SelectedBoneIndex)
+		FVector4 Color = (i == SelectedBoneIndex || Bone.ParentIndex == SelectedBoneIndex)
 			? FVector4(1.0f, 0.0f, 0.0f, 1.0f)  // Red
 			: FVector4(1.0f, 1.0f, 0.0f, 1.0f);  // Yellow
 

@@ -39,6 +39,16 @@ struct FBone
 	{
 		return LocalRotationEuler;
 	}
+
+	/**
+	 * @brief FBoneInfo에서 FBone으로 변환 (Helper)
+	 * @param Index 변환할 Bone 인덱스
+	 * @param AllBoneInfos 전체 FBoneInfo 배열
+	 * @return 편집 가능한 FBone 인스턴스
+	 * @note OffsetMatrix.Inverse() + Decompose로 Local Transform 추출
+	 * @todo 나중에 FBoneInfo에 LocalTransformMatrix 추가되면 그걸 사용하도록 변경
+	 */
+	static FBone FromBoneInfo(int32 Index, const TArray<struct FBoneInfo>& AllBoneInfos);
 };
 
 /**
