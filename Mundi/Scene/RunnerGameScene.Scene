@@ -1,0 +1,92 @@
+{
+  "Level" : {
+    "Actors" : {
+      "766" : {
+        "Name" : "Directional Light Actor",
+        "OwnedComponents" : [{
+            "CSMLambda" : 0.500000,
+            "Id" : 768,
+            "Intensity" : 1.000000,
+            "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
+            "NumCascades" : 3,
+            "ParentId" : 0,
+            "RelativeLocation" : [0.000000, 0.000000, 0.000000],
+            "RelativeRotationEuler" : [-62.900280, 16.769619, -62.900280],
+            "RelativeScale" : [1.000000, 1.000000, 1.000000],
+            "ShadowBias" : 0.005000,
+            "ShadowMapType" : 1,
+            "ShadowProjectionType" : 0,
+            "ShadowSharpen" : 1.000000,
+            "ShadowSlopeBias" : 2.000000,
+            "Temperature" : 6500.000000,
+            "Type" : "UDirectionalLightComponent",
+            "bHiddenInGame" : false,
+            "bIsActive" : true,
+            "bIsCastShadows" : true,
+            "bIsVisible" : true,
+            "bTickEnabled" : true
+          }, {
+            "Acceleration" : [0.000000, 0.000000, 0.000000],
+            "PivotTranslation" : [8.500000, 22.200001, 11.100000],
+            "RotationRate" : [0.000000, 32.700001, 0.000000],
+            "Type" : "URotatingMovementComponent",
+            "Velocity" : [0.000000, 0.000000, 0.000000],
+            "bIsActive" : true,
+            "bRotationInLocalSpace" : true,
+            "bTickEnabled" : true,
+            "bUpdateOnlyIfRendered" : false
+          }],
+        "RootComponentId" : 768,
+        "Type" : "ADirectionalLightActor"
+      },
+      "769" : {
+        "Name" : "Ambient Light Actor",
+        "OwnedComponents" : [{
+            "Acceleration" : [0.000000, 0.000000, 0.000000],
+            "PivotTranslation" : [8.400000, 35.700001, 14.800000],
+            "RotationRate" : [15.400000, 38.000000, 16.900000],
+            "Type" : "URotatingMovementComponent",
+            "Velocity" : [0.000000, 0.000000, 0.000000],
+            "bIsActive" : true,
+            "bRotationInLocalSpace" : true,
+            "bTickEnabled" : true,
+            "bUpdateOnlyIfRendered" : false
+          }, {
+            "Id" : 771,
+            "Intensity" : 0.100000,
+            "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
+            "ParentId" : 0,
+            "RelativeLocation" : [0.000000, 0.000000, 0.000000],
+            "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
+            "RelativeScale" : [1.000000, 1.000000, 1.000000],
+            "ShadowBias" : 0.001000,
+            "ShadowSharpen" : 1.000000,
+            "ShadowSlopeBias" : 0.000000,
+            "Temperature" : 6500.000000,
+            "Type" : "UAmbientLightComponent",
+            "bHiddenInGame" : false,
+            "bIsActive" : true,
+            "bIsCastShadows" : true,
+            "bIsVisible" : true,
+            "bTickEnabled" : true
+          }],
+        "RootComponentId" : 771,
+        "Type" : "AAmbientLightActor"
+      }
+    },
+    "NextUUID" : 777,
+    "PerspectiveCamera" : {
+      "FOV" : [60.000000],
+      "FarClip" : [1000.000000],
+      "Location" : [-5.000000, 0.000000, 5.000000],
+      "NearClip" : [0.100000],
+      "Rotation" : [0.000000, 23.299957, -0.200044]
+    },
+    "Version" : 1
+  },
+  "WorldSettings" : {
+    "DefaultPawnClass" : "ARunnerCharacter",
+    "GameModeClass" : "ARunnerGameMode",
+    "PlayerSpawnLocation" : [0.000000, 0.000000, 0.000000]
+  }
+}

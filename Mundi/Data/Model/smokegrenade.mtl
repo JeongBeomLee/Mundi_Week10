@@ -1,0 +1,13 @@
+# Blender 4.5.3 LTS MTL File: 'None'
+# www.blender.org
+
+newmtl M18_Smoke
+Ns 32.000008
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd M18_Smoke_baseColor.png
+map_Bump -bm 1.000000 M18_Smoke_normal.png

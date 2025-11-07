@@ -1,0 +1,12 @@
+root = true
+
+# 공통 기본 규칙
+[*]
+charset = utf-8          # 기본: BOM 없는 UTF-8
+
+# C/C++ 소스/헤더만 BOM 강제
+[*.cpp]
+charset = utf-8-bom
+
+[*.h]
+charset = utf-8-bom

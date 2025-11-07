@@ -1,0 +1,34 @@
+# Build directories
+Binaries/
+Intermediate/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.sdf
+*.opensdf
+*.db
+*.opendb
+*.VC.db
+*.vcxproj.filters
+
+# Compiled files
+*.obj
+*.pch
+*.exe
+*.dll
+*.lib
+*.exp
+*.ilk
+*.pdb
+*.idb
+
+# Cache
+DerivedDataCache/
+*.cache
+
+# Temporary files
+*.tmp
+*.log
+*.tlog

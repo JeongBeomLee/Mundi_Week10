@@ -1,0 +1,36 @@
+{
+  "BlendParams" : {
+    "BlendExp" : 2.000000,
+    "BlendFunction" : 5,
+    "BlendTime" : 0.500000,
+    "BlendTimeRemaining" : 1.000000,
+    "FOVCurve" : {
+      "P0" : 0.000000,
+      "P1" : 1.000000,
+      "P2" : 0.000000,
+      "P3" : 1.000000
+    },
+    "LocationCurve" : {
+      "P0" : 0.000000,
+      "P1" : 1.000000,
+      "P2" : 0.000000,
+      "P3" : 1.000000
+    },
+    "RotationCurve" : {
+      "P0" : 0.000000,
+      "P1" : 1.000000,
+      "P2" : 0.000000,
+      "P3" : 1.000000
+    },
+    "SpringArmCurve" : {
+      "P0" : 0.000000,
+      "P1" : 0.053125,
+      "P2" : 0.196875,
+      "P3" : 0.000000
+    },
+    "TargetSpringArmLength" : 3.000000,
+    "bBlendSpringArmLength" : false,
+    "bLockOutgoing" : false
+  },
+  "PresetName" : "BounceCurve"
+}

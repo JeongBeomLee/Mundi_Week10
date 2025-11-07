@@ -1,0 +1,4 @@
+﻿-- Global
+GlobalVariable = {};
+
+return GlobalVariable;
