@@ -202,6 +202,50 @@ struct FStaticMesh
     }
 };
 
+//// Cooked Data
+struct FSkeletalMesh
+{
+    FString PathFileName;
+    FString CacheFilePath;  // 캐시된 소스 경로 (예: DerivedDataCache/cube.obj.bin)
+
+    TArray<FNormalVertex> Vertices;
+    TArray<uint32> Indices;
+    // to do: 여러가지 추가(ex: material 관련)
+    TArray<FGroupInfo> GroupInfos; // 각 group을 render 하기 위한 정보
+
+    bool bHasMaterial;
+
+    friend FArchive& operator<<(FArchive& Ar, FSkeletalMesh& Mesh)
+    {
+        if (Ar.IsSaving())
+        {
+            Serialization::WriteString(Ar, Mesh.PathFileName);
+            Serialization::WriteArray(Ar, Mesh.Vertices);
+            Serialization::WriteArray(Ar, Mesh.Indices);
+
+            uint32_t gCount = (uint32_t)Mesh.GroupInfos.size();
+            Ar << gCount;
+            for (auto& g : Mesh.GroupInfos) Ar << g;
+
+            Ar << Mesh.bHasMaterial;
+        }
+        else if (Ar.IsLoading())
+        {
+            Serialization::ReadString(Ar, Mesh.PathFileName);
+            Serialization::ReadArray(Ar, Mesh.Vertices);
+            Serialization::ReadArray(Ar, Mesh.Indices);
+
+            uint32_t gCount;
+            Ar << gCount;
+            Mesh.GroupInfos.resize(gCount);
+            for (auto& g : Mesh.GroupInfos) Ar << g;
+
+            Ar << Mesh.bHasMaterial;
+        }
+        return Ar;
+    }
+};
+
 struct FMeshData
 {
     // 중복 없는 정점

@@ -23,6 +23,13 @@
 #pragma comment(lib, "fmod_vc.lib")
 #endif
 
+// FBX
+#ifdef _DEBUG
+#pragma comment(lib, "libfbxsdk-md.lib")
+#else
+#pragma comment(lib, "libfbxsdk-md.lib")
+#endif
+
 
 // Standard Library (MUST come before UEContainer.h)
 #include <vector>

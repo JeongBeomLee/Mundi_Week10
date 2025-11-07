@@ -4,6 +4,7 @@
 #include "DirectXTK/DDSTextureLoader.h"
 #include "DirectXTK/WICTextureLoader.h"
 #include "ObjManager.h"
+#include "FBXManager.h"
 #include "Quad.h"
 #include "MeshBVH.h"
 #include "Enums.h"
