@@ -26,8 +26,12 @@
 // FBX
 #ifdef _DEBUG
 #pragma comment(lib, "libfbxsdk-md.lib")
+#pragma comment(lib, "libxml2-md.lib") 
+#pragma comment(lib, "zlib-md.lib")    
 #else
 #pragma comment(lib, "libfbxsdk-md.lib")
+#pragma comment(lib, "libxml2-md.lib") 
+#pragma comment(lib, "zlib-md.lib") 
 #endif
 
 
@@ -94,6 +98,9 @@
 // lua
 #define SOL_ALL_SAFETIES_ON 1
 #include <sol/sol.hpp>
+
+// FBX
+#include "fbxsdk.h"
 
 //Manager
 #include "Renderer.h"

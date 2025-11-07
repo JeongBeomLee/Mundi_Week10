@@ -114,23 +114,23 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LibraryPath>ThirdParty\DirectXTK\Bin\$(Configuration)\;ThirdParty\DirectXTex\Lib\x64\$(Configuration)\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\$(Configuration)\;$(LibraryPath)</LibraryPath>
+    <LibraryPath>ThirdParty\DirectXTK\Bin\$(Configuration)\;ThirdParty\DirectXTex\Lib\x64\$(Configuration)\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\$(Configuration)\;ThirdParty\FbxSDK\lib\x64\debug\;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)Binaries\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Intermediate\$(ProjectName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IntDir>$(SolutionDir)Intermediate\$(ProjectName)\$(Configuration)\</IntDir>
-    <LibraryPath>ThirdParty\DirectXTK\Bin\$(Configuration)\;ThirdParty\DirectXTex\Lib\x64\$(Configuration)\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\$(Configuration)\;$(LibraryPath)</LibraryPath>
+    <LibraryPath>ThirdParty\DirectXTK\Bin\$(Configuration)\;ThirdParty\DirectXTex\Lib\x64\$(Configuration)\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\$(Configuration)\;ThirdParty\FbxSDK\lib\x64\release\;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)Binaries\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='StandAlone|x64'">
     <IntDir>$(SolutionDir)Intermediate\$(ProjectName)\$(Configuration)\</IntDir>
-    <LibraryPath>ThirdParty\DirectXTK\Bin\Release\;ThirdParty\DirectXTex\Lib\x64\Release\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\Release\;$(LibraryPath)</LibraryPath>
+    <LibraryPath>ThirdParty\DirectXTK\Bin\Release\;ThirdParty\DirectXTex\Lib\x64\Release\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\Release\;ThirdParty\FbxSDK\lib\x64\release\;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)Binaries\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release_StandAlone|x64'">
     <IntDir>$(SolutionDir)Intermediate\$(ProjectName)\StandAlone\</IntDir>
-    <LibraryPath>ThirdParty\DirectXTK\Bin\Release\;ThirdParty\DirectXTex\Lib\x64\Release\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\Release\;$(LibraryPath)</LibraryPath>
+    <LibraryPath>ThirdParty\DirectXTK\Bin\Release\;ThirdParty\DirectXTex\Lib\x64\Release\;ThirdParty\lua\Lib\;ThirdParty\FMOD\lib\x64\Release\;ThirdParty\FbxSDK\lib\x64\release\;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)Binaries\StandAlone\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -206,7 +206,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmodL_vc.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmodL_vc.lib;libfbxsdk-md.lib;libxml2-md.lib;zlib-md.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
@@ -249,7 +249,7 @@ if "$(Configuration)"=="Debug" (
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmod_vc.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmod_vc.lib;libfbxsdk-md.lib;libxml2-md.lib;zlib-md.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
@@ -292,7 +292,7 @@ if "$(Configuration)"=="Debug" (
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmod_vc.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmod_vc.lib;libfbxsdk-md.lib;libxml2-md.lib;zlib-md.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
@@ -330,7 +330,7 @@ if "$(Configuration)"=="Debug" (
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmod_vc.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;lua.lib;fmod_vc.lib;libfbxsdk-md.lib;libxml2-md.lib;zlib-md.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>

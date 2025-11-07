@@ -1,20 +1,25 @@
 ﻿#pragma once
 
 class USkeletalMesh;
+struct FSkeletalMesh;
+struct FNormalVertex;
 
 class FBXManager
 {
 public:
     FBXManager();
     ~FBXManager();
-    
-    // FBX 파일 로드 
-    bool LoadFbxFile(const FString& InFilePath); 
 
     static void Preload();
     static void Clear();
     static FSkeletalMesh* LoadFBXSkeletalMeshAsset(const FString& PathFileName);
     static USkeletalMesh* LoadFBXSkeletalMesh(const FString& PathFileName);
+
 private:
-    static TMap<FString, FSkeletalMesh*> ObjStaticMeshMap;
+    // Helper functions for LoadFBXSkeletalMeshAsset
+    static void ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData);
+    static void ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData);
+    static void ParseSkinWeights(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData);
+
+    static TMap<FString, FSkeletalMesh*> FBXSkeletalMeshMap;
 };

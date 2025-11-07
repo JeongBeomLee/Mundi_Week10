@@ -16,6 +16,7 @@
 #include "Object.h"
 // ... 기타 include ...
 
+class USkeletalMesh;
 // --- 전방 선언 ---
 class UStaticMesh;
 class FMeshBVH;
@@ -86,6 +87,7 @@ public:
 	FMeshBVH* GetMeshBVH(const FString& ObjPath);
 	FMeshBVH* GetOrBuildMeshBVH(const FString& ObjPath, const struct FStaticMesh* StaticMeshAsset);
 	void SetStaticMeshs();
+	void SetSkeletalMeshs();
 	const TArray<UStaticMesh*>& GetStaticMeshs() { return StaticMeshs; }
 
 	// --- Deprecated (향후 제거될 함수들) ---
@@ -111,6 +113,7 @@ protected:
 	TMap<FString, FString> TextureToShaderMap;
 
 	TArray<UStaticMesh*> StaticMeshs;
+	TArray<USkeletalMesh*> SkeletalMeshs;
 
 	// Deprecated
 	TMap<FString, FResourceData*> ResourceMap;

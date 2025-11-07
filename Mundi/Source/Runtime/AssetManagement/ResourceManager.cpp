@@ -149,6 +149,11 @@ void UResourceManager::SetStaticMeshs()
     StaticMeshs = GetAll<UStaticMesh>();
 }
 
+void UResourceManager::SetSkeletalMeshs()
+{
+    SkeletalMeshs = GetAll<USkeletalMesh>();
+}
+
 void UResourceManager::CreateAxisMesh(float Length, const FString& FilePath)
 {
     // 이미 있으면 패스

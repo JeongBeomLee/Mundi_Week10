@@ -489,7 +489,14 @@ struct alignas(16) FVector4
 	FVector4& operator-=(const FVector4& V) { SimdData = _mm_sub_ps(SimdData, V.SimdData); return *this; }
 	FVector4& operator*=(float S) { SimdData = _mm_mul_ps(SimdData, _mm_set1_ps(S)); return *this; }
 	FVector4& operator/=(float S) { SimdData = _mm_div_ps(SimdData, _mm_set1_ps(S)); return *this; }
-
+	bool operator==(const FVector4& V) const
+	{
+		return
+			std::fabs(X - V.X) < KINDA_SMALL_NUMBER &&
+			std::fabs(Y - V.Y) < KINDA_SMALL_NUMBER &&
+			std::fabs(Z - V.Z) < KINDA_SMALL_NUMBER &&
+			std::fabs(W - V.W) < KINDA_SMALL_NUMBER;
+	}
 	FVector4 ComponentMin(const FVector4& B) const
 	{
 		return FVector4(_mm_min_ps(this->SimdData, B.SimdData));
@@ -1046,6 +1053,19 @@ struct alignas(16) FMatrix
 	bool operator!=(const FMatrix& Other) const
 	{
 		return !(*this == Other);
+	}
+
+	// 대입 연산자 (FbxAMatrix 등 외부 행렬과 호환)
+	FMatrix& operator=(const FMatrix& Other)
+	{
+		for (uint8 i = 0; i < 4; ++i)
+		{
+			for (uint8 j = 0; j < 4; ++j)
+			{
+				M[i][j] = Other.M[i][j];
+			}
+		}
+		return *this;
 	}
 
 	// View/Proj (L H)

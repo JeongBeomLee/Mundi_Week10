@@ -138,6 +138,15 @@ struct FNormalVertex
         Ar << Vtx.tex;
         return Ar;
     }
+
+    bool operator==(const FNormalVertex& Other) const
+    {
+        return pos == Other.pos &&
+               normal == Other.normal &&
+               tex == Other.tex &&
+               Tangent == Other.Tangent &&
+               color == Other.color;
+    }
 };
 
 // Template specialization for TArray<FNormalVertex> to force element-by-element serialization
@@ -202,6 +211,28 @@ struct FStaticMesh
     }
 };
 
+// Bone 정보
+struct FBoneInfo
+{
+    FString BoneName;
+    int32 ParentIndex;  // -1 for root
+    FMatrix OffsetMatrix;  // Bind pose inverse transform
+};
+
+// Skinning Vertex (Bone Weights + Indices 포함)
+struct FSkinnedVertex
+{
+    FNormalVertex BaseVertex;  // Position, Normal, UV, Tangent, Color
+    uint8 BoneIndices[4];      // 영향을 주는 Bone 인덱스 (최대 4개)
+    float BoneWeights[4];      // 각 Bone의 Weight (합 = 1.0)
+
+    FSkinnedVertex()
+    {
+        BoneIndices[0] = BoneIndices[1] = BoneIndices[2] = BoneIndices[3] = 0;
+        BoneWeights[0] = BoneWeights[1] = BoneWeights[2] = BoneWeights[3] = 0.0f;
+    }
+};
+
 //// Cooked Data
 struct FSkeletalMesh
 {
@@ -214,6 +245,10 @@ struct FSkeletalMesh
     TArray<FGroupInfo> GroupInfos; // 각 group을 render 하기 위한 정보
 
     bool bHasMaterial;
+
+    // Skeletal Mesh 전용 데이터
+    TArray<FBoneInfo> Bones;           // Skeleton (Bone Hierarchy)
+    TArray<FSkinnedVertex> SkinnedVertices;  // Skinning 정보가 포함된 정점들
 
     friend FArchive& operator<<(FArchive& Ar, FSkeletalMesh& Mesh)
     {
