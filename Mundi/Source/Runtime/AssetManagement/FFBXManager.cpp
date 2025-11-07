@@ -57,6 +57,7 @@ namespace std {
 // 로드된 FSkeletalMesh를 경로별로 캐싱하는 맵
 // Key: 정규화된 파일 경로, Value: FSkeletalMesh 포인터
 TMap<FString, FSkeletalMesh*> FFBXManager::FBXSkeletalMeshMap;
+TMap<FString, FStaticMesh*> FFBXManager::FBXStaticMeshMap;
 
 FFBXManager::FFBXManager()
 {
@@ -104,6 +105,7 @@ void FFBXManager::Preload()
             {
                 ProcessedFiles.insert(PathStr);
                 LoadFBXSkeletalMesh(PathStr);
+                LoadFBXStaticMesh(PathStr);
                 ++LoadedCount;
             }
         }
@@ -132,8 +134,14 @@ void FFBXManager::Clear()
     {
         delete Pair.second;
     }
-
     FBXSkeletalMeshMap.Empty();
+
+    // 맵에 저장된 모든 FStaticMesh 메모리 해제
+    for (auto& Pair : FBXStaticMeshMap)
+    {
+        delete Pair.second;
+    }
+    FBXStaticMeshMap.Empty();
 }
 
 /*
@@ -713,4 +721,161 @@ void FFBXManager::ParseSkinWeights(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshD
     }
 
     UE_LOG("FBXManager: Applied skinning to %zu vertices", OutMeshData->SkinnedVertices.size());
+}
+
+
+/**
+ * FBX 파일에서 Static Mesh Asset을 로드
+ *
+ * @param PathFileName FBX 파일 경로
+ * @return 로드된 FStaticMesh 포인터 (실패 시 nullptr)
+ */
+FStaticMesh* FFBXManager::LoadFBXStaticMeshAsset(const FString& PathFileName)
+{
+    // 1. 경로 정규화
+    FString NormalizedPathStr = NormalizePath(PathFileName);
+
+    // 2. 메모리 캐시 확인: 이미 로드된 에셋이 있으면 즉시 반환
+    if (FStaticMesh** It = FBXStaticMeshMap.Find(NormalizedPathStr))
+    {
+        UE_LOG("FBXManager: Static mesh already loaded from cache: %s", NormalizedPathStr.c_str());
+        return *It;
+    }
+
+    UE_LOG("FBXManager: Loading static mesh from FBX: %s", NormalizedPathStr.c_str());
+
+    // 3. FBX Manager 및 Scene 생성
+    FbxManager* SdkManager = FbxManager::Create();
+    if (!SdkManager)
+    {
+        UE_LOG("FBXManager: Failed to create FBX SDK Manager");
+        return nullptr;
+    }
+
+    FbxIOSettings* IOSettings = FbxIOSettings::Create(SdkManager, IOSROOT);
+    SdkManager->SetIOSettings(IOSettings);
+
+    FbxScene* Scene = FbxScene::Create(SdkManager, "MyScene");
+    if (!Scene)
+    {
+        UE_LOG("FBXManager: Failed to create FBX Scene");
+        SdkManager->Destroy();
+        return nullptr;
+    }
+
+    // 4. FBX Importer 생성 및 파일 로드
+    FbxImporter* Importer = FbxImporter::Create(SdkManager, "");
+    if (!Importer->Initialize(NormalizedPathStr.c_str(), -1, SdkManager->GetIOSettings()))
+    {
+        UE_LOG("FBXManager: Failed to initialize FBX Importer: %s", Importer->GetStatus().GetErrorString());
+        Scene->Destroy();
+        SdkManager->Destroy();
+        return nullptr;
+    }
+
+    if (!Importer->Import(Scene))
+    {
+        UE_LOG("FBXManager: Failed to import FBX file: %s", Importer->GetStatus().GetErrorString());
+        Importer->Destroy();
+        Scene->Destroy();
+        SdkManager->Destroy();
+        return nullptr;
+    }
+    Importer->Destroy();
+
+    // 5. Scene을 DirectX 왼손 좌표계로 변환 (Z-up → Y-up, 오른손 → 왼손)
+    FbxAxisSystem SceneAxisSystem = Scene->GetGlobalSettings().GetAxisSystem();
+    FbxAxisSystem TargetAxisSystem(FbxAxisSystem::eYAxis, FbxAxisSystem::eParityOdd, FbxAxisSystem::eLeftHanded);
+    if (SceneAxisSystem != TargetAxisSystem)
+    {
+        TargetAxisSystem.ConvertScene(Scene);
+    }
+
+    // 6. Scene을 Triangulate (모든 Polygon을 Triangle로 변환)
+    FbxGeometryConverter GeometryConverter(SdkManager);
+    GeometryConverter.Triangulate(Scene, true);
+
+    // 7. Root Node에서 첫 번째 Mesh 찾기
+    FbxNode* RootNode = Scene->GetRootNode();
+    FbxMesh* FirstMesh = nullptr;
+
+    std::function<void(FbxNode*)> FindFirstMesh = [&](FbxNode* Node) {
+        if (FirstMesh) return;
+
+        if (Node->GetNodeAttribute())
+        {
+            FbxNodeAttribute::EType AttributeType = Node->GetNodeAttribute()->GetAttributeType();
+            if (AttributeType == FbxNodeAttribute::eMesh)
+            {
+                FirstMesh = Node->GetMesh();
+                return;
+            }
+        }
+
+        for (int i = 0; i < Node->GetChildCount(); ++i)
+        {
+            FindFirstMesh(Node->GetChild(i));
+        }
+    };
+
+    FindFirstMesh(RootNode);
+
+    if (!FirstMesh)
+    {
+        UE_LOG("FBXManager: No mesh found in FBX file: %s", NormalizedPathStr.c_str());
+        Scene->Destroy();
+        SdkManager->Destroy();
+        return nullptr;
+    }
+
+    // 8. FStaticMesh 데이터 생성
+    FStaticMesh* StaticMeshData = new FStaticMesh();
+    StaticMeshData->PathFileName = NormalizedPathStr;
+
+    // 9. 메시 데이터 파싱
+    // FStaticMesh와 FSkeletalMesh는 동일한 구조(Vertices, Indices, GroupInfos)를 가지므로 캐스팅 가능
+    TArray<int> VertexToControlPointMap;  // Static Mesh는 Skinning 안 하므로 사용 안 함
+    ParseMeshGeometry(FirstMesh, (FSkeletalMesh*)StaticMeshData, VertexToControlPointMap);
+
+    UE_LOG("FBXManager: Successfully loaded static mesh");
+    UE_LOG("  Vertices: %zu", StaticMeshData->Vertices.size());
+    UE_LOG("  Indices: %zu", StaticMeshData->Indices.size());
+
+    // 10. FBX SDK 리소스 정리
+    Scene->Destroy();
+    SdkManager->Destroy();
+
+    // 11. 캐시에 저장하여 메모리 관리
+    FBXStaticMeshMap.Add(NormalizedPathStr, StaticMeshData);
+
+    return StaticMeshData;
+}
+
+/**
+ * FBX 파일에서 UStaticMesh 객체를 로드
+ *
+ * @param PathFileName FBX 파일 경로
+ * @return 로드된 UStaticMesh 포인터 (실패 시 nullptr)
+ */
+UStaticMesh* FFBXManager::LoadFBXStaticMesh(const FString& PathFileName)
+{
+    // 0) 경로 정규화
+    FString NormalizedPathStr = NormalizePath(PathFileName);
+
+    // 1) 이미 로드된 UStaticMesh가 있는지 전체 검색 (정규화된 경로로 비교)
+    for (TObjectIterator<UStaticMesh> It; It; ++It)
+    {
+        UStaticMesh* StaticMesh = *It;
+
+        if (StaticMesh->GetFilePath() == NormalizedPathStr)
+        {
+            return StaticMesh;
+        }
+    }
+
+    // 2) 없으면 새로 로드 (정규화된 경로 사용)
+    UStaticMesh* StaticMesh = UResourceManager::GetInstance().Load<UStaticMesh>(NormalizedPathStr);
+
+    UE_LOG("UStaticMesh(filename: \'%s\') is successfully created!", NormalizedPathStr.c_str());
+    return StaticMesh;
 }
