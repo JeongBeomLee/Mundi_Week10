@@ -572,8 +572,13 @@ bool CPickingSystem::CheckGizmoComponentPicking(UStaticMeshComponent* Component,
 		GizmoComponent->SetDrawScale(ViewWidth, ViewHeight, ViewMatrix, ProjectionMatrix);
 	}
 
+	FStaticMesh* StaticMesh = nullptr;
+
 	// Gizmo 메시는 FStaticMesh(쿠킹된 데이터)를 사용
-	FStaticMesh* StaticMesh = Component->GetStaticMesh()->GetStaticMeshAsset();
+	if (Component->GetStaticMesh())
+	{
+		StaticMesh = Component->GetStaticMesh()->GetStaticMeshAsset();
+	}
 
 	if (!StaticMesh) return false;
 
