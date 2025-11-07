@@ -9,6 +9,7 @@
 // 전방 선언
 class AController;
 class UInputComponent;
+class UCameraComponent;
 
 /**
  * APawn
@@ -30,6 +31,13 @@ public:
 
 	APawn();
 	virtual ~APawn() override;
+
+	// ────────────────────────────────────────────────
+	// 컴포넌트 관련
+	// ────────────────────────────────────────────────
+
+	/** 카메라 컴포넌트를 반환합니다 */
+	UCameraComponent* GetCameraComponent() const { return CameraComponent; }
 
 	// ────────────────────────────────────────────────
 	// Controller 관련
@@ -120,6 +128,9 @@ protected:
 	// 멤버 변수
 	// ────────────────────────────────────────────────
 
+	/** 카메라 컴포넌트 */
+	UCameraComponent* CameraComponent;
+
 	/** 이 Pawn을 제어하는 Controller */
 	AController* Controller;
 
@@ -131,4 +142,19 @@ protected:
 
 	/** 이동 입력을 자동으로 정규화할지 여부 */
 	bool bNormalizeMovementInput;
+
+	/** 이동 속도 (단위: cm/s) */
+	float MovementSpeed;
+
+	/** 회전 감도 (마우스) */
+	float RotationSensitivity;
+
+	/** 현재 Pitch 회전 각도 (도) */
+	float CurrentPitch;
+
+	/** Pitch 제한 (최소, 도) */
+	float MinPitch;
+
+	/** Pitch 제한 (최대, 도) */
+	float MaxPitch;
 };

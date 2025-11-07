@@ -455,7 +455,7 @@ void UEditorEngine::BuildScene()
 
             // PlayerSpawnLocation 로드
             FVector SpawnLoc;
-            if (FJsonSerializer::ReadVector(WorldSettingsJson, "PlayerSpawnLocation", SpawnLoc, FVector(0.0f, 0.0f, 100.0f), false))
+            if (FJsonSerializer::ReadVector(WorldSettingsJson, "PlayerSpawnLocation", SpawnLoc, FVector(0.0f, 0.0f, 0.0f), false))
             {
                 CurrentWorld->SetPlayerSpawnLocation(SpawnLoc);
                 UE_LOG("MainToolbar: Loaded PlayerSpawnLocation: (%.1f, %.1f, %.1f)",
