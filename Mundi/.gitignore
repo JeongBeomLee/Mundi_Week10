@@ -15,6 +15,7 @@ Intermediate/
 
 # Compiled files
 *.obj
+!Data/**/*.obj
 *.pch
 *.exe
 *.dll
