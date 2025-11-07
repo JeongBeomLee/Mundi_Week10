@@ -224,7 +224,7 @@ inline UShader* UResourceManager::Load(const FString& InFilePath, TArray<FShader
 		UShader* Resource = NewObject<UShader>();
 		// UShader::Load는 이제 매크로 인자를 받도록 수정되어야 함
 		Resource->Load(NormalizedPath, Device, InMacros);
-		Resource->SetFilePath(NormalizedPath); // 이름 저장
+		Resource->SetFilePath(NormalizedPath); // 이름 저장/
 
 		Resources[typeIndex][NormalizedPath] = Resource;
 		return Resource;
