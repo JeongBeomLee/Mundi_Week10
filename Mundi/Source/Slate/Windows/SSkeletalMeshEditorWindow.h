@@ -28,10 +28,15 @@ public:
 
 	virtual void Initialize() override;
 	virtual void RenderContent() override;
+	virtual bool OnWindowClose() override;
 
 	/** @brief 편집 대상 컴포넌트 설정 (윈도우 열 때) */
 	void SetTargetComponent(USkeletalMeshComponent* Component);
 
 private:
+	/** @brief 저장 안하고 닫기 확인 모달 렌더링 */
+	void RenderUnsavedChangesModal();
+
 	USkeletalMeshEditorWidget* EditorWidget = nullptr;
+	bool bRequestCloseWithUnsavedChanges = false;  // 닫기 요청 플래그
 };

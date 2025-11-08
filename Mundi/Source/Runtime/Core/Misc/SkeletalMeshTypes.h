@@ -2,13 +2,25 @@
 #include "Vector.h"
 
 // ========================================
-// 더미 테스트용 구조 (추후 FBX 로딩 시 교체)
-// 목적: UI/Editor 프로토타이핑만
+// ⚠️ WARNING: 더미 테스트용 구조 (추후 FBX 로딩 시 교체)
+// 목적: SkeletalMesh Editor 프로토타이핑만
+// ⚠️ FBX 로더 완성 시 실제 Asset 데이터 구조로 확장될 예정
 // ========================================
 
 /**
- * @brief 단일 Bone 정보 (최소 구조)
- * @note 나중에 FBX 로더가 실제 데이터 채움
+ * @brief 단일 Bone 정보 (편집 가능한 프로토타입 구조)
+ *
+ * ⚠️ WARNING: 이 구조체는 FBX 로더 완성 시 확장/변경될 수 있습니다!
+ *
+ * 현재 용도:
+ * - SkeletalMesh Editor에서 본 Transform 편집
+ * - Bone Hierarchy Tree 표시
+ * - Debug 시각화 (라인 렌더링)
+ *
+ * 향후 확장 예정:
+ * - Animation 데이터 참조
+ * - Skinning 정보 (Vertex Weight)
+ * - Inverse Bind Pose Matrix
  */
 struct FBone
 {

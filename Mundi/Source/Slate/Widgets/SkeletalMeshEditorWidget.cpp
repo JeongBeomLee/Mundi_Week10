@@ -21,6 +21,7 @@
 #include "AmbientLightComponent.h"
 #include "Color.h"
 #include "USlateManager.h"
+#include "PropertyUtils.h"
 
 extern UEditorEngine GEngine;
 
@@ -107,6 +108,11 @@ void USkeletalMeshEditorWidget::Initialize()
 
 void USkeletalMeshEditorWidget::Shutdown()
 {
+	// NOTE: PreviewActor는 여기서 정리하지 않음
+	// - EditorWorld는 static이므로 에디터 창을 닫아도 유지됨
+	// - 다음에 다른 컴포넌트를 열면 SetTargetComponent()에서 교체됨
+	// - 프로그램 종료 시 EditorWorld와 함께 자동 정리됨
+
 	// Viewport 정리
 	if (EmbeddedViewport)
 	{
@@ -134,8 +140,16 @@ void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Compo
 		GWorld, EditorWorld,
 		USlateManager::GetInstance().GetMainViewport() ? USlateManager::GetInstance().GetMainViewport()->GetViewportClient()->GetWorld() : nullptr);
 
+	// 같은 컴포넌트면 재사용 (불필요한 액터 재생성 방지)
+	if (TargetComponent == Component && PreviewActor)
+	{
+		UE_LOG("SkeletalMeshEditorWidget: Same component, reusing PreviewActor");
+		return;
+	}
+
 	TargetComponent = Component;
 	SelectedBoneIndex = Component ? Component->SelectedBoneIndex : -1;
+	bHasUnsavedChanges = false;  // 새 컴포넌트 로드 시 리셋
 
 	if (!EditorWorld)
 	{
@@ -143,7 +157,7 @@ void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Compo
 		return;
 	}
 
-	// 기존 PreviewActor 제거
+	// 기존 PreviewActor 제거 (다른 컴포넌트로 전환 시)
 	if (PreviewActor)
 	{
 		EditorWorld->DestroyActor(PreviewActor);
@@ -344,18 +358,25 @@ void USkeletalMeshEditorWidget::RenderTransformEditor()
 	ImGui::Spacing();
 
 	// Position
-	ImGui::DragFloat3("Position", &SelectedBone.LocalPosition.X, 0.1f);
+	if (UPropertyUtils::RenderVector3WithColorBars("Position", &SelectedBone.LocalPosition, 0.1f))
+	{
+		bHasUnsavedChanges = true;
+	}
 
 	// Rotation (Euler 저장 패턴으로 gimbal lock UI 문제 방지)
 	// NOTE: SceneComponent와 동일한 패턴 - Euler 입력값을 별도 저장하여 UI 값 뒤집힘 방지
 	FVector euler = SelectedBone.GetLocalRotationEuler();
-	if (ImGui::DragFloat3("Rotation", &euler.X, 1.0f))
+	if (UPropertyUtils::RenderVector3WithColorBars("Rotation", &euler, 1.0f))
 	{
 		SelectedBone.SetLocalRotationEuler(euler);
+		bHasUnsavedChanges = true;
 	}
 
 	// Scale
-	ImGui::DragFloat3("Scale", &SelectedBone.LocalScale.X, 0.01f);
+	if (UPropertyUtils::RenderVector3WithColorBars("Scale", &SelectedBone.LocalScale, 0.01f))
+	{
+		bHasUnsavedChanges = true;
+	}
 
 	// 버튼을 하단에 배치하기 위해 남은 공간 계산
 	float availHeight = ImGui::GetContentRegionAvail().y;
@@ -504,6 +525,8 @@ void USkeletalMeshEditorWidget::ApplyChanges()
 	TargetComponent->EditableBones = PreviewMeshComponent->EditableBones;
 	TargetComponent->SelectedBoneIndex = PreviewMeshComponent->SelectedBoneIndex;
 
+	bHasUnsavedChanges = false;  // 저장 완료
+
 	UE_LOG("SkeletalMeshEditorWidget: Applied changes to TargetComponent");
 }
 
@@ -518,6 +541,8 @@ void USkeletalMeshEditorWidget::CancelChanges()
 	// TargetComponent → PreviewMeshComponent 복사 (되돌리기)
 	PreviewMeshComponent->EditableBones = TargetComponent->EditableBones;
 	PreviewMeshComponent->SelectedBoneIndex = TargetComponent->SelectedBoneIndex;
+
+	bHasUnsavedChanges = false;  // 변경사항 취소됨
 
 	UE_LOG("SkeletalMeshEditorWidget: Cancelled changes (reverted to original)");
 }

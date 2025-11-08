@@ -9,9 +9,12 @@ BEGIN_PROPERTIES(USkeletalMeshComponent)
 	MARK_AS_COMPONENT("스켈레탈 메시 컴포넌트", "스켈레탈 메시를 렌더링하는 컴포넌트입니다.")
 END_PROPERTIES()
 
+// ⚠️ WARNING: 이 생성자는 더미 프로토타입 구현입니다!
+// ⚠️ FBX 로더 완성 시 실제 Asset에서 본 데이터를 로드하도록 교체될 예정입니다.
 USkeletalMeshComponent::USkeletalMeshComponent()
 {
-	// 더미 FBoneInfo 데이터 생성 (테스트용)
+	// ========== 더미 FBoneInfo 데이터 생성 (테스트용) ==========
+	// TODO(FBX): 실제 구현 시 Asset에서 로드하도록 변경
 	TArray<FBoneInfo> DummyBoneInfos;
 
 	// Root

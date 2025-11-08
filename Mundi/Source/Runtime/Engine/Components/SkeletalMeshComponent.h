@@ -7,13 +7,25 @@ class URenderer;
 
 /**
  * @brief Skeletal Mesh 컴포넌트 (더미 프로토타입)
- * @note 현재: 더미 skeleton + line 렌더링만
- * @note 나중에: 실제 mesh 렌더링 + animation 지원
+ *
+ * ⚠️ WARNING: 이 파일은 FBX 로더 완성 시 실제 구현으로 교체될 예정입니다!
+ * ⚠️ 현재는 SkeletalMesh Editor 프로토타입 개발을 위한 더미 데이터만 제공합니다.
+ *
+ * 현재 구현:
+ * - 생성자에서 하드코딩된 5개 본 생성 (Root, Spine, Head, LeftArm, RightArm)
+ * - EditableBones를 통한 본 데이터 노출
+ * - RenderDebugVolume()으로 본 라인 시각화
+ *
+ * 향후 구현 예정:
+ * - FBX Asset에서 실제 본 데이터 로드
+ * - Skeletal Mesh 렌더링 (현재는 라인만)
+ * - Animation 시스템 통합
+ * - Skinning (Vertex Deformation)
  *
  * 설계:
  * - UMeshComponent 상속 (기존 계층 구조 준수)
  * - RenderDebugVolume 오버라이드 (다형성, 비침습적)
- * - 더미 skeleton (나중에 FSkeleton*로 교체)
+ * - EditableBones 인터페이스는 실제 구현에서도 유지됨
  */
 class USkeletalMeshComponent : public UMeshComponent
 {

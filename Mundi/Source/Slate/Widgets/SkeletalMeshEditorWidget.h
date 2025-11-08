@@ -32,6 +32,15 @@ public:
 	virtual void Update() override;
 	virtual void RenderWidget() override;
 
+	/** @brief 편집 내용을 원본에 적용 (PreviewMeshComponent → TargetComponent) */
+	void ApplyChanges();
+
+	/** @brief 편집 내용을 취소하고 원본으로 되돌림 (TargetComponent → PreviewMeshComponent) */
+	void CancelChanges();
+
+	/** @brief 저장되지 않은 변경사항이 있는지 확인 */
+	bool HasUnsavedChanges() const { return bHasUnsavedChanges; }
+
 	/** @brief 리소스 정리 (UWidget에는 없지만 필요) */
 	void Shutdown();
 
@@ -58,16 +67,11 @@ private:
 	/** @brief 자식 본이 있는지 확인 (Tree 렌더링용) */
 	bool HasChildren(int32 BoneIndex) const;
 
-	/** @brief 편집 내용을 원본에 적용 (PreviewMeshComponent → TargetComponent) */
-	void ApplyChanges();
-
-	/** @brief 편집 내용을 취소하고 원본으로 되돌림 (TargetComponent → PreviewMeshComponent) */
-	void CancelChanges();
-
 	// 상태
 	USkeletalMeshComponent* TargetComponent = nullptr;  // 원본 컴포넌트 (메인 에디터)
 	USkeletalMeshComponent* PreviewMeshComponent = nullptr;  // 편집 대상 (EditorWorld)
 	int32 SelectedBoneIndex = -1;
+	bool bHasUnsavedChanges = false;  // 저장되지 않은 변경사항 추적
 
 	// Viewport 관련
 	FOffscreenViewport* EmbeddedViewport = nullptr;

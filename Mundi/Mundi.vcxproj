@@ -441,6 +441,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClCompile Include="Source\Runtime\Renderer\ShadowMap.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\TileLightCuller.cpp" />
     <ClCompile Include="Source\Slate\Widgets\PropertyRenderer.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\PropertyUtils.cpp" />
     <ClCompile Include="Source\Slate\Windows\CameraBlendEditorWindow.cpp" />
     <ClCompile Include="ThirdParty\ImGui\imgui.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -868,6 +869,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Runtime\RHI\ConstantBufferType.h" />
     <ClInclude Include="Source\Slate\Widgets\GameControlWindow.h" />
     <ClInclude Include="Source\Slate\Widgets\PropertyRenderer.h" />
+    <ClInclude Include="Source\Slate\Widgets\PropertyUtils.h" />
     <ClInclude Include="Source\Slate\Windows\CameraBlendEditorWindow.h" />
     <ClInclude Include="ThirdParty\ImGui\imconfig.h" />
     <ClInclude Include="ThirdParty\ImGui\imgui.h" />
