@@ -1026,13 +1026,7 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode, TArray<FMaterialInfo>* Out
 
         FString MaterialName = FbxMaterial->GetName();
 
-        // 이미 로드된 Material인지 확인
-        if (UResourceManager::GetInstance().Get<UMaterial>(MaterialName))
-            continue;
-
-        UE_LOG("FBXManager: Creating material: '%s'", MaterialName.c_str());
-
-        // FMaterialInfo 생성
+        // FMaterialInfo 생성 (캐싱용, 항상 실행)
         FMaterialInfo MaterialInfo;
         MaterialInfo.MaterialName = MaterialName;
 
@@ -1132,6 +1126,12 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode, TArray<FMaterialInfo>* Out
         {
             OutMaterialInfos->push_back(MaterialInfo);
         }
+
+        // 이미 로드된 Material인지 확인 (UMaterial 생성만 스킵)
+        if (UResourceManager::GetInstance().Get<UMaterial>(MaterialName))
+            continue;
+
+        UE_LOG("FBXManager: Creating material: '%s'", MaterialName.c_str());
 
         // UMaterial 생성 및 등록
         UMaterial* Material = NewObject<UMaterial>();
