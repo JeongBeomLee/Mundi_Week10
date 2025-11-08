@@ -25,6 +25,7 @@ public:
 
 private:
     // Helper functions (Skeletal/Static Mesh 공통 사용)
+    static void FindAllMeshesRecursive(FbxNode* FbxMeshNode, TArray<FbxMesh*>& OutMesh);
     static void ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData, TArray<int>& OutVertexToControlPointMap);
     static void ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData);
     static void ParseSkinWeights(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData, const TArray<int>& VertexToControlPointMap);
