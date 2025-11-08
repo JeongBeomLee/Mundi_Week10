@@ -961,9 +961,10 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
                 }
             }
 
-            // Specular 텍스처 (Phong만 해당)
+            // Specular 텍스처 및 Exponent (Phong만 해당)
             if (FbxMaterial->GetClassId().Is(FbxSurfacePhong::ClassId))
             {
+                // Specular Texture
                 FbxProperty SpecularProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sSpecular);
                 if (SpecularProperty.IsValid())
                 {
@@ -976,6 +977,13 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
                             MaterialInfo.SpecularTextureFileName = Texture->GetFileName();
                         }
                     }
+                }
+
+                // [수정] Specular Exponent (Shininess) 읽기
+                FbxProperty ShininessProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sShininess);
+                if (ShininessProperty.IsValid())
+                {
+                    MaterialInfo.SpecularExponent = static_cast<float>(ShininessProperty.Get<FbxDouble>());
                 }
             }
         }
