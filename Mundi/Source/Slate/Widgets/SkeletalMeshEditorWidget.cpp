@@ -400,6 +400,15 @@ void USkeletalMeshEditorWidget::RenderViewport()
 
 		// FOffscreenViewportClient를 통해 ImGui 입력 처리
 		ImGuiIO& IO = ImGui::GetIO();
+
+		// 우클릭 드래그 중: 마우스 커서 숨기고 키보드 입력 차단
+		if (bIsRightMouseDown)
+		{
+			ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+			IO.WantCaptureKeyboard = true;
+		}
+
+		// 입력 처리
 		ViewportClient->ProcessImGuiInput(IO, bIsRightMouseDown);
 	}
 	else
