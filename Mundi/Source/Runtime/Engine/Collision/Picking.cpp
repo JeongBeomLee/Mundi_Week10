@@ -13,6 +13,7 @@
 #include <algorithm>
 
 #include "Gizmo/GizmoActor.h"
+#include "Gizmo/OffscreenGizmoActor.h"
 #include "Gizmo/GizmoScaleComponent.h"
 #include "Gizmo/GizmoRotateComponent.h"
 #include "Gizmo/GizmoArrowComponent.h"
@@ -395,20 +396,21 @@ AActor* CPickingSystem::PerformViewportPicking(const TArray<AActor*>& Actors,
 	}
 }
 
-uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, const ACameraActor* Camera,
+// 템플릿 기반 Gizmo 호버링 검사 구현
+template<typename TGizmoActor>
+uint32 CPickingSystem::IsHoveringGizmoForViewport(TGizmoActor* GizmoActor, const ACameraActor* Camera,
 	const FVector2D& ViewportMousePos,
 	const FVector2D& ViewportSize,
 	const FVector2D& ViewportOffset, FViewport* Viewport,
 	FVector& OutImpactPoint)
 {
-	if (!GizmoTransActor || !Camera)
+	if (!GizmoActor || !Camera)
 		return 0;
 
 	float ViewportAspectRatio = ViewportSize.X / ViewportSize.Y;
 	if (ViewportSize.Y == 0)
-		ViewportAspectRatio = 1.0f; // 0으로 나누기 방지
+		ViewportAspectRatio = 1.0f;
 
-	// 뷰포트별 레이 생성 - 전달받은 뷰포트 정보 사용
 	const FMatrix View = Camera->GetViewMatrix();
 	const FMatrix Proj = Camera->GetProjectionMatrix(ViewportAspectRatio, Viewport);
 	const FVector CameraWorldPos = Camera->GetActorLocation();
@@ -419,17 +421,15 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 	FRay Ray = MakeRayFromViewport(View, Proj, CameraWorldPos, CameraRight, CameraUp, CameraForward,
 		ViewportMousePos, ViewportSize, ViewportOffset);
 
-	// 가장 가까운 충돌 지점을 찾기 위한 임시 변수
 	FVector TempImpactPoint;
-
 	uint32 ClosestAxis = 0;
 	float ClosestDistance = 1e9f;
 	float HitDistance;
 
-	switch (GizmoTransActor->GetMode())
+	switch (GizmoActor->GetMode())
 	{
 	case EGizmoMode::Translate:
-		if (UStaticMeshComponent* ArrowX = Cast<UStaticMeshComponent>(GizmoTransActor->GetArrowX()))
+		if (UStaticMeshComponent* ArrowX = Cast<UStaticMeshComponent>(GizmoActor->GetArrowX()))
 		{
 			if (CheckGizmoComponentPicking(ArrowX, Ray, ViewportSize.X, ViewportSize.Y, View, Proj, HitDistance, TempImpactPoint))
 			{
@@ -442,8 +442,7 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 			}
 		}
 
-		// Y축 화살표 검사
-		if (UStaticMeshComponent* ArrowY = Cast<UStaticMeshComponent>(GizmoTransActor->GetArrowY()))
+		if (UStaticMeshComponent* ArrowY = Cast<UStaticMeshComponent>(GizmoActor->GetArrowY()))
 		{
 			if (CheckGizmoComponentPicking(ArrowY, Ray, ViewportSize.X, ViewportSize.Y, View, Proj, HitDistance, TempImpactPoint))
 			{
@@ -456,8 +455,7 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 			}
 		}
 
-		// Z축 화살표 검사
-		if (UStaticMeshComponent* ArrowZ = Cast<UStaticMeshComponent>(GizmoTransActor->GetArrowZ()))
+		if (UStaticMeshComponent* ArrowZ = Cast<UStaticMeshComponent>(GizmoActor->GetArrowZ()))
 		{
 			if (CheckGizmoComponentPicking(ArrowZ, Ray, ViewportSize.X, ViewportSize.Y, View, Proj, HitDistance, TempImpactPoint))
 			{
@@ -470,8 +468,9 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 			}
 		}
 		break;
+
 	case EGizmoMode::Scale:
-		if (UStaticMeshComponent* ScaleX = Cast<UStaticMeshComponent>(GizmoTransActor->GetScaleX()))
+		if (UStaticMeshComponent* ScaleX = Cast<UStaticMeshComponent>(GizmoActor->GetScaleX()))
 		{
 			if (CheckGizmoComponentPicking(ScaleX, Ray, ViewportSize.X, ViewportSize.Y, View, Proj, HitDistance, TempImpactPoint))
 			{
@@ -484,8 +483,7 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 			}
 		}
 
-		// Y축 화살표 검사
-		if (UStaticMeshComponent* ScaleY = Cast<UStaticMeshComponent>(GizmoTransActor->GetScaleY()))
+		if (UStaticMeshComponent* ScaleY = Cast<UStaticMeshComponent>(GizmoActor->GetScaleY()))
 		{
 			if (CheckGizmoComponentPicking(ScaleY, Ray, ViewportSize.X, ViewportSize.Y, View, Proj, HitDistance, TempImpactPoint))
 			{
@@ -498,8 +496,7 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 			}
 		}
 
-		// Z축 화살표 검사
-		if (UStaticMeshComponent* ScaleZ = Cast<UStaticMeshComponent>(GizmoTransActor->GetScaleZ()))
+		if (UStaticMeshComponent* ScaleZ = Cast<UStaticMeshComponent>(GizmoActor->GetScaleZ()))
 		{
 			if (CheckGizmoComponentPicking(ScaleZ, Ray, ViewportSize.X, ViewportSize.Y, View, Proj, HitDistance, TempImpactPoint))
 			{
@@ -512,8 +509,9 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 			}
 		}
 		break;
+
 	case EGizmoMode::Rotate:
-		if (UStaticMeshComponent* RotateX = Cast<UStaticMeshComponent>(GizmoTransActor->GetRotateX()))
+		if (UStaticMeshComponent* RotateX = Cast<UStaticMeshComponent>(GizmoActor->GetRotateX()))
 		{
 			if (CheckGizmoComponentPicking(RotateX, Ray, ViewportSize.X, ViewportSize.Y, View, Proj, HitDistance, TempImpactPoint))
 			{
@@ -526,8 +524,7 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 			}
 		}
 
-		// Y축 화살표 검사
-		if (UStaticMeshComponent* RotateY = Cast<UStaticMeshComponent>(GizmoTransActor->GetRotateY()))
+		if (UStaticMeshComponent* RotateY = Cast<UStaticMeshComponent>(GizmoActor->GetRotateY()))
 		{
 			if (CheckGizmoComponentPicking(RotateY, Ray, ViewportSize.X, ViewportSize.Y, View, Proj, HitDistance, TempImpactPoint))
 			{
@@ -540,8 +537,7 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 			}
 		}
 
-		// Z축 화살표 검사
-		if (UStaticMeshComponent* RotateZ = Cast<UStaticMeshComponent>(GizmoTransActor->GetRotateZ()))
+		if (UStaticMeshComponent* RotateZ = Cast<UStaticMeshComponent>(GizmoActor->GetRotateZ()))
 		{
 			if (CheckGizmoComponentPicking(RotateZ, Ray, ViewportSize.X, ViewportSize.Y, View, Proj, HitDistance, TempImpactPoint))
 			{
@@ -554,12 +550,17 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 			}
 		}
 		break;
+
 	default:
 		break;
 	}
 
 	return ClosestAxis;
 }
+
+// Explicit template instantiation - AGizmoActor와 AOffscreenGizmoActor만 사용 가능
+template uint32 CPickingSystem::IsHoveringGizmoForViewport<AGizmoActor>(AGizmoActor*, const ACameraActor*, const FVector2D&, const FVector2D&, const FVector2D&, FViewport*, FVector&);
+template uint32 CPickingSystem::IsHoveringGizmoForViewport<AOffscreenGizmoActor>(AOffscreenGizmoActor*, const ACameraActor*, const FVector2D&, const FVector2D&, const FVector2D&, FViewport*, FVector&);
 
 bool CPickingSystem::CheckGizmoComponentPicking(UStaticMeshComponent* Component, const FRay& Ray,
 	float ViewWidth, float ViewHeight, const FMatrix& ViewMatrix, const FMatrix& ProjectionMatrix,

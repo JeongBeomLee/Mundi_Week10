@@ -89,7 +89,7 @@ protected:
     UGizmoRotateComponent* RotateY;
     UGizmoRotateComponent* RotateZ;
     TArray<USceneComponent*> GizmoRotateComponents;
-    bool bRender = false;
+    bool bRender = true;  // 메인 뷰포트 기즈모는 기본 활성화
     bool bIsHovering = false;
     bool bIsDragging = false;
     EGizmoMode CurrentMode;
