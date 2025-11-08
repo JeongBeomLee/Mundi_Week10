@@ -124,6 +124,15 @@ private:
     const float ConsoleHeightRatio = 0.3f; // 화면 높이의 30%
     const float ConsoleHorizontalMargin = 10.0f; // 좌/우 여백 (픽셀 단위)
 
+    // 콘솔 크기 조절 관련
+    float ConsoleHeight = 0.0f; // 현재 콘솔 높이 (사용자가 조절 가능)
+    bool bIsResizingConsole = false; // 윗 테두리 드래그 중인지 여부
+    float ResizeDragStartY = 0.0f; // 드래그 시작 시 마우스 Y 위치
+    float ResizeDragStartHeight = 0.0f; // 드래그 시작 시 콘솔 높이
+    const float ConsoleResizeBorderThickness = 8.0f; // 윗 테두리 드래그 가능 영역 두께
+    const float ConsoleMinHeight = 150.0f; // 최소 콘솔 높이
+    const float ConsoleMaxHeightRatio = 0.8f; // 최대 콘솔 높이 비율
+
     // 블루프린트 에디터
     SActorBlueprintEditor* ActorBlueprintEditor = nullptr;
 };
