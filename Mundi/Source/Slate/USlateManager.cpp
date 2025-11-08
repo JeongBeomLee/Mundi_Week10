@@ -255,8 +255,13 @@ void USlateManager::Render()
         // 부드러운 감속을 위한 ease-out 곡선 적용
         float EasedProgress = 1.0f - (1.0f - ConsoleAnimationProgress) * (1.0f - ConsoleAnimationProgress);
 
+        // 콘솔 높이 초기화 (첫 실행 시)
+        if (ConsoleHeight == 0.0f)
+        {
+            ConsoleHeight = CLIENTHEIGHT * ConsoleHeightRatio;
+        }
+
         // 좌우 여백을 포함한 콘솔 크기 계산
-        float ConsoleHeight = CLIENTHEIGHT * ConsoleHeightRatio;
         float ConsoleWidth = CLIENTWIDTH - (ConsoleHorizontalMargin * 2.0f);
         float ConsoleXPos = ConsoleHorizontalMargin;
 
@@ -275,7 +280,7 @@ void USlateManager::Render()
         ImGui::SetNextWindowPos(ImVec2(ConsoleXPos, CurrentYPos));
         ImGui::SetNextWindowSize(ImVec2(ConsoleWidth, ConsoleHeight));
 
-        // 윈도우 플래그
+        // 윈도우 플래그 (NoResize 유지 - 커스텀 리사이징 사용)
         ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove
             | ImGuiWindowFlags_NoResize
             | ImGuiWindowFlags_NoCollapse
@@ -315,6 +320,66 @@ void USlateManager::Render()
 
             // 콘솔 위젯 렌더링
             ConsoleWindow->RenderWidget();
+
+            // 윗 테두리 리사이징 처리 (애니메이션이 완료된 경우에만)
+            if (!bIsConsoleAnimating && EasedProgress >= 1.0f)
+            {
+                ImVec2 MousePos = ImGui::GetMousePos();
+
+                // 윗 테두리 영역 정의
+                ImVec2 ResizeBorderMin = ImVec2(WindowPos.x, WindowPos.y);
+                ImVec2 ResizeBorderMax = ImVec2(WindowPos.x + WindowSize.x, WindowPos.y + ConsoleResizeBorderThickness);
+
+                bool bIsHoveringResizeBorder = ImGui::IsMouseHoveringRect(ResizeBorderMin, ResizeBorderMax);
+
+                // 마우스 커서 변경
+                if (bIsHoveringResizeBorder || bIsResizingConsole)
+                {
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+                }
+
+                // 드래그 시작
+                if (bIsHoveringResizeBorder && ImGui::IsMouseClicked(0))
+                {
+                    bIsResizingConsole = true;
+                    ResizeDragStartY = MousePos.y;
+                    ResizeDragStartHeight = ConsoleHeight;
+                }
+
+                // 드래그 중
+                if (bIsResizingConsole)
+                {
+                    if (ImGui::IsMouseDown(0))
+                    {
+                        // 드래그 거리 계산 (위로 드래그하면 음수, 아래로 드래그하면 양수)
+                        float DragDelta = MousePos.y - ResizeDragStartY;
+
+                        // 새로운 높이 계산 (위로 드래그하면 높이 증가)
+                        float NewHeight = ResizeDragStartHeight - DragDelta;
+
+                        // 최소/최대 높이 제한
+                        float MaxHeight = CLIENTHEIGHT * ConsoleMaxHeightRatio;
+                        NewHeight = std::max(ConsoleMinHeight, std::min(NewHeight, MaxHeight));
+
+                        ConsoleHeight = NewHeight;
+                    }
+                    else
+                    {
+                        // 마우스 버튼을 놓으면 드래그 종료
+                        bIsResizingConsole = false;
+                    }
+                }
+
+                // 리사이징 핸들 시각화 (선택사항)
+                if (bIsHoveringResizeBorder || bIsResizingConsole)
+                {
+                    DrawList->AddRectFilled(
+                        ResizeBorderMin,
+                        ResizeBorderMax,
+                        IM_COL32(100, 150, 255, 100) // 밝은 파란색 반투명
+                    );
+                }
+            }
         }
         ImGui::End();
 
