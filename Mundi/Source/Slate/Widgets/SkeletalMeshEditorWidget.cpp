@@ -7,6 +7,7 @@
 #include "FOffscreenViewport.h"
 #include "FOffscreenViewportClient.h"
 #include "World.h"
+#include "SelectionManager.h"
 #include "Gizmo/GizmoActor.h"
 #include "D3D11RHI.h"
 #include "EditorEngine.h"
@@ -147,6 +148,7 @@ void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Compo
 	{
 		EditorWorld->DestroyActor(PreviewActor);
 		PreviewActor = nullptr;
+		PreviewMeshComponent = nullptr;
 	}
 
 	// 새로운 미리보기 액터 생성
@@ -157,15 +159,20 @@ void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Compo
 		PreviewActor->SetActorLocation(FVector(0, 0, 0));
 
 		// SkeletalMeshComponent 추가
-		USkeletalMeshComponent* PreviewMeshComp = PreviewActor->CreateDefaultSubobject<USkeletalMeshComponent>("PreviewMesh");
+		PreviewMeshComponent = PreviewActor->CreateDefaultSubobject<USkeletalMeshComponent>("PreviewMesh");
 
-		// TargetComponent의 Bone 데이터 복사
-		PreviewMeshComp->EditableBones = Component->EditableBones;
+		// TargetComponent의 Bone 데이터 복사 (초기 로드)
+		PreviewMeshComponent->EditableBones = Component->EditableBones;
+		PreviewMeshComponent->SelectedBoneIndex = Component->SelectedBoneIndex;
 
-		PreviewActor->SetRootComponent(PreviewMeshComp);
+		PreviewActor->SetRootComponent(PreviewMeshComponent);
 
 		// 컴포넌트 등록 (World 전달)
-		PreviewMeshComp->RegisterComponent(EditorWorld);
+		PreviewMeshComponent->RegisterComponent(EditorWorld);
+
+		// PreviewActor를 선택 상태로 등록 (RenderDebugVolume() 호출되도록)
+		EditorWorld->GetSelectionManager()->ClearSelection();
+		EditorWorld->GetSelectionManager()->SelectActor(PreviewActor);
 	}
 
 	// FBX Asset에서 Bone 데이터 로드
@@ -183,10 +190,10 @@ void USkeletalMeshEditorWidget::LoadBonesFromAsset()
 
 void USkeletalMeshEditorWidget::Update()
 {
-	// 선택 동기화 (Component에서 변경되었을 때)
-	if (TargetComponent && SelectedBoneIndex != TargetComponent->SelectedBoneIndex)
+	// 선택 동기화 (PreviewMeshComponent 기준)
+	if (PreviewMeshComponent && SelectedBoneIndex != PreviewMeshComponent->SelectedBoneIndex)
 	{
-		SelectedBoneIndex = TargetComponent->SelectedBoneIndex;
+		SelectedBoneIndex = PreviewMeshComponent->SelectedBoneIndex;
 	}
 
 	// ViewportClient 업데이트
@@ -239,16 +246,16 @@ void USkeletalMeshEditorWidget::RenderBoneHierarchy()
 	ImGui::Separator();
 	ImGui::Spacing();
 
-	if (!TargetComponent || TargetComponent->EditableBones.empty())
+	if (!PreviewMeshComponent || PreviewMeshComponent->EditableBones.empty())
 	{
 		ImGui::TextDisabled("No bones loaded");
 		return;
 	}
 
 	// Root bone부터 재귀 렌더링
-	for (size_t i = 0; i < TargetComponent->EditableBones.size(); ++i)
+	for (size_t i = 0; i < PreviewMeshComponent->EditableBones.size(); ++i)
 	{
-		if (TargetComponent->EditableBones[i].ParentIndex < 0)  // Root bone
+		if (PreviewMeshComponent->EditableBones[i].ParentIndex < 0)  // Root bone
 		{
 			RenderBoneTreeNode(static_cast<int32>(i));
 		}
@@ -257,10 +264,10 @@ void USkeletalMeshEditorWidget::RenderBoneHierarchy()
 
 void USkeletalMeshEditorWidget::RenderBoneTreeNode(int32 BoneIndex)
 {
-	if (!TargetComponent || BoneIndex < 0 || BoneIndex >= TargetComponent->EditableBones.size())
+	if (!PreviewMeshComponent || BoneIndex < 0 || BoneIndex >= PreviewMeshComponent->EditableBones.size())
 		return;
 
-	FBone& Bone = TargetComponent->EditableBones[BoneIndex];
+	FBone& Bone = PreviewMeshComponent->EditableBones[BoneIndex];
 
 	// Tree node flags
 	ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow |
@@ -271,9 +278,9 @@ void USkeletalMeshEditorWidget::RenderBoneTreeNode(int32 BoneIndex)
 
 	// 자식 bone 찾기
 	bool bHasChildren = false;
-	for (size_t i = 0; i < TargetComponent->EditableBones.size(); ++i)
+	for (size_t i = 0; i < PreviewMeshComponent->EditableBones.size(); ++i)
 	{
-		if (TargetComponent->EditableBones[i].ParentIndex == BoneIndex)
+		if (PreviewMeshComponent->EditableBones[i].ParentIndex == BoneIndex)
 		{
 			bHasChildren = true;
 			break;
@@ -291,8 +298,8 @@ void USkeletalMeshEditorWidget::RenderBoneTreeNode(int32 BoneIndex)
 	if (ImGui::IsItemClicked())
 	{
 		SelectedBoneIndex = BoneIndex;
-		if (TargetComponent)
-			TargetComponent->SelectedBoneIndex = BoneIndex;
+		if (PreviewMeshComponent)
+			PreviewMeshComponent->SelectedBoneIndex = BoneIndex;
 	}
 
 	// 자식 bone 재귀 렌더링
@@ -300,9 +307,9 @@ void USkeletalMeshEditorWidget::RenderBoneTreeNode(int32 BoneIndex)
 	{
 		if (bHasChildren)
 		{
-			for (size_t i = 0; i < TargetComponent->EditableBones.size(); ++i)
+			for (size_t i = 0; i < PreviewMeshComponent->EditableBones.size(); ++i)
 			{
-				if (TargetComponent->EditableBones[i].ParentIndex == BoneIndex)
+				if (PreviewMeshComponent->EditableBones[i].ParentIndex == BoneIndex)
 				{
 					RenderBoneTreeNode(static_cast<int32>(i));
 				}
@@ -320,13 +327,13 @@ void USkeletalMeshEditorWidget::RenderTransformEditor()
 	ImGui::Separator();
 	ImGui::Spacing();
 
-	if (!TargetComponent || SelectedBoneIndex < 0 || SelectedBoneIndex >= TargetComponent->EditableBones.size())
+	if (!PreviewMeshComponent || SelectedBoneIndex < 0 || SelectedBoneIndex >= PreviewMeshComponent->EditableBones.size())
 	{
 		ImGui::TextDisabled("Select a bone from the hierarchy");
 		return;
 	}
 
-	FBone& SelectedBone = TargetComponent->EditableBones[SelectedBoneIndex];
+	FBone& SelectedBone = PreviewMeshComponent->EditableBones[SelectedBoneIndex];
 
 	ImGui::Text("Bone: %s (Index: %d)", SelectedBone.Name.c_str(), SelectedBoneIndex);
 	ImGui::Separator();
@@ -351,7 +358,23 @@ void USkeletalMeshEditorWidget::RenderTransformEditor()
 	ImGui::DragFloat3("Scale", &SelectedBone.LocalScale.X, 0.01f);
 
 	ImGui::Spacing();
-	ImGui::TextDisabled("Note: Editing dummy FBoneInfo → FBone data");
+	ImGui::Separator();
+	ImGui::Spacing();
+
+	// Apply / Cancel 버튼
+	if (ImGui::Button("Apply", ImVec2(100, 0)))
+	{
+		ApplyChanges();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Cancel", ImVec2(100, 0)))
+	{
+		CancelChanges();
+	}
+
+	ImGui::Spacing();
+	ImGui::TextDisabled("Apply: Save changes to main editor");
+	ImGui::TextDisabled("Cancel: Revert to original");
 }
 
 void USkeletalMeshEditorWidget::RenderViewport()
@@ -443,13 +466,43 @@ void USkeletalMeshEditorWidget::UpdateGizmoForSelectedBone()
 
 bool USkeletalMeshEditorWidget::HasChildren(int32 BoneIndex) const
 {
-	if (!TargetComponent)
+	if (!PreviewMeshComponent)
 		return false;
 
-	for (const auto& Bone : TargetComponent->EditableBones)
+	for (const auto& Bone : PreviewMeshComponent->EditableBones)
 	{
 		if (Bone.ParentIndex == BoneIndex)
 			return true;
 	}
 	return false;
+}
+
+void USkeletalMeshEditorWidget::ApplyChanges()
+{
+	if (!TargetComponent || !PreviewMeshComponent)
+	{
+		UE_LOG("SkeletalMeshEditorWidget: Cannot apply - missing component");
+		return;
+	}
+
+	// PreviewMeshComponent → TargetComponent 복사
+	TargetComponent->EditableBones = PreviewMeshComponent->EditableBones;
+	TargetComponent->SelectedBoneIndex = PreviewMeshComponent->SelectedBoneIndex;
+
+	UE_LOG("SkeletalMeshEditorWidget: Applied changes to TargetComponent");
+}
+
+void USkeletalMeshEditorWidget::CancelChanges()
+{
+	if (!TargetComponent || !PreviewMeshComponent)
+	{
+		UE_LOG("SkeletalMeshEditorWidget: Cannot cancel - missing component");
+		return;
+	}
+
+	// TargetComponent → PreviewMeshComponent 복사 (되돌리기)
+	PreviewMeshComponent->EditableBones = TargetComponent->EditableBones;
+	PreviewMeshComponent->SelectedBoneIndex = TargetComponent->SelectedBoneIndex;
+
+	UE_LOG("SkeletalMeshEditorWidget: Cancelled changes (reverted to original)");
 }
