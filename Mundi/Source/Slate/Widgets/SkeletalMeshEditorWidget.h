@@ -9,6 +9,7 @@ class UWorld;
 class AOffscreenGizmoActor;
 class UBoneHierarchyWidget;
 class UBoneTransformWidget;
+class UViewportWidget;
 
 /**
  * @brief Skeletal Mesh Editor 위젯 (실제 UI 구현)
@@ -47,16 +48,9 @@ public:
 	void Shutdown();
 
 private:
-	// Viewport 렌더링
-	void RenderViewport();
-	void RenderViewportToolbar();
+	// TODO: 향후 구현
 	void HandleViewportInput();
-
-	// 본 피킹
 	void PerformBonePicking(float MouseX, float MouseY);
-
-	// Gizmo 업데이트
-	void UpdateGizmoForSelectedBone();
 
 	/** @brief FBX Asset에서 Bone 데이터 로드 (TargetComponent의 SkeletalMesh에서) */
 	void LoadBonesFromAsset();
@@ -100,6 +94,7 @@ private:
 	// === 복합 위젯들 (SDetailsWindow 패턴) ===
 	UBoneHierarchyWidget* HierarchyWidget = nullptr;
 	UBoneTransformWidget* TransformWidget = nullptr;
+	UViewportWidget* ViewportWidget = nullptr;
 
 private:
 	// EditorWorld 초기화 (최초 1회만 실행)
