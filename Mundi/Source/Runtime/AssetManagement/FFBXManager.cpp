@@ -855,64 +855,29 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
     if (!FbxMeshNode)
         return;
 
-    FbxNode* MeshNode = FbxMeshNode->GetNode();
-    if (!MeshNode)
-        return;
-
-    // Material을 찾기 위한 여러 시도
-    int MaterialCount = MeshNode->GetMaterialCount();
-
-    UE_LOG("FBXManager: LoadMaterials - MeshNode MaterialCount: %d", MaterialCount);
-
-    // Material이 노드에 없으면 Scene에서 찾기
-    TArray<FbxSurfaceMaterial*> Materials;
-
-    if (MaterialCount > 0)
+    FbxScene* Scene = FbxMeshNode->GetScene();
+    if (!Scene)
     {
-        // 노드에서 직접 가져오기
-        for (int i = 0; i < MaterialCount; ++i)
-        {
-            FbxSurfaceMaterial* FbxMaterial = MeshNode->GetMaterial(i);
-            if (FbxMaterial)
-            {
-                Materials.push_back(FbxMaterial);
-            }
-        }
-    }
-    else
-    {
-        // Scene 전체에서 Material 검색
-        FbxScene* Scene = FbxMeshNode->GetScene();
-        if (Scene)
-        {
-            int SceneMaterialCount = Scene->GetMaterialCount();
-            UE_LOG("FBXManager: Searching Scene for materials - Found %d materials", SceneMaterialCount);
-
-            for (int i = 0; i < SceneMaterialCount; ++i)
-            {
-                FbxSurfaceMaterial* FbxMaterial = Scene->GetMaterial(i);
-                if (FbxMaterial)
-                {
-                    Materials.push_back(FbxMaterial);
-                }
-            }
-        }
-    }
-
-    if (Materials.empty())
-    {
-        UE_LOG("FBXManager: No materials found in FBX file");
+        UE_LOG("FBXManager: LoadMaterials failed - no scene found.");
         return;
     }
 
-    UE_LOG("FBXManager: Loading %zu materials", Materials.size());
+    // [수정] 씬의 모든 머티리얼을 항상 로드하여 누락을 방지합니다.
+    int SceneMaterialCount = Scene->GetMaterialCount();
+    if (SceneMaterialCount == 0)
+    {
+        UE_LOG("FBXManager: No materials found in scene.");
+        return;
+    }
+
+    UE_LOG("FBXManager: Processing %d materials from scene.", SceneMaterialCount);
 
     UMaterial* DefaultMaterial = UResourceManager::GetInstance().GetDefaultMaterial();
-    //@TODO 추가 쉐이더 작업 필..
     UShader* DefaultShader = DefaultMaterial ? DefaultMaterial->GetShader() : nullptr;
 
-    for (FbxSurfaceMaterial* FbxMaterial : Materials)
+    for (int i = 0; i < SceneMaterialCount; ++i)
     {
+        FbxSurfaceMaterial* FbxMaterial = Scene->GetMaterial(i);
         if (!FbxMaterial)
             continue;
 
@@ -922,12 +887,13 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
         if (UResourceManager::GetInstance().Get<UMaterial>(MaterialName))
             continue;
 
+        UE_LOG("FBXManager: Creating material: '%s'", MaterialName.c_str());
+
         // FMaterialInfo 생성
         FMaterialInfo MaterialInfo;
         MaterialInfo.MaterialName = MaterialName;
 
-        // FBX에서 텍스처 경로 파싱
-        // FbxSurfaceMaterial을 FbxSurfacePhong 또는 FbxSurfaceLambert로 캐스팅하여 텍스처 정보 추출
+        // FBX에서 텍스처 및 색상 경로 파싱
         if (FbxMaterial->GetClassId().Is(FbxSurfacePhong::ClassId) ||
             FbxMaterial->GetClassId().Is(FbxSurfaceLambert::ClassId))
         {
@@ -1031,7 +997,6 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
         }
 
         UResourceManager::GetInstance().Add<UMaterial>(MaterialName, Material);
-        UE_LOG("FBXManager: Created material: %s", MaterialName.c_str());
     }
 }
 
