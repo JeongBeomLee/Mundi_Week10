@@ -46,7 +46,6 @@ void USkeletalMeshEditorWidget::InitializeEditorWorld()
 	// 이미 초기화되어 있으면 무시 (싱글톤)
 	if (EditorWorld != nullptr)
 	{
-		UE_LOG("SkeletalMeshEditorWidget: EditorWorld already exists (%p), skipping initialization", EditorWorld);
 		return;
 	}
 
@@ -95,11 +94,8 @@ void USkeletalMeshEditorWidget::InitializeEditorWorld()
 			if (UBillboardComponent* Sprite = RootComp->GetSpriteComponent())
 			{
 				Sprite->SetActive(false);
-				UE_LOG("SkeletalMeshEditorWidget: Hidden BillboardComponent (SpriteComponent) in BoneGizmo");
 			}
 		}
-
-		UE_LOG("SkeletalMeshEditorWidget: BoneGizmo created in EditorWorld (%p)", BoneGizmo);
 	}
 	else
 	{
@@ -159,11 +155,7 @@ void USkeletalMeshEditorWidget::Initialize()
 	if (!BoneGizmo && EditorWorld)
 	{
 		BoneGizmo = EditorWorld->GetActorOfClass<AOffscreenGizmoActor>();
-		if (BoneGizmo)
-		{
-			UE_LOG("SkeletalMeshEditorWidget: Found existing BoneGizmo in EditorWorld (%p)", BoneGizmo);
-		}
-		else
+		if (!BoneGizmo)
 		{
 			UE_LOG("SkeletalMeshEditorWidget: WARNING - BoneGizmo not found in EditorWorld!");
 		}
@@ -175,12 +167,14 @@ void USkeletalMeshEditorWidget::Initialize()
 		BoneGizmo->SetCameraActor(ViewportClient->GetCamera());
 		CurrentGizmoMode = EGizmoMode::Translate;
 		CurrentGizmoSpace = EGizmoSpace::Local;
-		UE_LOG("SkeletalMeshEditorWidget: BoneGizmo camera set (%p)", BoneGizmo);
 	}
 }
 
 void USkeletalMeshEditorWidget::Shutdown()
 {
+	// 종료 시 자동으로 변경사항 되돌리기 (미리보기만 수행하므로 항상 revert)
+	RevertChanges();
+
 	// 위젯 정리 (SDetailsWindow 패턴)
 	if (HierarchyWidget)
 	{
@@ -227,26 +221,18 @@ void USkeletalMeshEditorWidget::Shutdown()
 		// NOTE: EditorWorld->DestroyActor(BoneGizmo) 하지 않음 (static world는 프로그램 종료 시 정리)
 		BoneGizmo = nullptr;
 	}
-
-	UE_LOG("SkeletalMeshEditorWidget: Shutdown complete");
 }
 
 void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Component)
 {
-	UE_LOG("SetTargetComponent [BEFORE] - GWorld=%p, EditorWorld=%p, MainViewport->World=%p",
-		GWorld, EditorWorld,
-		USlateManager::GetInstance().GetMainViewport() ? USlateManager::GetInstance().GetMainViewport()->GetViewportClient()->GetWorld() : nullptr);
-
 	// 같은 컴포넌트면 재사용 (불필요한 액터 재생성 방지)
 	if (TargetComponent == Component && PreviewActor)
 	{
-		UE_LOG("SkeletalMeshEditorWidget: Same component, reusing PreviewActor");
 		return;
 	}
 
 	TargetComponent = Component;
 	SelectedBoneIndex = Component ? Component->GetSelectedBoneIndex() : -1;
-	bHasUnsavedChanges = false;  // 새 컴포넌트 로드 시 리셋
 
 	if (!EditorWorld)
 	{
@@ -291,7 +277,6 @@ void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Compo
 			if (UBillboardComponent* Sprite = RootComp->GetSpriteComponent())
 			{
 				Sprite->SetActive(false);
-				UE_LOG("SkeletalMeshEditorWidget: Hidden BillboardComponent (SpriteComponent) in PreviewActor");
 			}
 		}
 	}
@@ -311,18 +296,10 @@ void USkeletalMeshEditorWidget::LoadBonesFromAsset()
 
 void USkeletalMeshEditorWidget::Update()
 {
-	static int UpdateCount = 0;
-	if (UpdateCount++ % 60 == 0)  // 1초마다 로그
-	{
-		UE_LOG("SkeletalMeshEditorWidget::Update called - BoneIdx=%d, PreviewComp=%p, BoneGizmo=%p",
-			SelectedBoneIndex, PreviewMeshComponent, BoneGizmo);
-	}
-
 	// 선택 동기화 (PreviewMeshComponent 기준)
 	if (PreviewMeshComponent && SelectedBoneIndex != PreviewMeshComponent->GetSelectedBoneIndex())
 	{
 		SelectedBoneIndex = PreviewMeshComponent->GetSelectedBoneIndex();
-		UE_LOG("SkeletalMeshEditorWidget: Bone selection changed to index %d", SelectedBoneIndex);
 	}
 
 	// 하위 위젯 업데이트 (SDetailsWindow 패턴)
@@ -399,7 +376,6 @@ void USkeletalMeshEditorWidget::RenderWidget()
 		ViewportWidget->SetEditorWorld(EditorWorld);
 		ViewportWidget->SetPreviewActor(PreviewActor);
 		ViewportWidget->SetSelectedBoneIndex(&SelectedBoneIndex);
-		ViewportWidget->SetHasUnsavedChanges(&bHasUnsavedChanges);
 		ViewportWidget->SetGizmoMode(&CurrentGizmoMode);
 		ViewportWidget->SetGizmoSpace(&CurrentGizmoSpace);
 		// 렌더링
@@ -416,13 +392,9 @@ void USkeletalMeshEditorWidget::RenderWidget()
 		// 데이터 주입
 		TransformWidget->SetPreviewComponent(PreviewMeshComponent);
 		TransformWidget->SetSelectedBoneIndex(&SelectedBoneIndex);
-		TransformWidget->SetHasUnsavedChanges(&bHasUnsavedChanges);
 
-		// 콜백 설정
-		TransformWidget->SetCallbacks(
-			[this]() { ApplyChanges(); },   // Apply
-			[this]() { CancelChanges(); }   // Cancel
-		);
+		// 콜백 설정 (Revert만)
+		TransformWidget->SetRevertCallback([this]() { RevertChanges(); });
 
 		// 렌더링
 		TransformWidget->RenderWidget();
@@ -440,28 +412,11 @@ void USkeletalMeshEditorWidget::PerformBonePicking(float MouseX, float MouseY)
 	// TODO: Ray-casting으로 본 선택
 }
 
-void USkeletalMeshEditorWidget::ApplyChanges()
+void USkeletalMeshEditorWidget::RevertChanges()
 {
 	if (!TargetComponent || !PreviewMeshComponent)
 	{
-		UE_LOG("SkeletalMeshEditorWidget: Cannot apply - missing component");
-		return;
-	}
-
-	// PreviewMeshComponent → TargetComponent 복사
-	TargetComponent->EditableBones = PreviewMeshComponent->EditableBones;
-	TargetComponent->SetSelectedBoneIndex(PreviewMeshComponent->GetSelectedBoneIndex());
-
-	bHasUnsavedChanges = false;  // 저장 완료
-
-	UE_LOG("SkeletalMeshEditorWidget: Applied changes to TargetComponent");
-}
-
-void USkeletalMeshEditorWidget::CancelChanges()
-{
-	if (!TargetComponent || !PreviewMeshComponent)
-	{
-		UE_LOG("SkeletalMeshEditorWidget: Cannot cancel - missing component");
+		UE_LOG("SkeletalMeshEditorWidget: Cannot revert - missing component");
 		return;
 	}
 
@@ -469,13 +424,9 @@ void USkeletalMeshEditorWidget::CancelChanges()
 	PreviewMeshComponent->EditableBones = TargetComponent->EditableBones;
 	PreviewMeshComponent->SetSelectedBoneIndex(TargetComponent->GetSelectedBoneIndex());
 
-	bHasUnsavedChanges = false;  // 변경사항 취소됨
-
 	// Gizmo 위치를 복구된 본 위치로 업데이트 (ViewportWidget을 통해)
 	if (ViewportWidget)
 	{
 		ViewportWidget->UpdateGizmoForSelectedBone();
 	}
-
-	UE_LOG("SkeletalMeshEditorWidget: Cancelled changes (reverted to original)");
 }

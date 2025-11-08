@@ -47,7 +47,6 @@ public:
 	 * @param World Editor world (nullptr 안전)
 	 * @param Actor Preview actor (nullptr 안전)
 	 * @param BoneIndex 선택된 본 인덱스 포인터
-	 * @param bUnsavedChanges 저장되지 않은 변경사항 플래그 포인터
 	 * @param GizmoMode Gizmo 모드 포인터
 	 * @param GizmoSpace Gizmo 공간 포인터
 	 */
@@ -58,7 +57,6 @@ public:
 	void SetEditorWorld(UWorld* World) { EditorWorld = World; }
 	void SetPreviewActor(AActor* Actor) { PreviewActor = Actor; }
 	void SetSelectedBoneIndex(int32* BoneIndex) { SelectedBoneIndexPtr = BoneIndex; }
-	void SetHasUnsavedChanges(bool* bUnsavedChanges) { bHasUnsavedChangesPtr = bUnsavedChanges; }
 	void SetGizmoMode(EGizmoMode* Mode) { GizmoModePtr = Mode; }
 	void SetGizmoSpace(EGizmoSpace* Space) { GizmoSpacePtr = Space; }
 
@@ -80,7 +78,6 @@ private:
 	UWorld* EditorWorld = nullptr;
 	AActor* PreviewActor = nullptr;
 	int32* SelectedBoneIndexPtr = nullptr;
-	bool* bHasUnsavedChangesPtr = nullptr;
 	EGizmoMode* GizmoModePtr = nullptr;
 	EGizmoSpace* GizmoSpacePtr = nullptr;
 };

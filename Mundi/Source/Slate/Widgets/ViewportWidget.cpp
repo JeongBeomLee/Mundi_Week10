@@ -53,7 +53,6 @@ void UViewportWidget::RenderWidget()
 	if (NewWidth != EmbeddedViewport->GetSizeX() || NewHeight != EmbeddedViewport->GetSizeY())
 	{
 		EmbeddedViewport->Resize(0, 0, NewWidth, NewHeight);
-		UE_LOG("ViewportWidget: Viewport resized to %dx%d", NewWidth, NewHeight);
 	}
 
 	// 3D 씬 렌더링
@@ -112,7 +111,6 @@ void UViewportWidget::RenderWidget()
 			{
 				BoneGizmo->ProcessGizmoModeSwitch();
 				*GizmoModePtr = BoneGizmo->GetMode();
-				UE_LOG("ViewportWidget: Space pressed, mode switched to %d", (int)*GizmoModePtr);
 			}
 
 			// Q: Translate 모드
@@ -120,7 +118,6 @@ void UViewportWidget::RenderWidget()
 			{
 				*GizmoModePtr = EGizmoMode::Translate;
 				BoneGizmo->SetMode(EGizmoMode::Translate);
-				UE_LOG("ViewportWidget: Q pressed, mode set to Translate");
 			}
 
 			// W: Rotate 모드
@@ -128,7 +125,6 @@ void UViewportWidget::RenderWidget()
 			{
 				*GizmoModePtr = EGizmoMode::Rotate;
 				BoneGizmo->SetMode(EGizmoMode::Rotate);
-				UE_LOG("ViewportWidget: W pressed, mode set to Rotate");
 			}
 
 			// E: Scale 모드
@@ -136,12 +132,11 @@ void UViewportWidget::RenderWidget()
 			{
 				*GizmoModePtr = EGizmoMode::Scale;
 				BoneGizmo->SetMode(EGizmoMode::Scale);
-				UE_LOG("ViewportWidget: E pressed, mode set to Scale");
 			}
 		}
 
 		// Gizmo 입력 처리 (우클릭 드래그 중이 아닐 때만)
-		if (!bIsRightMouseDown && BoneGizmo && bIsHovered && PreviewComponent && SelectedBoneIndexPtr && bHasUnsavedChangesPtr)
+		if (!bIsRightMouseDown && BoneGizmo && bIsHovered && PreviewComponent && SelectedBoneIndexPtr)
 		{
 			// ImGui 좌표 → Viewport 상대 좌표로 변환
 			ImVec2 MousePos = ImGui::GetMousePos();
@@ -150,15 +145,6 @@ void UViewportWidget::RenderWidget()
 
 			// ImGui 입력 상태 가져오기 (bLeftMouseDown은 이미 위에서 선언됨)
 			bool bLeftMouseReleased = ImGui::IsMouseReleased(ImGuiMouseButton_Left);
-
-			// 디버깅: 입력 상태 로그
-			static int LogCounter = 0;
-			if (LogCounter++ % 60 == 0) // 1초마다 (60fps 기준)
-			{
-				UE_LOG("Gizmo Input: Mouse(%.1f, %.1f), LeftDown=%d, Hovering=%d, Dragging=%d",
-					RelativeMouseX, RelativeMouseY,
-					bLeftMouseDown, BoneGizmo->GetbIsHovering(), BoneGizmo->GetbIsDragging());
-			}
 
 			// OffscreenGizmoActor의 ImGui 입력 처리
 			BoneGizmo->ProcessGizmoInteractionImGui(
@@ -178,7 +164,6 @@ void UViewportWidget::RenderWidget()
 				// 드래그 중 매 프레임 Gizmo Transform을 본에 적용 (실시간 피드백)
 				FTransform NewWorldTransform = BoneGizmo->GetActorTransform();
 				FBoneTransformCalculator::SetBoneWorldTransform(PreviewComponent, *SelectedBoneIndexPtr, NewWorldTransform);
-				*bHasUnsavedChangesPtr = true;
 			}
 		}
 	}
@@ -203,10 +188,8 @@ void UViewportWidget::RenderViewportToolbar()
 
 	if (ImGui::Button("Translate (W)", ImVec2(100, 0)))
 	{
-		UE_LOG("ViewportWidget: Translate button clicked");
 		*GizmoModePtr = EGizmoMode::Translate;
 		BoneGizmo->SetMode(EGizmoMode::Translate);
-		UE_LOG("ViewportWidget: Mode set to Translate, Gizmo mode = %d", (int)BoneGizmo->GetMode());
 	}
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("Move bone [W]");
@@ -223,10 +206,8 @@ void UViewportWidget::RenderViewportToolbar()
 
 	if (ImGui::Button("Rotate (E)", ImVec2(100, 0)))
 	{
-		UE_LOG("ViewportWidget: Rotate button clicked");
 		*GizmoModePtr = EGizmoMode::Rotate;
 		BoneGizmo->SetMode(EGizmoMode::Rotate);
-		UE_LOG("ViewportWidget: Mode set to Rotate, Gizmo mode = %d", (int)BoneGizmo->GetMode());
 	}
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("Rotate bone [E]");
@@ -243,10 +224,8 @@ void UViewportWidget::RenderViewportToolbar()
 
 	if (ImGui::Button("Scale (R)", ImVec2(100, 0)))
 	{
-		UE_LOG("ViewportWidget: Scale button clicked");
 		*GizmoModePtr = EGizmoMode::Scale;
 		BoneGizmo->SetMode(EGizmoMode::Scale);
-		UE_LOG("ViewportWidget: Mode set to Scale, Gizmo mode = %d", (int)BoneGizmo->GetMode());
 	}
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("Scale bone [R]");
@@ -262,10 +241,8 @@ void UViewportWidget::RenderViewportToolbar()
 	const char* SpaceLabel = (*GizmoSpacePtr == EGizmoSpace::Local) ? "Local" : "World";
 	if (ImGui::Button(SpaceLabel, ImVec2(60, 0)))
 	{
-		UE_LOG("ViewportWidget: Space toggle button clicked");
 		*GizmoSpacePtr = (*GizmoSpacePtr == EGizmoSpace::Local) ? EGizmoSpace::World : EGizmoSpace::Local;
 		BoneGizmo->SetSpace(*GizmoSpacePtr);
-		UE_LOG("ViewportWidget: Space set to %s", (*GizmoSpacePtr == EGizmoSpace::Local) ? "Local" : "World");
 	}
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("Toggle Local/World space");
@@ -297,11 +274,6 @@ void UViewportWidget::UpdateGizmoForSelectedBone()
 	// (GizmoActor의 UpdateComponentVisibility가 이를 확인하여 Gizmo를 표시함)
 	SelectionManager->ClearSelection();
 	SelectionManager->SelectComponent(PreviewComponent);
-
-	// 디버깅: 선택 상태 확인
-	USceneComponent* Selected = SelectionManager->GetSelectedComponent();
-	UE_LOG("UpdateGizmoForSelectedBone: BoneIdx=%d, SelMgr=%p, PreviewComp=%p, Selected=%p, Mode=%d",
-		*SelectedBoneIndexPtr, SelectionManager, PreviewComponent, Selected, (int)*GizmoModePtr);
 
 	// 선택된 본의 World Transform 계산
 	FTransform BoneWorldTransform = FBoneTransformCalculator::GetBoneWorldTransform(PreviewComponent, *SelectedBoneIndexPtr);

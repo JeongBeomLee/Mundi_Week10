@@ -9,14 +9,14 @@ class USkeletalMeshComponent;
  *
  * 설계:
  * - UWidget 상속 (기존 패턴 준수)
- * - Transform 편집 UI + Apply/Cancel 버튼
- * - 콜백으로 Apply/Cancel 이벤트 전달
+ * - Transform 편집 UI + Revert 버튼
+ * - 콜백으로 Revert 이벤트 전달
  * - SDetailsWindow 패턴 준수
  *
  * 책임:
- * - 선택된 본의 Local Transform 편집 UI 렌더링
+ * - 선택된 본의 Local Transform 편집 UI 렌더링 (미리보기 전용)
  * - Position, Rotation, Scale 입력
- * - Apply/Cancel 버튼 렌더링 및 이벤트 처리
+ * - Revert 버튼 렌더링 및 이벤트 처리
  */
 class UBoneTransformWidget : public UWidget
 {
@@ -34,30 +34,24 @@ public:
 	 * @brief 외부 데이터 주입 (SDetailsWindow 패턴)
 	 * @param Component Preview mesh component (nullptr 안전)
 	 * @param BoneIndex 선택된 본 인덱스 포인터 (부모 위젯의 상태)
-	 * @param bUnsavedChanges 저장되지 않은 변경사항 플래그 포인터
 	 */
 	void SetPreviewComponent(USkeletalMeshComponent* Component) { PreviewComponent = Component; }
 	void SetSelectedBoneIndex(int32* BoneIndex) { SelectedBoneIndexPtr = BoneIndex; }
-	void SetHasUnsavedChanges(bool* bUnsavedChanges) { bHasUnsavedChangesPtr = bUnsavedChanges; }
 
 	/**
-	 * @brief 콜백 설정 (Apply/Cancel 버튼 클릭 시 호출)
-	 * @param OnApply Apply 버튼 클릭 시 콜백
-	 * @param OnCancel Cancel 버튼 클릭 시 콜백
+	 * @brief 콜백 설정 (Revert 버튼 클릭 시 호출)
+	 * @param OnRevert Revert 버튼 클릭 시 콜백
 	 */
-	void SetCallbacks(std::function<void()> OnApply, std::function<void()> OnCancel)
+	void SetRevertCallback(std::function<void()> OnRevert)
 	{
-		OnApplyCallback = OnApply;
-		OnCancelCallback = OnCancel;
+		OnRevertCallback = OnRevert;
 	}
 
 private:
 	// 외부에서 주입된 데이터 (포인터/참조)
 	USkeletalMeshComponent* PreviewComponent = nullptr;
 	int32* SelectedBoneIndexPtr = nullptr;
-	bool* bHasUnsavedChangesPtr = nullptr;
 
 	// 콜백 함수
-	std::function<void()> OnApplyCallback;
-	std::function<void()> OnCancelCallback;
+	std::function<void()> OnRevertCallback;
 };

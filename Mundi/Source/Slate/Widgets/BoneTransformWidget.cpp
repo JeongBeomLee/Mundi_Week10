@@ -34,9 +34,6 @@ void UBoneTransformWidget::RenderWidget()
 		return;
 	}
 
-	if (!bHasUnsavedChangesPtr)
-		return;
-
 	FBone& SelectedBone = PreviewComponent->EditableBones[*SelectedBoneIndexPtr];
 
 	ImGui::Text("Bone: %s (Index: %d)", SelectedBone.Name.c_str(), *SelectedBoneIndexPtr);
@@ -44,14 +41,11 @@ void UBoneTransformWidget::RenderWidget()
 	ImGui::Spacing();
 
 	// Local Transform 편집 (PropertyRenderer 스타일)
-	ImGui::Text("Local Transform:");
+	ImGui::Text("Local Transform (Preview):");
 	ImGui::Spacing();
 
 	// Position
-	if (UPropertyUtils::RenderVector3WithColorBars("Position", &SelectedBone.LocalPosition, 0.1f))
-	{
-		*bHasUnsavedChangesPtr = true;
-	}
+	UPropertyUtils::RenderVector3WithColorBars("Position", &SelectedBone.LocalPosition, 0.1f);
 
 	// Rotation (Euler 저장 패턴으로 gimbal lock UI 문제 방지)
 	// NOTE: SceneComponent와 동일한 패턴 - Euler 입력값을 별도 저장하여 UI 값 뒤집힘 방지
@@ -59,14 +53,10 @@ void UBoneTransformWidget::RenderWidget()
 	if (UPropertyUtils::RenderVector3WithColorBars("Rotation", &euler, 1.0f))
 	{
 		SelectedBone.SetLocalRotationEuler(euler);
-		*bHasUnsavedChangesPtr = true;
 	}
 
 	// Scale
-	if (UPropertyUtils::RenderVector3WithColorBars("Scale", &SelectedBone.LocalScale, 0.01f))
-	{
-		*bHasUnsavedChangesPtr = true;
-	}
+	UPropertyUtils::RenderVector3WithColorBars("Scale", &SelectedBone.LocalScale, 0.01f);
 
 	// 버튼을 하단에 배치하기 위해 남은 공간 계산
 	float availHeight = ImGui::GetContentRegionAvail().y;
@@ -81,26 +71,14 @@ void UBoneTransformWidget::RenderWidget()
 	ImGui::Separator();
 	ImGui::Spacing();
 
-	// Apply / Cancel 버튼 (하단 고정)
-	if (ImGui::Button("Apply", ImVec2(100, 0)))
+	// Revert 버튼 (하단 고정)
+	if (ImGui::Button("Revert", ImVec2(100, 0)))
 	{
-		if (OnApplyCallback)
-			OnApplyCallback();
+		if (OnRevertCallback)
+			OnRevertCallback();
 	}
 	if (ImGui::IsItemHovered())
 	{
-		ImGui::SetTooltip("Save changes to main editor");
-	}
-
-	ImGui::SameLine();
-
-	if (ImGui::Button("Cancel", ImVec2(100, 0)))
-	{
-		if (OnCancelCallback)
-			OnCancelCallback();
-	}
-	if (ImGui::IsItemHovered())
-	{
-		ImGui::SetTooltip("Revert to original");
+		ImGui::SetTooltip("Revert to original bone transforms");
 	}
 }
