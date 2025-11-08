@@ -112,6 +112,20 @@ public:
     AGridActor* GetGridActor() { return GridActor; }
     UWorldPartitionManager* GetPartitionManager() { return Partition.get(); }
 
+    /** @brief 특정 타입의 첫 번째 Actor 찾기 (언리얼 스타일) */
+    template<typename T>
+    T* GetActorOfClass()
+    {
+        if (!Level) return nullptr;
+        for (AActor* Actor : Level->GetActors())
+        {
+            T* TypedActor = Cast<T>(Actor);
+            if (TypedActor)
+                return TypedActor;
+        }
+        return nullptr;
+    }
+
     // Per-world render settings
     URenderSettings& GetRenderSettings() { return RenderSettings; }
     const URenderSettings& GetRenderSettings() const { return RenderSettings; }
@@ -231,7 +245,10 @@ inline T* UWorld::SpawnActor(const FTransform& Transform)
 
     //  월드 등록
     NewActor->SetWorld(this);
-    
+
+    // PostActorCreated 호출 (World 설정 완료 후 초기화)
+    NewActor->PostActorCreated();
+
     // 월드에 등록
     AddActorToLevel(NewActor);
 

@@ -442,6 +442,9 @@ AActor* UWorld::SpawnActor(UClass* Class, const FTransform& Transform)
 	// 월드 참조 설정
 	NewActor->SetWorld(this);
 
+	// PostActorCreated 호출 (World 설정 완료 후 초기화)
+	NewActor->PostActorCreated();
+
 	// 현재 레벨에 액터 등록
 	AddActorToLevel(NewActor);
 

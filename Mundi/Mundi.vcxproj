@@ -500,6 +500,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='StandAlone|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Source\Editor\Gizmo\GizmoActor.cpp" />
+    <ClCompile Include="Source\Editor\Gizmo\OffscreenGizmoActor.cpp" />
     <ClCompile Include="Source\Editor\Gizmo\GizmoArrowComponent.cpp" />
     <ClCompile Include="Source\Editor\Gizmo\GizmoRotateComponent.cpp" />
     <ClCompile Include="Source\Editor\Gizmo\GizmoScaleComponent.cpp" />
@@ -880,6 +881,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="ThirdParty\ImGui\imstb_textedit.h" />
     <ClInclude Include="ThirdParty\ImGui\imstb_truetype.h" />
     <ClInclude Include="Source\Editor\Gizmo\GizmoActor.h" />
+    <ClInclude Include="Source\Editor\Gizmo\OffscreenGizmoActor.h" />
     <ClInclude Include="Source\Editor\Gizmo\GizmoArrowComponent.h" />
     <ClInclude Include="Source\Editor\Gizmo\GizmoRotateComponent.h" />
     <ClInclude Include="Source\Editor\Gizmo\GizmoScaleComponent.h" />

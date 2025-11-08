@@ -232,7 +232,7 @@ EGizmoMode AGizmoActor::GetGizmoMode() const
 }
 
 // 개선된 축 투영 함수 - 수직 각도에서도 안정적
-static FVector2D GetStableAxisDirection(const FVector& WorldAxis, const ACameraActor* Camera)
+FVector2D AGizmoActor::GetStableAxisDirection(const FVector& WorldAxis, const ACameraActor* Camera)
 {
 	const FVector CameraRight = Camera->GetRight();
 	const FVector CameraUp = Camera->GetUp();
@@ -615,7 +615,22 @@ void AGizmoActor::ProcessGizmoModeSwitch()
 
 void AGizmoActor::UpdateComponentVisibility()
 {
-	// 선택된 액터가 없으면 모든 기즈모 컴포넌트를 비활성화
+	// bRender가 false이면 모든 컴포넌트 비활성화 (외부에서 명시적으로 숨김 요청)
+	if (!bRender)
+	{
+		if (ArrowX) ArrowX->SetActive(false);
+		if (ArrowY) ArrowY->SetActive(false);
+		if (ArrowZ) ArrowZ->SetActive(false);
+		if (RotateX) RotateX->SetActive(false);
+		if (RotateY) RotateY->SetActive(false);
+		if (RotateZ) RotateZ->SetActive(false);
+		if (ScaleX) ScaleX->SetActive(false);
+		if (ScaleY) ScaleY->SetActive(false);
+		if (ScaleZ) ScaleZ->SetActive(false);
+		return;
+	}
+
+	// 선택된 컴포넌트가 없으면 모든 기즈모 컴포넌트를 비활성화
 	bool bHasSelection = SelectionManager && SelectionManager->GetSelectedComponent();
 
 	// 드래그 중일 때는 고정된 축(DraggingAxis)을, 아닐 때는 호버 축(GizmoAxis)을 사용

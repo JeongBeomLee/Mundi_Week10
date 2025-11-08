@@ -56,7 +56,7 @@ public:
     
     EGizmoMode GetGizmoMode() const;
 
-    void OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseDeltaX, float MouseDeltaY, const ACameraActor* Camera, FViewport* Viewport);
+    virtual void OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseDeltaX, float MouseDeltaY, const ACameraActor* Camera, FViewport* Viewport);
     void OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseDeltaX, float MouseDeltaY, const ACameraActor* Camera);
     
     // Gizmo interaction methods
@@ -94,25 +94,19 @@ protected:
     bool bIsDragging = false;
     EGizmoMode CurrentMode;
     EGizmoSpace CurrentSpace = EGizmoSpace::World;
-    
+
     // Interaction state
     /*AActor* TargetActor = nullptr;
     USceneComponent* SelectedComponent = nullptr;*/
     ACameraActor* CameraActor = nullptr;
-    
+
     // Manager references
     USelectionManager* SelectionManager = nullptr;
     UInputManager* InputManager = nullptr;
     UUIManager* UIManager = nullptr;
-    
-    uint32 GizmoAxis{};
-    // Gizmo interaction methods
-   
-    void ProcessGizmoHovering(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY);
-    void ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY);
-    void UpdateComponentVisibility();
 
-private:
+    uint32 GizmoAxis{};
+
     // 드래그 시작 시점의 타겟 트랜스폼
     FQuat DragStartRotation;
     FVector DragStartLocation;
@@ -131,4 +125,12 @@ private:
     FVector DragImpactPoint;
     // (회전용) 계산된 2D 스크린 드래그 벡터
     FVector2D DragScreenVector;
+
+    // Gizmo interaction methods (protected로 변경하여 상속 가능하게 함)
+    void ProcessGizmoHovering(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY);
+    void ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY);
+    void UpdateComponentVisibility();
+
+    // 개선된 축 투영 함수 - 수직 각도에서도 안정적
+    static FVector2D GetStableAxisDirection(const FVector& WorldAxis, const ACameraActor* Camera);
 };

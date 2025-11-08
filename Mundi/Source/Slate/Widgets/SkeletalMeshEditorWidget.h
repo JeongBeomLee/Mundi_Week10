@@ -6,7 +6,7 @@ class USkeletalMeshComponent;
 class FOffscreenViewport;
 class FOffscreenViewportClient;
 class UWorld;
-class AGizmoActor;
+class AOffscreenGizmoActor;
 
 /**
  * @brief Skeletal Mesh Editor 위젯 (실제 UI 구현)
@@ -67,6 +67,12 @@ private:
 	/** @brief 자식 본이 있는지 확인 (Tree 렌더링용) */
 	bool HasChildren(int32 BoneIndex) const;
 
+	/** @brief Bone의 World Transform 계산 (부모 누적) */
+	FTransform GetBoneWorldTransform(int32 BoneIndex) const;
+
+	/** @brief Bone의 World Transform 설정 (World → Local 변환) */
+	void SetBoneWorldTransform(int32 BoneIndex, const FTransform& WorldTransform);
+
 	// 상태
 	USkeletalMeshComponent* TargetComponent = nullptr;  // 원본 컴포넌트 (메인 에디터)
 	USkeletalMeshComponent* PreviewMeshComponent = nullptr;  // 편집 대상 (EditorWorld)
@@ -83,12 +89,12 @@ private:
 	// Editor World에 생성된 액터들
 	AActor* PreviewActor = nullptr;  // SkeletalMeshComponent를 가진 미리보기 액터
 
-	// Gizmo
-	AGizmoActor* BoneGizmo = nullptr;
+	// Gizmo (Offscreen 전용 - ImGui 입력 사용)
+	AOffscreenGizmoActor* BoneGizmo = nullptr;
 	EGizmoMode CurrentGizmoMode = EGizmoMode::Translate;
 	EGizmoSpace CurrentGizmoSpace = EGizmoSpace::Local;
 
 private:
 	// EditorWorld 초기화 (최초 1회만 실행)
-	static void InitializeEditorWorld();
+	void InitializeEditorWorld();
 };

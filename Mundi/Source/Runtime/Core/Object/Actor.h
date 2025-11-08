@@ -23,6 +23,7 @@ public:
 
 public:
     // 수명
+    virtual void PostActorCreated();  // SpawnActor 직후 호출 (World 설정 완료 후)
     virtual void BeginPlay();
     virtual void Tick(float DeltaSeconds);
     virtual void EndPlay(EEndPlayReason Reason);

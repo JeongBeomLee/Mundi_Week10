@@ -55,6 +55,12 @@ AActor::~AActor()
 	// UScriptManager::GetInstance().DetachAllScriptFrom(const_cast<AActor*>(this));
 }
 
+void AActor::PostActorCreated()
+{
+	// SpawnActor 직후 호출됨 (World 설정 완료)
+	// 서브클래스에서 오버라이드하여 World 의존적인 초기화 수행
+}
+
 void AActor::BeginPlay()
 {
 	// 컴포넌트들 Initialize/BeginPlay 순회

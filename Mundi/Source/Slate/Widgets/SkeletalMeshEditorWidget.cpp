@@ -3,12 +3,16 @@
 #include "ImGui/imgui.h"
 #include "SkeletalMeshComponent.h"
 #include "SkeletalMesh.h"
+#include "SceneComponent.h"
 #include "Enums.h"
 #include "FOffscreenViewport.h"
 #include "FOffscreenViewportClient.h"
 #include "World.h"
 #include "SelectionManager.h"
-#include "Gizmo/GizmoActor.h"
+#include "Gizmo/OffscreenGizmoActor.h"
+#include "Gizmo/GizmoArrowComponent.h"
+#include "Gizmo/GizmoRotateComponent.h"
+#include "Gizmo/GizmoScaleComponent.h"
 #include "D3D11RHI.h"
 #include "EditorEngine.h"
 #include "Renderer.h"
@@ -19,6 +23,7 @@
 #include "AmbientLightActor.h"
 #include "DirectionalLightComponent.h"
 #include "AmbientLightComponent.h"
+#include "BillboardComponent.h"
 #include "Color.h"
 #include "USlateManager.h"
 #include "PropertyUtils.h"
@@ -46,6 +51,7 @@ void USkeletalMeshEditorWidget::InitializeEditorWorld()
 
 	// 전용 Embedded World 생성 (Grid/Gizmo 없음)
 	EditorWorld = NewObject<UWorld>();
+	// IMPORTANT: Initialize() 전에 WorldType을 Embedded로 설정하여 자동 Gizmo 생성 방지
 	EditorWorld->SetWorldType(EWorldType::Embedded);
 	EditorWorld->Initialize();
 
@@ -66,6 +72,34 @@ void USkeletalMeshEditorWidget::InitializeEditorWorld()
 	{
 		AmbLight->GetLightComponent()->SetIntensity(0.4f);
 		AmbLight->GetLightComponent()->SetLightColor(FLinearColor(1, 1, 1));
+	}
+
+	// OffscreenGizmoActor 생성 (ImGui 입력 전용)
+	BoneGizmo = EditorWorld->SpawnActor<AOffscreenGizmoActor>();
+	if (BoneGizmo)
+	{
+		// NOTE: SpawnActor가 SetWorld()를 호출하여 SelectionManager 자동 초기화됨
+		BoneGizmo->SetTickInEditor(true);  // EditorWorld에서 Tick 활성화
+		BoneGizmo->SetbRender(false);  // 본 선택 전까지 숨김
+		// NOTE: Camera는 Initialize()에서 ViewportClient 생성 후 설정
+		BoneGizmo->SetMode(EGizmoMode::Translate);
+		BoneGizmo->SetSpace(EGizmoSpace::Local);
+
+		// BillboardComponent 아이콘 숨김 (RootComponent의 SpriteComponent)
+		if (USceneComponent* RootComp = BoneGizmo->GetRootComponent())
+		{
+			if (UBillboardComponent* Sprite = RootComp->GetSpriteComponent())
+			{
+				Sprite->SetActive(false);
+				UE_LOG("SkeletalMeshEditorWidget: Hidden BillboardComponent (SpriteComponent) in BoneGizmo");
+			}
+		}
+
+		UE_LOG("SkeletalMeshEditorWidget: BoneGizmo created in EditorWorld (%p)", BoneGizmo);
+	}
+	else
+	{
+		UE_LOG("SkeletalMeshEditorWidget: Failed to create OffscreenGizmoActor!");
 	}
 
 	// GWorld 복원 (메인 에디터 월드로 되돌림)
@@ -104,6 +138,29 @@ void USkeletalMeshEditorWidget::Initialize()
 
 	// Viewport ↔ ViewportClient 연결
 	EmbeddedViewport->SetViewportClient(ViewportClient);
+
+	// EditorWorld에서 BoneGizmo 찾기 (InitializeEditorWorld()에서 생성됨, 재사용)
+	if (!BoneGizmo && EditorWorld)
+	{
+		BoneGizmo = EditorWorld->GetActorOfClass<AOffscreenGizmoActor>();
+		if (BoneGizmo)
+		{
+			UE_LOG("SkeletalMeshEditorWidget: Found existing BoneGizmo in EditorWorld (%p)", BoneGizmo);
+		}
+		else
+		{
+			UE_LOG("SkeletalMeshEditorWidget: WARNING - BoneGizmo not found in EditorWorld!");
+		}
+	}
+
+	// BoneGizmo에 Camera 설정
+	if (BoneGizmo)
+	{
+		BoneGizmo->SetCameraActor(ViewportClient->GetCamera());
+		CurrentGizmoMode = EGizmoMode::Translate;
+		CurrentGizmoSpace = EGizmoSpace::Local;
+		UE_LOG("SkeletalMeshEditorWidget: BoneGizmo camera set (%p)", BoneGizmo);
+	}
 }
 
 void USkeletalMeshEditorWidget::Shutdown()
@@ -128,8 +185,13 @@ void USkeletalMeshEditorWidget::Shutdown()
 		ViewportClient = nullptr;
 	}
 
-	// Gizmo 정리 (나중에 구현)
-	BoneGizmo = nullptr;
+	// Gizmo 정리 (EditorWorld에서 생성했으므로 World가 자동 정리)
+	if (BoneGizmo)
+	{
+		BoneGizmo->SetbRender(false);
+		// NOTE: EditorWorld->DestroyActor(BoneGizmo) 하지 않음 (static world는 프로그램 종료 시 정리)
+		BoneGizmo = nullptr;
+	}
 
 	UE_LOG("SkeletalMeshEditorWidget: Shutdown complete");
 }
@@ -187,6 +249,16 @@ void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Compo
 		// PreviewActor를 선택 상태로 등록 (RenderDebugVolume() 호출되도록)
 		EditorWorld->GetSelectionManager()->ClearSelection();
 		EditorWorld->GetSelectionManager()->SelectActor(PreviewActor);
+
+		// PreviewActor의 BillboardComponent 아이콘 숨김 (RootComponent의 SpriteComponent)
+		if (USceneComponent* RootComp = PreviewActor->GetRootComponent())
+		{
+			if (UBillboardComponent* Sprite = RootComp->GetSpriteComponent())
+			{
+				Sprite->SetActive(false);
+				UE_LOG("SkeletalMeshEditorWidget: Hidden BillboardComponent (SpriteComponent) in PreviewActor");
+			}
+		}
 	}
 
 	// FBX Asset에서 Bone 데이터 로드
@@ -204,10 +276,25 @@ void USkeletalMeshEditorWidget::LoadBonesFromAsset()
 
 void USkeletalMeshEditorWidget::Update()
 {
+	static int UpdateCount = 0;
+	if (UpdateCount++ % 60 == 0)  // 1초마다 로그
+	{
+		UE_LOG("SkeletalMeshEditorWidget::Update called - BoneIdx=%d, PreviewComp=%p, BoneGizmo=%p",
+			SelectedBoneIndex, PreviewMeshComponent, BoneGizmo);
+	}
+
 	// 선택 동기화 (PreviewMeshComponent 기준)
 	if (PreviewMeshComponent && SelectedBoneIndex != PreviewMeshComponent->SelectedBoneIndex)
 	{
 		SelectedBoneIndex = PreviewMeshComponent->SelectedBoneIndex;
+		UE_LOG("SkeletalMeshEditorWidget: Bone selection changed to index %d", SelectedBoneIndex);
+	}
+
+	// EditorWorld Tick (BoneGizmo 등 Embedded World의 액터들을 업데이트)
+	if (EditorWorld)
+	{
+		float DeltaTime = ImGui::GetIO().DeltaTime;
+		EditorWorld->Tick(DeltaTime);
 	}
 
 	// ViewportClient 업데이트
@@ -218,7 +305,10 @@ void USkeletalMeshEditorWidget::Update()
 		ViewportClient->Tick(DeltaTime);
 	}
 
-	// TODO: Gizmo 업데이트
+	// Gizmo 업데이트 (선택된 본 위치로 이동)
+	UpdateGizmoForSelectedBone();
+
+	// NOTE: Gizmo 컴포넌트 가시성은 BoneGizmo->Tick()에서 UpdateComponentVisibility() 호출로 자동 업데이트됨
 }
 
 void USkeletalMeshEditorWidget::RenderWidget()
@@ -421,6 +511,10 @@ void USkeletalMeshEditorWidget::RenderViewport()
 		return;
 	}
 
+	// Toolbar 렌더링 (Viewport 위에 오버레이)
+	RenderViewportToolbar();
+	ImGui::Spacing();
+
 	// ImGui 영역 크기 가져오기
 	ImVec2 availSize = ImGui::GetContentRegionAvail();
 	uint32 NewWidth = static_cast<uint32>(availSize.x);
@@ -460,10 +554,12 @@ void USkeletalMeshEditorWidget::RenderViewport()
 		// FOffscreenViewportClient를 통해 ImGui 입력 처리
 		ImGuiIO& IO = ImGui::GetIO();
 
-		// 우클릭 드래그 중: 마우스 커서 숨기고 키보드 입력 차단
-		if (bIsRightMouseDown)
+		// Gizmo 드래그 상태 확인
+		bool bIsGizmoDragging = BoneGizmo ? BoneGizmo->GetbIsDragging() : false;
+
+		// 뷰포트에 호버 중이거나 Gizmo 드래그 중일 때 키보드 입력 캡처 (메인 뷰포트로 전달 방지)
+		if (bIsHovered || bIsGizmoDragging)
 		{
-			ImGui::SetMouseCursor(ImGuiMouseCursor_None);
 			IO.WantCaptureKeyboard = true;
 		}
 
@@ -471,8 +567,95 @@ void USkeletalMeshEditorWidget::RenderViewport()
 		int ViewportCenterX = static_cast<int>(ImagePos.x + NewWidth * 0.5f);
 		int ViewportCenterY = static_cast<int>(ImagePos.y + NewHeight * 0.5f);
 
-		// 입력 처리 (무한 스크롤 지원)
+		// ViewportClient에는 우클릭만 전달 (카메라 회전은 우클릭만)
 		ViewportClient->ProcessImGuiInput(IO, bIsRightMouseDown, ViewportCenterX, ViewportCenterY);
+
+		// 우클릭 카메라 회전 중에만 마우스 커서 숨김 (무한 스크롤)
+		// 좌클릭 Gizmo 드래그 시에는 커서를 보여서 사용자가 범위를 인지할 수 있도록 함
+		bool bLeftMouseDown = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+		if (bIsRightMouseDown)
+		{
+			ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+		}
+
+		// Gizmo 모드 전환 키 (뷰포트에 호버 중이거나 Gizmo 드래그 중일 때, 우클릭 드래그 중 아닐 때)
+		// NOTE: 우클릭 중에는 Q/W/E가 카메라 이동 키로 사용되므로 Gizmo 모드 전환 비활성화
+		if ((bIsHovered || bIsGizmoDragging) && BoneGizmo && !bIsRightMouseDown)
+		{
+			// 스페이스: 모드 순환 (Translate → Rotate → Scale → Translate)
+			if (ImGui::IsKeyPressed(ImGuiKey_Space))
+			{
+				BoneGizmo->ProcessGizmoModeSwitch();
+				CurrentGizmoMode = BoneGizmo->GetMode();
+				UE_LOG("SkeletalMeshEditor: Space pressed, mode switched to %d", (int)CurrentGizmoMode);
+			}
+
+			// Q: Translate 모드
+			if (ImGui::IsKeyPressed(ImGuiKey_Q))
+			{
+				CurrentGizmoMode = EGizmoMode::Translate;
+				BoneGizmo->SetMode(EGizmoMode::Translate);
+				UE_LOG("SkeletalMeshEditor: Q pressed, mode set to Translate");
+			}
+
+			// W: Rotate 모드
+			if (ImGui::IsKeyPressed(ImGuiKey_W))
+			{
+				CurrentGizmoMode = EGizmoMode::Rotate;
+				BoneGizmo->SetMode(EGizmoMode::Rotate);
+				UE_LOG("SkeletalMeshEditor: W pressed, mode set to Rotate");
+			}
+
+			// E: Scale 모드
+			if (ImGui::IsKeyPressed(ImGuiKey_E))
+			{
+				CurrentGizmoMode = EGizmoMode::Scale;
+				BoneGizmo->SetMode(EGizmoMode::Scale);
+				UE_LOG("SkeletalMeshEditor: E pressed, mode set to Scale");
+			}
+		}
+
+		// Gizmo 입력 처리 (우클릭 드래그 중이 아닐 때만)
+		if (!bIsRightMouseDown && BoneGizmo && bIsHovered && PreviewMeshComponent)
+		{
+			// ImGui 좌표 → Viewport 상대 좌표로 변환
+			ImVec2 MousePos = ImGui::GetMousePos();
+			float RelativeMouseX = MousePos.x - ImagePos.x;
+			float RelativeMouseY = MousePos.y - ImagePos.y;
+
+			// ImGui 입력 상태 가져오기 (bLeftMouseDown은 이미 위에서 선언됨)
+			bool bLeftMouseReleased = ImGui::IsMouseReleased(ImGuiMouseButton_Left);
+
+			// 디버깅: 입력 상태 로그
+			static int LogCounter = 0;
+			if (LogCounter++ % 60 == 0) // 1초마다 (60fps 기준)
+			{
+				UE_LOG("Gizmo Input: Mouse(%.1f, %.1f), LeftDown=%d, Hovering=%d, Dragging=%d",
+					RelativeMouseX, RelativeMouseY,
+					bLeftMouseDown, BoneGizmo->GetbIsHovering(), BoneGizmo->GetbIsDragging());
+			}
+
+			// OffscreenGizmoActor의 ImGui 입력 처리
+			BoneGizmo->ProcessGizmoInteractionImGui(
+				ViewportClient->GetCamera(),
+				EmbeddedViewport,
+				RelativeMouseX,
+				RelativeMouseY,
+				bLeftMouseDown,
+				bLeftMouseReleased
+			);
+
+			// Gizmo 드래그 중 실시간으로 본 Transform 업데이트
+			bool bIsDragging = BoneGizmo->GetbIsDragging();
+
+			if (bIsDragging && SelectedBoneIndex >= 0)
+			{
+				// 드래그 중 매 프레임 Gizmo Transform을 본에 적용 (실시간 피드백)
+				FTransform NewWorldTransform = BoneGizmo->GetActorTransform();
+				SetBoneWorldTransform(SelectedBoneIndex, NewWorldTransform);
+				bHasUnsavedChanges = true;
+			}
+		}
 	}
 	else
 	{
@@ -482,7 +665,85 @@ void USkeletalMeshEditorWidget::RenderViewport()
 
 void USkeletalMeshEditorWidget::RenderViewportToolbar()
 {
-	// TODO: Gizmo 모드 전환 버튼 등
+	if (!BoneGizmo)
+		return;
+
+	// Gizmo 모드 버튼
+	EGizmoMode CurrentMode = BoneGizmo->GetMode();
+
+	// Translate 버튼
+	bool bIsTranslateActive = (CurrentMode == EGizmoMode::Translate);
+	if (bIsTranslateActive)
+		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.6f, 1.0f, 1.0f));
+
+	if (ImGui::Button("Translate (W)", ImVec2(100, 0)))
+	{
+		UE_LOG("SkeletalMeshEditor: Translate button clicked");
+		CurrentGizmoMode = EGizmoMode::Translate;
+		BoneGizmo->SetMode(EGizmoMode::Translate);
+		UE_LOG("SkeletalMeshEditor: Mode set to Translate, Gizmo mode = %d", (int)BoneGizmo->GetMode());
+	}
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Move bone [W]");
+
+	if (bIsTranslateActive)
+		ImGui::PopStyleColor();
+
+	ImGui::SameLine();
+
+	// Rotate 버튼
+	bool bIsRotateActive = (CurrentMode == EGizmoMode::Rotate);
+	if (bIsRotateActive)
+		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.6f, 1.0f, 1.0f));
+
+	if (ImGui::Button("Rotate (E)", ImVec2(100, 0)))
+	{
+		UE_LOG("SkeletalMeshEditor: Rotate button clicked");
+		CurrentGizmoMode = EGizmoMode::Rotate;
+		BoneGizmo->SetMode(EGizmoMode::Rotate);
+		UE_LOG("SkeletalMeshEditor: Mode set to Rotate, Gizmo mode = %d", (int)BoneGizmo->GetMode());
+	}
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Rotate bone [E]");
+
+	if (bIsRotateActive)
+		ImGui::PopStyleColor();
+
+	ImGui::SameLine();
+
+	// Scale 버튼
+	bool bIsScaleActive = (CurrentMode == EGizmoMode::Scale);
+	if (bIsScaleActive)
+		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.6f, 1.0f, 1.0f));
+
+	if (ImGui::Button("Scale (R)", ImVec2(100, 0)))
+	{
+		UE_LOG("SkeletalMeshEditor: Scale button clicked");
+		CurrentGizmoMode = EGizmoMode::Scale;
+		BoneGizmo->SetMode(EGizmoMode::Scale);
+		UE_LOG("SkeletalMeshEditor: Mode set to Scale, Gizmo mode = %d", (int)BoneGizmo->GetMode());
+	}
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Scale bone [R]");
+
+	if (bIsScaleActive)
+		ImGui::PopStyleColor();
+
+	ImGui::SameLine();
+	ImGui::Spacing();
+	ImGui::SameLine();
+
+	// Local/World 공간 전환 버튼
+	const char* SpaceLabel = (CurrentGizmoSpace == EGizmoSpace::Local) ? "Local" : "World";
+	if (ImGui::Button(SpaceLabel, ImVec2(60, 0)))
+	{
+		UE_LOG("SkeletalMeshEditor: Space toggle button clicked");
+		CurrentGizmoSpace = (CurrentGizmoSpace == EGizmoSpace::Local) ? EGizmoSpace::World : EGizmoSpace::Local;
+		BoneGizmo->SetSpace(CurrentGizmoSpace);
+		UE_LOG("SkeletalMeshEditor: Space set to %s", (CurrentGizmoSpace == EGizmoSpace::Local) ? "Local" : "World");
+	}
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Toggle Local/World space");
 }
 
 void USkeletalMeshEditorWidget::HandleViewportInput()
@@ -497,7 +758,52 @@ void USkeletalMeshEditorWidget::PerformBonePicking(float MouseX, float MouseY)
 
 void USkeletalMeshEditorWidget::UpdateGizmoForSelectedBone()
 {
-	// TODO: 선택된 본에 Gizmo 부착
+	if (!BoneGizmo || !PreviewMeshComponent || !EditorWorld)
+		return;
+
+	USelectionManager* SelectionManager = EditorWorld->GetSelectionManager();
+	if (!SelectionManager)
+		return;
+
+	// 본이 선택되지 않았으면 Gizmo만 숨김 (PreviewActor는 선택 상태 유지하여 디버그 본 표시)
+	if (SelectedBoneIndex < 0 || SelectedBoneIndex >= PreviewMeshComponent->EditableBones.size())
+	{
+		BoneGizmo->SetbRender(false);
+		// PreviewActor는 선택 상태로 유지 (RenderDebugVolume 계속 호출되도록)
+		SelectionManager->ClearSelection();
+		SelectionManager->SelectActor(PreviewActor);
+		return;
+	}
+
+	// EditorWorld의 SelectionManager에 PreviewMeshComponent 선택
+	// (GizmoActor의 UpdateComponentVisibility가 이를 확인하여 Gizmo를 표시함)
+	SelectionManager->ClearSelection();
+	SelectionManager->SelectComponent(PreviewMeshComponent);
+
+	// 디버깅: 선택 상태 확인
+	USceneComponent* Selected = SelectionManager->GetSelectedComponent();
+	UE_LOG("UpdateGizmoForSelectedBone: BoneIdx=%d, SelMgr=%p, PreviewComp=%p, Selected=%p, Mode=%d",
+		SelectedBoneIndex, SelectionManager, PreviewMeshComponent, Selected, (int)CurrentGizmoMode);
+
+	// 선택된 본의 World Transform 계산
+	FTransform BoneWorldTransform = GetBoneWorldTransform(SelectedBoneIndex);
+
+	// Gizmo를 본 위치로 이동
+	BoneGizmo->SetActorLocation(BoneWorldTransform.Translation);
+
+	// Gizmo Space에 따라 회전 설정
+	if (CurrentGizmoSpace == EGizmoSpace::Local || CurrentGizmoMode == EGizmoMode::Scale)
+	{
+		// Local 모드 또는 Scale 모드: 본의 회전을 Gizmo에 적용
+		BoneGizmo->SetActorRotation(BoneWorldTransform.Rotation);
+	}
+	else // World 모드
+	{
+		// World 모드: 월드 축에 정렬 (항등 회전)
+		BoneGizmo->SetActorRotation(FQuat::Identity());
+	}
+
+	BoneGizmo->SetbRender(true);
 }
 
 bool USkeletalMeshEditorWidget::HasChildren(int32 BoneIndex) const
@@ -544,5 +850,86 @@ void USkeletalMeshEditorWidget::CancelChanges()
 
 	bHasUnsavedChanges = false;  // 변경사항 취소됨
 
+	// Gizmo 위치를 복구된 본 위치로 업데이트
+	UpdateGizmoForSelectedBone();
+
 	UE_LOG("SkeletalMeshEditorWidget: Cancelled changes (reverted to original)");
+}
+
+FTransform USkeletalMeshEditorWidget::GetBoneWorldTransform(int32 BoneIndex) const
+{
+	if (!PreviewMeshComponent || BoneIndex < 0 || BoneIndex >= PreviewMeshComponent->EditableBones.size())
+		return FTransform();
+
+	// 부모 본들의 Local Transform을 누적하여 World Transform 계산
+	FTransform WorldTransform = FTransform();
+	int32 CurrentIndex = BoneIndex;
+
+	// Root부터 현재 본까지의 경로를 역순으로 저장
+	TArray<int32> BonePath;
+	while (CurrentIndex >= 0)
+	{
+		BonePath.push_back(CurrentIndex);
+		CurrentIndex = PreviewMeshComponent->EditableBones[CurrentIndex].ParentIndex;
+	}
+
+	// Root부터 순차적으로 누적 (역순 순회)
+	for (int32 i = static_cast<int32>(BonePath.size()) - 1; i >= 0; --i)
+	{
+		const FBone& Bone = PreviewMeshComponent->EditableBones[BonePath[i]];
+		FTransform LocalTransform(Bone.LocalPosition, Bone.LocalRotation, Bone.LocalScale);
+		WorldTransform = WorldTransform.GetWorldTransform(LocalTransform);  // 부모.GetWorldTransform(자식)
+	}
+
+	return WorldTransform;
+}
+
+void USkeletalMeshEditorWidget::SetBoneWorldTransform(int32 BoneIndex, const FTransform& WorldTransform)
+{
+	if (!PreviewMeshComponent || BoneIndex < 0 || BoneIndex >= PreviewMeshComponent->EditableBones.size())
+		return;
+
+	FBone& Bone = PreviewMeshComponent->EditableBones[BoneIndex];
+
+	// 부모가 없으면 World Transform을 그대로 Local로 사용
+	if (Bone.ParentIndex < 0)
+	{
+		Bone.LocalPosition = WorldTransform.Translation;
+		Bone.LocalRotation = WorldTransform.Rotation;
+		Bone.LocalScale = WorldTransform.Scale3D;
+	}
+	else
+	{
+		// 부모의 World Transform 계산
+		FTransform ParentWorldTransform = GetBoneWorldTransform(Bone.ParentIndex);
+
+		// World → Local 변환 (수동 계산)
+		// Local = ParentWorld^-1 * World
+
+		// Rotation: Local = ParentRot^-1 * WorldRot
+		FQuat ParentRotInv = ParentWorldTransform.Rotation.Conjugate();
+		Bone.LocalRotation = ParentRotInv * WorldTransform.Rotation;
+
+		// Translation: Local = ParentRot^-1 * (World - Parent) / ParentScale
+		FVector WorldPosRelative = WorldTransform.Translation - ParentWorldTransform.Translation;
+		FVector LocalPos = ParentRotInv.RotateVector(WorldPosRelative);
+		Bone.LocalPosition = FVector(
+			LocalPos.X / ParentWorldTransform.Scale3D.X,
+			LocalPos.Y / ParentWorldTransform.Scale3D.Y,
+			LocalPos.Z / ParentWorldTransform.Scale3D.Z
+		);
+
+		// Scale: Local = World / Parent (component-wise)
+		Bone.LocalScale = FVector(
+			WorldTransform.Scale3D.X / ParentWorldTransform.Scale3D.X,
+			WorldTransform.Scale3D.Y / ParentWorldTransform.Scale3D.Y,
+			WorldTransform.Scale3D.Z / ParentWorldTransform.Scale3D.Z
+		);
+	}
+
+	// Euler angle도 업데이트 (UI 표시용)
+	Bone.LocalRotationEuler = Bone.LocalRotation.ToEulerZYXDeg();
+
+	// 변경사항 플래그 설정
+	bHasUnsavedChanges = true;
 }
