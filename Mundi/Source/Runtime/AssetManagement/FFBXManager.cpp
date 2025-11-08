@@ -540,14 +540,18 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
     FbxNode* MeshNode = FbxMeshNode->GetNode();
     int MaterialCount = MeshNode ? MeshNode->GetMaterialCount() : 0;
 
-    // Scene에서 Material 리스트 가져오기 (GetMaterialCount()가 0일 경우 대비)
+    // Scene에서 Material 리스트 가져오기
+    // 노드에 Material이 있든 없든, MaterialElement가 Scene Material을 참조할 수 있으므로 항상 가져옴
     TArray<FbxSurfaceMaterial*> SceneMaterials;
     FbxScene* Scene = FbxMeshNode->GetScene();
 
-    if (MaterialCount == 0 && Scene)
+    if (Scene)
     {
         int SceneMaterialCount = Scene->GetMaterialCount();
-        UE_LOG("FBXManager: Node has no materials, using Scene materials (count: %d)", SceneMaterialCount);
+        if (MaterialCount == 0)
+        {
+            UE_LOG("FBXManager: Node has no materials, using Scene materials (count: %d)", SceneMaterialCount);
+        }
 
         for (int i = 0; i < SceneMaterialCount; ++i)
         {
@@ -691,21 +695,27 @@ void FFBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMes
         }
 
         // ========================================
-        // 1. InverseBindPoseMatrix 계산
+        // 1. 행렬 가져오기
         // ========================================
-        // FBX는 열우선(Column-major): v' = M * v (오른쪽부터 적용)
-        // DirectX는 행우선(Row-major): v' = v * M (왼쪽부터 적용)
+        // FBX SDK API:
+        // - GetTransformMatrix(): 메시의 T-Pose 월드 행렬 (Model Local → World)
+        // - GetTransformLinkMatrix(): 뼈의 T-Pose 월드 행렬 (Bone Local → World)
 
-        FbxAMatrix MeshTransform;   // Mesh Local → World
-        FbxAMatrix LinkTransform;   // Bone World Transform at Bind Pose
+        FbxAMatrix MeshTransform;          // Mesh Local → World
+        FbxAMatrix BoneWorldTransform;     // Bone Local → World (at Bind Pose)
         Cluster->GetTransformMatrix(MeshTransform);
-        Cluster->GetTransformLinkMatrix(LinkTransform);
+        Cluster->GetTransformLinkMatrix(BoneWorldTransform);
 
-        // InverseBindPoseMatrix: 바인드 포즈에서 월드 좌표 → 본 로컬 좌표 (Model → Bone)
-        // = LinkTransform.Inverse() * MeshTransform
-        FbxAMatrix FbxInverseBindPose = LinkTransform.Inverse() * MeshTransform;
+        // ========================================
+        // 2. InverseBindPoseMatrix 계산
+        // ========================================
+        // InverseBindPose = T-Pose 시점의 월드 공간 정점을 뼈 로컬 공간으로 변환
+        // = (World → Bone Local) * (Mesh Local → World)
+        // = BoneWorldTransform.Inverse() * MeshTransform
+        // = Mesh Local → Bone Local
+        FbxAMatrix FbxInverseBindPose = BoneWorldTransform.Inverse() * MeshTransform;
 
-        // 전치 없이 그대로 복사 (i, j)
+        // FBX 행렬을 DirectX 행렬로 복사 (전치 없이)
         BoneInfo.InverseBindPoseMatrix = FMatrix::Identity();
         for (int i = 0; i < 4; i++)
         {
@@ -716,26 +726,29 @@ void FFBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMes
         }
 
         // ========================================
-        // 2. GlobalTransform: 본 로컬 좌표 → 월드 좌표 (Bone → Model)
+        // 3. GlobalTransform: Bone Local → World (at Bind Pose)
         // ========================================
         // 바인드 포즈 시점의 본 월드 변환
-        FbxAMatrix FbxGlobalTransform = LinkTransform;
-
-        // 전치 없이 그대로 복사 (i, j)
+        // 애니메이션 시에는 현재 프레임의 본 변환으로 교체됨
         BoneInfo.GlobalTransform = FMatrix::Identity();
         for (int i = 0; i < 4; i++)
         {
             for (int j = 0; j < 4; j++)
             {
-                BoneInfo.GlobalTransform.M[i][j] = static_cast<float>(FbxGlobalTransform.Get(i, j));
+                BoneInfo.GlobalTransform.M[i][j] = static_cast<float>(BoneWorldTransform.Get(i, j));
             }
         }
 
         // ========================================
-        // 3. SkinningMatrix: InverseBindPoseMatrix × GlobalTransform
+        // 4. SkinningMatrix: 바인드 포즈에서의 최종 변환
         // ========================================
-        // = (Model → Bone) × (Bone → Model)
-        // = 바인드 포즈 기준으로 정점을 애니메이션된 본에 맞춰 변형
+        // SkinningMatrix = InverseBindPose * GlobalTransform (at Bind Pose)
+        //                = (Mesh Local → Bone Local) * (Bone Local → World)
+        //                = Mesh Local → World
+        //
+        // 애니메이션 적용 시: AnimatedBoneTransform * InverseBindPose
+        //                = (Bone Local → World at current frame) * (Mesh Local → Bone Local)
+        //                = Mesh Local → World (animated)
         BoneInfo.SkinningMatrix = BoneInfo.InverseBindPoseMatrix * BoneInfo.GlobalTransform;
 
         OutMeshData->Bones.push_back(BoneInfo);
@@ -855,64 +868,29 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
     if (!FbxMeshNode)
         return;
 
-    FbxNode* MeshNode = FbxMeshNode->GetNode();
-    if (!MeshNode)
-        return;
-
-    // Material을 찾기 위한 여러 시도
-    int MaterialCount = MeshNode->GetMaterialCount();
-
-    UE_LOG("FBXManager: LoadMaterials - MeshNode MaterialCount: %d", MaterialCount);
-
-    // Material이 노드에 없으면 Scene에서 찾기
-    TArray<FbxSurfaceMaterial*> Materials;
-
-    if (MaterialCount > 0)
+    FbxScene* Scene = FbxMeshNode->GetScene();
+    if (!Scene)
     {
-        // 노드에서 직접 가져오기
-        for (int i = 0; i < MaterialCount; ++i)
-        {
-            FbxSurfaceMaterial* FbxMaterial = MeshNode->GetMaterial(i);
-            if (FbxMaterial)
-            {
-                Materials.push_back(FbxMaterial);
-            }
-        }
-    }
-    else
-    {
-        // Scene 전체에서 Material 검색
-        FbxScene* Scene = FbxMeshNode->GetScene();
-        if (Scene)
-        {
-            int SceneMaterialCount = Scene->GetMaterialCount();
-            UE_LOG("FBXManager: Searching Scene for materials - Found %d materials", SceneMaterialCount);
-
-            for (int i = 0; i < SceneMaterialCount; ++i)
-            {
-                FbxSurfaceMaterial* FbxMaterial = Scene->GetMaterial(i);
-                if (FbxMaterial)
-                {
-                    Materials.push_back(FbxMaterial);
-                }
-            }
-        }
-    }
-
-    if (Materials.empty())
-    {
-        UE_LOG("FBXManager: No materials found in FBX file");
+        UE_LOG("FBXManager: LoadMaterials failed - no scene found.");
         return;
     }
 
-    UE_LOG("FBXManager: Loading %zu materials", Materials.size());
+    // [수정] 씬의 모든 머티리얼을 항상 로드하여 누락을 방지합니다.
+    int SceneMaterialCount = Scene->GetMaterialCount();
+    if (SceneMaterialCount == 0)
+    {
+        UE_LOG("FBXManager: No materials found in scene.");
+        return;
+    }
+
+    UE_LOG("FBXManager: Processing %d materials from scene.", SceneMaterialCount);
 
     UMaterial* DefaultMaterial = UResourceManager::GetInstance().GetDefaultMaterial();
-    //@TODO 추가 쉐이더 작업 필..
     UShader* DefaultShader = DefaultMaterial ? DefaultMaterial->GetShader() : nullptr;
 
-    for (FbxSurfaceMaterial* FbxMaterial : Materials)
+    for (int i = 0; i < SceneMaterialCount; ++i)
     {
+        FbxSurfaceMaterial* FbxMaterial = Scene->GetMaterial(i);
         if (!FbxMaterial)
             continue;
 
@@ -922,64 +900,95 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
         if (UResourceManager::GetInstance().Get<UMaterial>(MaterialName))
             continue;
 
+        UE_LOG("FBXManager: Creating material: '%s'", MaterialName.c_str());
+
         // FMaterialInfo 생성
         FMaterialInfo MaterialInfo;
         MaterialInfo.MaterialName = MaterialName;
 
-        // FBX에서 텍스처 경로 파싱
-        // FbxSurfaceMaterial을 FbxSurfacePhong 또는 FbxSurfaceLambert로 캐스팅하여 텍스처 정보 추출
+        // FBX에서 텍스처 및 색상 경로 파싱
         if (FbxMaterial->GetClassId().Is(FbxSurfacePhong::ClassId) ||
             FbxMaterial->GetClassId().Is(FbxSurfaceLambert::ClassId))
         {
-            // Diffuse 텍스처
+            // Ambient Color / Texture
+            FbxProperty AmbientProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sAmbient);
+            if (AmbientProperty.IsValid())
+            {
+                if (AmbientProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
+                {
+                    FbxFileTexture* Texture = AmbientProperty.GetSrcObject<FbxFileTexture>(0);
+                    if (Texture) MaterialInfo.AmbientTextureFileName = Texture->GetFileName();
+                }
+                else
+                {
+                    FbxDouble3 Color = AmbientProperty.Get<FbxDouble3>();
+                    MaterialInfo.AmbientColor = FVector(static_cast<float>(Color[0]), static_cast<float>(Color[1]), static_cast<float>(Color[2]));
+                }
+            }
+
+            // Diffuse Color / Texture
             FbxProperty DiffuseProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sDiffuse);
             if (DiffuseProperty.IsValid())
             {
-                int TextureCount = DiffuseProperty.GetSrcObjectCount<FbxFileTexture>();
-                if (TextureCount > 0)
+                if (DiffuseProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
                 {
                     FbxFileTexture* Texture = DiffuseProperty.GetSrcObject<FbxFileTexture>(0);
-                    if (Texture)
-                    {
-                        MaterialInfo.DiffuseTextureFileName = Texture->GetFileName();
-                    }
+                    if (Texture) MaterialInfo.DiffuseTextureFileName = Texture->GetFileName();
+                }
+                else
+                {
+                    FbxDouble3 Color = DiffuseProperty.Get<FbxDouble3>();
+                    MaterialInfo.DiffuseColor = FVector(static_cast<float>(Color[0]), static_cast<float>(Color[1]), static_cast<float>(Color[2]));
                 }
             }
 
-            // Normal 텍스처
+            // Emissive Color / Texture
+            FbxProperty EmissiveProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sEmissive);
+            if (EmissiveProperty.IsValid())
+            {
+                if (EmissiveProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
+                {
+                    FbxFileTexture* Texture = EmissiveProperty.GetSrcObject<FbxFileTexture>(0);
+                    if (Texture) MaterialInfo.EmissiveTextureFileName = Texture->GetFileName();
+                }
+                else
+                {
+                    FbxDouble3 Color = EmissiveProperty.Get<FbxDouble3>();
+                    MaterialInfo.EmissiveColor = FVector(static_cast<float>(Color[0]), static_cast<float>(Color[1]), static_cast<float>(Color[2]));
+                }
+            }
+
+            // Normal Texture
             FbxProperty NormalProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sNormalMap);
             if (NormalProperty.IsValid())
             {
-                int TextureCount = NormalProperty.GetSrcObjectCount<FbxFileTexture>();
-                if (TextureCount > 0)
+                if (NormalProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
                 {
                     FbxFileTexture* Texture = NormalProperty.GetSrcObject<FbxFileTexture>(0);
-                    if (Texture)
-                    {
-                        MaterialInfo.NormalTextureFileName = Texture->GetFileName();
-                    }
+                    if (Texture) MaterialInfo.NormalTextureFileName = Texture->GetFileName();
                 }
             }
 
-            // Specular 텍스처 및 Exponent (Phong만 해당)
+            // Specular properties (Phong only)
             if (FbxMaterial->GetClassId().Is(FbxSurfacePhong::ClassId))
             {
-                // Specular Texture
+                // Specular Color / Texture
                 FbxProperty SpecularProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sSpecular);
                 if (SpecularProperty.IsValid())
                 {
-                    int TextureCount = SpecularProperty.GetSrcObjectCount<FbxFileTexture>();
-                    if (TextureCount > 0)
+                    if (SpecularProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
                     {
                         FbxFileTexture* Texture = SpecularProperty.GetSrcObject<FbxFileTexture>(0);
-                        if (Texture)
-                        {
-                            MaterialInfo.SpecularTextureFileName = Texture->GetFileName();
-                        }
+                        if (Texture) MaterialInfo.SpecularTextureFileName = Texture->GetFileName();
+                    }
+                    else
+                    {
+                        FbxDouble3 Color = SpecularProperty.Get<FbxDouble3>();
+                        MaterialInfo.SpecularColor = FVector(static_cast<float>(Color[0]), static_cast<float>(Color[1]), static_cast<float>(Color[2]));
                     }
                 }
 
-                // [수정] Specular Exponent (Shininess) 읽기
+                // Specular Exponent (Shininess)
                 FbxProperty ShininessProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sShininess);
                 if (ShininessProperty.IsValid())
                 {
@@ -1001,7 +1010,6 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
         }
 
         UResourceManager::GetInstance().Add<UMaterial>(MaterialName, Material);
-        UE_LOG("FBXManager: Created material: %s", MaterialName.c_str());
     }
 }
 
