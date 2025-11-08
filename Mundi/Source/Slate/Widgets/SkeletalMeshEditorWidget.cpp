@@ -357,24 +357,39 @@ void USkeletalMeshEditorWidget::RenderTransformEditor()
 	// Scale
 	ImGui::DragFloat3("Scale", &SelectedBone.LocalScale.X, 0.01f);
 
-	ImGui::Spacing();
+	// 버튼을 하단에 배치하기 위해 남은 공간 계산
+	float availHeight = ImGui::GetContentRegionAvail().y;
+	float buttonHeight = 30.0f;
+	float spacing = 10.0f;
+
+	if (availHeight > buttonHeight + spacing)
+	{
+		ImGui::Dummy(ImVec2(0, availHeight - buttonHeight - spacing));
+	}
+
 	ImGui::Separator();
 	ImGui::Spacing();
 
-	// Apply / Cancel 버튼
+	// Apply / Cancel 버튼 (하단 고정)
 	if (ImGui::Button("Apply", ImVec2(100, 0)))
 	{
 		ApplyChanges();
 	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Save changes to main editor");
+	}
+
 	ImGui::SameLine();
+
 	if (ImGui::Button("Cancel", ImVec2(100, 0)))
 	{
 		CancelChanges();
 	}
-
-	ImGui::Spacing();
-	ImGui::TextDisabled("Apply: Save changes to main editor");
-	ImGui::TextDisabled("Cancel: Revert to original");
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Revert to original");
+	}
 }
 
 void USkeletalMeshEditorWidget::RenderViewport()
