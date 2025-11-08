@@ -41,19 +41,16 @@ void USkeletalMeshEditorWidget::InitializeEditorWorld()
 
 	// GWorld 백업 (NewObject나 Initialize가 GWorld를 변경할 수 있음)
 	UWorld* OriginalGWorld = GWorld;
-	UE_LOG("SkeletalMeshEditorWidget: [BEFORE NewObject] GWorld=%p", GWorld);
 
-	// 전용 World 생성
+	// 전용 Embedded World 생성 (Grid/Gizmo 없음)
 	EditorWorld = NewObject<UWorld>();
-	UE_LOG("SkeletalMeshEditorWidget: [AFTER NewObject] GWorld=%p, EditorWorld=%p", GWorld, EditorWorld);
-
+	EditorWorld->SetWorldType(EWorldType::Embedded);
 	EditorWorld->Initialize();
-	UE_LOG("SkeletalMeshEditorWidget: [AFTER Initialize] GWorld=%p", GWorld);
 
 	// DirectionalLight 추가 (기본 조명)
 	ADirectionalLightActor* DirLight = EditorWorld->SpawnActor<ADirectionalLightActor>();
-	DirLight->SetActorLocation(FVector(0, 0, 1000));
-	DirLight->SetActorRotation(FQuat::MakeFromEulerZYX(FVector(-45, 0, 0)));
+	DirLight->SetActorLocation(FVector(10000, 10000, 10000));
+	DirLight->SetActorRotation(FQuat::MakeFromEulerZYX(FVector(-45, -45, 0)));
 	if (DirLight->GetLightComponent())
 	{
 		DirLight->GetLightComponent()->SetIntensity(1.0f);
@@ -62,37 +59,21 @@ void USkeletalMeshEditorWidget::InitializeEditorWorld()
 
 	// AmbientLight 추가 (은은한 환경광)
 	AAmbientLightActor* AmbLight = EditorWorld->SpawnActor<AAmbientLightActor>();
+	AmbLight->SetActorLocation(FVector(10000, 10000, 10000));
 	if (AmbLight->GetLightComponent())
 	{
-		AmbLight->GetLightComponent()->SetIntensity(0.3f);
+		AmbLight->GetLightComponent()->SetIntensity(0.4f);
 		AmbLight->GetLightComponent()->SetLightColor(FLinearColor(1, 1, 1));
 	}
 
 	// GWorld 복원 (메인 에디터 월드로 되돌림)
 	GWorld = OriginalGWorld;
-	UE_LOG("SkeletalMeshEditorWidget: Restored GWorld=%p", GWorld);
-	UE_LOG("SkeletalMeshEditorWidget: [VERIFY] MainViewport->World=%p after GWorld restore",
-		USlateManager::GetInstance().GetMainViewport() ? USlateManager::GetInstance().GetMainViewport()->GetViewportClient()->GetWorld() : nullptr);
-
-	UE_LOG("SkeletalMeshEditorWidget: EditorWorld initialized with lights");
 }
 
 void USkeletalMeshEditorWidget::Initialize()
 {
-	// 디버깅: 메인 뷰포트들의 World 주소 확인 (변경 전)
-	SViewportWindow* MainVP = USlateManager::GetInstance().GetMainViewport();
-	UE_LOG("SkeletalMeshEditorWidget::Initialize [BEFORE] - MainViewport->ViewportClient->World=%p",
-		MainVP ? MainVP->GetViewportClient()->GetWorld() : nullptr);
-
 	// EditorWorld 초기화 (최초 1회만 실행되는 싱글톤)
 	InitializeEditorWorld();
-
-	// 디버깅: EditorWorld와 GWorld 주소 확인
-	UE_LOG("SkeletalMeshEditorWidget::Initialize - EditorWorld=%p, GWorld=%p", EditorWorld, GWorld);
-
-	// 디버깅: 메인 뷰포트들의 World 주소 확인 (변경 후)
-	UE_LOG("SkeletalMeshEditorWidget::Initialize [AFTER InitializeEditorWorld] - MainViewport->ViewportClient->World=%p",
-		MainVP ? MainVP->GetViewportClient()->GetWorld() : nullptr);
 
 	// D3D11Device 가져오기
 	ID3D11Device* Device = GEngine.GetRenderer()->GetRHIDevice()->GetDevice();
@@ -119,17 +100,8 @@ void USkeletalMeshEditorWidget::Initialize()
 	// ViewportClient에 EditorWorld 설정 (메인 World와 격리)
 	ViewportClient->SetWorld(EditorWorld);
 
-	// 디버깅: SetWorld 후 ViewportClient의 World 주소 확인
-	UE_LOG("SkeletalMeshEditorWidget::Initialize - ViewportClient->World=%p", ViewportClient->GetWorld());
-
-	// 디버깅: 메인 뷰포트들의 World 주소 확인 (에디터 뷰포트 생성 후)
-	UE_LOG("SkeletalMeshEditorWidget::Initialize [AFTER Editor Viewport Created] - MainViewport->ViewportClient->World=%p",
-		MainVP ? MainVP->GetViewportClient()->GetWorld() : nullptr);
-
 	// Viewport ↔ ViewportClient 연결
 	EmbeddedViewport->SetViewportClient(ViewportClient);
-
-	UE_LOG("SkeletalMeshEditorWidget: Viewport initialized successfully (800x600) with EditorWorld");
 }
 
 void USkeletalMeshEditorWidget::Shutdown()
@@ -194,13 +166,7 @@ void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Compo
 
 		// 컴포넌트 등록 (World 전달)
 		PreviewMeshComp->RegisterComponent(EditorWorld);
-
-		UE_LOG("SkeletalMeshEditorWidget: PreviewActor created in EditorWorld with %d bones", PreviewMeshComp->GetBoneCount());
 	}
-
-	UE_LOG("SetTargetComponent [AFTER] - GWorld=%p, EditorWorld=%p, MainViewport->World=%p",
-		GWorld, EditorWorld,
-		USlateManager::GetInstance().GetMainViewport() ? USlateManager::GetInstance().GetMainViewport()->GetViewportClient()->GetWorld() : nullptr);
 
 	// FBX Asset에서 Bone 데이터 로드
 	LoadBonesFromAsset();
@@ -213,8 +179,6 @@ void USkeletalMeshEditorWidget::LoadBonesFromAsset()
 
 	// Component의 EditableBones를 사용 (이미 더미 데이터 로드됨)
 	// Editor에서 EditableBones를 수정하면 Component 렌더링에 즉시 반영됨
-	UE_LOG("SkeletalMeshEditorWidget: Using Component's EditableBones (%d bones)",
-		TargetComponent->EditableBones.size());
 }
 
 void USkeletalMeshEditorWidget::Update()
@@ -238,12 +202,6 @@ void USkeletalMeshEditorWidget::Update()
 
 void USkeletalMeshEditorWidget::RenderWidget()
 {
-	static int renderWidgetCount = 0;
-	if (renderWidgetCount++ % 60 == 0)
-	{
-		UE_LOG("SkeletalMeshEditorWidget::RenderWidget - TargetComponent=%p", TargetComponent);
-	}
-
 	if (!TargetComponent)
 	{
 		ImGui::TextColored(ImVec4(1, 0, 0, 1), "No skeletal mesh component selected!");
@@ -398,13 +356,6 @@ void USkeletalMeshEditorWidget::RenderTransformEditor()
 
 void USkeletalMeshEditorWidget::RenderViewport()
 {
-	static int renderViewportCount = 0;
-	if (renderViewportCount++ % 60 == 0)
-	{
-		UE_LOG("SkeletalMeshEditorWidget::RenderViewport - EmbeddedViewport=%p, ViewportClient=%p",
-			EmbeddedViewport, ViewportClient);
-	}
-
 	if (!EmbeddedViewport || !ViewportClient)
 	{
 		ImGui::TextColored(ImVec4(1, 0, 0, 1), "Viewport not initialized!");

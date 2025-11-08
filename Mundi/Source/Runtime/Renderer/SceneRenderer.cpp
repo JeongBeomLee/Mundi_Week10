@@ -145,15 +145,6 @@ void FSceneRenderer::Render()
 	ApplyScreenEffectsPass();
 
 	// 최종적으로 Scene에 그려진 텍스쳐를 렌더 타겟에 합성
-	static int compositeCount = 0;
-	if (compositeCount++ % 60 == 0)
-	{
-		UE_LOG("SceneRenderer::Render - World=%p, TargetRTV=%p, Path=%s",
-			World,
-			View->TargetRTV,
-			View->TargetRTV ? "OffscreenRTV" : "BackBuffer");
-	}
-
 	if (View->TargetRTV != nullptr)
 	{
 		// 오프스크린 렌더링: 커스텀 RenderTarget으로 합성
@@ -453,16 +444,6 @@ void FSceneRenderer::GatherVisibleProxies()
 
 	// Collect from Level Actors (including their Gizmo components)
 	const TArray<AActor*>& LevelActors = World->GetActors();
-
-	// 디버깅: 어떤 World의 액터를 수집하는지 확인
-	static int gatherCount = 0;
-	if (gatherCount++ % 60 == 0)
-	{
-		UE_LOG("GatherVisibleProxies - World=%p, Level=%p, ActorCount=%d",
-			World,
-			World->GetLevel(),
-			LevelActors.size());
-	}
 
 	for (AActor* Actor : LevelActors)
 	{

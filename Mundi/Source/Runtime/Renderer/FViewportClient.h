@@ -34,7 +34,6 @@ public:
 
     void SetWorld(UWorld* InWorld)
     {
-        UE_LOG("FViewportClient::SetWorld - this=%p, OldWorld=%p, NewWorld=%p", this, World, InWorld);
         World = InWorld;
     }
     UWorld* GetWorld() const { return World; }

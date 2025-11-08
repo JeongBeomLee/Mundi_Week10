@@ -40,12 +40,20 @@ class UWorld final : public UObject
 {
 public:
     DECLARE_CLASS(UWorld, UObject)
-    UWorld();
+    UWorld(EWorldType InWorldType = EWorldType::Editor);
     ~UWorld() override;
 
+    // TODO: bPie를 제거하고 IsPIE() (WorldType 기반)로 전환
     bool bPie = false;
 
 public:
+    /** 월드 타입 */
+    EWorldType GetWorldType() const { return WorldType; }
+    void SetWorldType(EWorldType InWorldType) { WorldType = InWorldType; }
+    bool IsPIE() const { return WorldType == EWorldType::Game; }
+    bool IsEditor() const { return WorldType == EWorldType::Editor; }
+    bool IsEmbedded() const { return WorldType == EWorldType::Embedded; }
+
     /** 초기화 */
     void Initialize();
     void InitializeGrid();
@@ -159,6 +167,9 @@ public:
     FVector PlayerSpawnLocation = FVector(0.0f, 0.0f, 0.0f);
 
 private:
+    /** === 월드 타입 === */
+    EWorldType WorldType = EWorldType::Editor;
+
     /** === 에디터 특수 액터 관리 === */
     TArray<AActor*> EditorActors;
     ACameraActor* MainCameraActor = nullptr;

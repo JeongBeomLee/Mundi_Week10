@@ -176,35 +176,13 @@ void FOffscreenViewport::ReleaseRenderTargets()
 
 void FOffscreenViewport::Render()
 {
-    static int renderCount = 0;
-    if (renderCount++ % 60 == 0)
-    {
-        UE_LOG("FOffscreenViewport::Render [BEFORE] - this=%p, ViewportClient=%p, OffscreenRTV=%p",
-            this, ViewportClient, OffscreenRTV);
-    }
-
     if (!ViewportClient || !OffscreenRTV || !OffscreenDSV)
-    {
-        UE_LOG("FOffscreenViewport::Render - Skipping render (missing resources)");
         return;
-    }
 
     // ViewportClient 렌더링
     // FSceneRenderer가 GetRenderTargetView()를 통해 OffscreenRTV를 가져가서
     // 자동으로 오프스크린 텍스처에 렌더링함
     BeginRenderFrame();
-
-    if (renderCount % 60 == 0)
-    {
-        UE_LOG("FOffscreenViewport::Render [CALLING Draw] - ViewportClient=%p", ViewportClient);
-    }
-
     ViewportClient->Draw(this);
-
-    if (renderCount % 60 == 0)
-    {
-        UE_LOG("FOffscreenViewport::Render [AFTER Draw] - ViewportClient=%p", ViewportClient);
-    }
-
     EndRenderFrame();
 }
