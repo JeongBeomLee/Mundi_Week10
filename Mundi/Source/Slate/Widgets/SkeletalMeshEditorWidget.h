@@ -7,6 +7,8 @@ class FOffscreenViewport;
 class FOffscreenViewportClient;
 class UWorld;
 class AOffscreenGizmoActor;
+class UBoneHierarchyWidget;
+class UBoneTransformWidget;
 
 /**
  * @brief Skeletal Mesh Editor 위젯 (실제 UI 구현)
@@ -45,11 +47,6 @@ public:
 	void Shutdown();
 
 private:
-	// UI 렌더링
-	void RenderBoneHierarchy();
-	void RenderBoneTreeNode(int32 BoneIndex);
-	void RenderTransformEditor();
-
 	// Viewport 렌더링
 	void RenderViewport();
 	void RenderViewportToolbar();
@@ -64,15 +61,6 @@ private:
 	/** @brief FBX Asset에서 Bone 데이터 로드 (TargetComponent의 SkeletalMesh에서) */
 	void LoadBonesFromAsset();
 
-	/** @brief 자식 본이 있는지 확인 (Tree 렌더링용) */
-	bool HasChildren(int32 BoneIndex) const;
-
-	/** @brief Bone의 World Transform 계산 (부모 누적) */
-	FTransform GetBoneWorldTransform(int32 BoneIndex) const;
-
-	/** @brief Bone의 World Transform 설정 (World → Local 변환) */
-	void SetBoneWorldTransform(int32 BoneIndex, const FTransform& WorldTransform);
-
 	// 상태
 	USkeletalMeshComponent* TargetComponent = nullptr;  // 원본 컴포넌트 (메인 에디터)
 	USkeletalMeshComponent* PreviewMeshComponent = nullptr;  // 편집 대상 (EditorWorld)
@@ -83,7 +71,22 @@ private:
 	FOffscreenViewport* EmbeddedViewport = nullptr;
 	FOffscreenViewportClient* ViewportClient = nullptr;
 
-	// 전용 World (모든 Skeletal Mesh Editor 인스턴스가 공유)
+	/**
+	 * @brief 전용 Embedded World (Singleton 패턴)
+	 *
+	 * 설계 근거:
+	 * - UIManager에서 단일 Skeletal Mesh Editor 윈도우만 존재 (중복 열기 불가)
+	 * - 여러 컴포넌트를 순차적으로 편집해도 같은 World 재사용
+	 * - PreviewActor는 SetTargetComponent()에서 교체됨 (메모리 효율)
+	 * - 불필요한 다중 World 생성 방지 (조명, SelectionManager 등 중복 생성 방지)
+	 * - 프로그램 종료 시 자동 정리 (static 수명 주기)
+	 *
+	 * 대안 고려:
+	 * - 인스턴스 별 World 생성 시: 메모리 낭비, Actor 누적 문제 발생
+	 * - 윈도우 닫을 때 World 삭제 시: 재오픈 시 재생성 비용 발생
+	 *
+	 * @note InitializeEditorWorld()에서 최초 1회만 초기화됨
+	 */
 	static inline UWorld* EditorWorld = nullptr;
 
 	// Editor World에 생성된 액터들
@@ -93,6 +96,10 @@ private:
 	AOffscreenGizmoActor* BoneGizmo = nullptr;
 	EGizmoMode CurrentGizmoMode = EGizmoMode::Translate;
 	EGizmoSpace CurrentGizmoSpace = EGizmoSpace::Local;
+
+	// === 복합 위젯들 (SDetailsWindow 패턴) ===
+	UBoneHierarchyWidget* HierarchyWidget = nullptr;
+	UBoneTransformWidget* TransformWidget = nullptr;
 
 private:
 	// EditorWorld 초기화 (최초 1회만 실행)

@@ -1,0 +1,106 @@
+#include "pch.h"
+#include "BoneTransformWidget.h"
+#include "ImGui/imgui.h"
+#include "SkeletalMeshComponent.h"
+#include "SkeletalMeshTypes.h"
+#include "PropertyUtils.h"
+
+IMPLEMENT_CLASS(UBoneTransformWidget)
+
+UBoneTransformWidget::UBoneTransformWidget()
+	: UWidget("Bone Transform Editor")
+{
+}
+
+void UBoneTransformWidget::Initialize()
+{
+	UWidget::Initialize();
+}
+
+void UBoneTransformWidget::Update()
+{
+	// 상태 없음 - 업데이트 불필요
+}
+
+void UBoneTransformWidget::RenderWidget()
+{
+	ImGui::Text("Transform Editor");
+	ImGui::Separator();
+	ImGui::Spacing();
+
+	if (!PreviewComponent || !SelectedBoneIndexPtr || *SelectedBoneIndexPtr < 0 || *SelectedBoneIndexPtr >= PreviewComponent->EditableBones.size())
+	{
+		ImGui::TextDisabled("Select a bone from the hierarchy");
+		return;
+	}
+
+	if (!bHasUnsavedChangesPtr)
+		return;
+
+	FBone& SelectedBone = PreviewComponent->EditableBones[*SelectedBoneIndexPtr];
+
+	ImGui::Text("Bone: %s (Index: %d)", SelectedBone.Name.c_str(), *SelectedBoneIndexPtr);
+	ImGui::Separator();
+	ImGui::Spacing();
+
+	// Local Transform 편집 (PropertyRenderer 스타일)
+	ImGui::Text("Local Transform:");
+	ImGui::Spacing();
+
+	// Position
+	if (UPropertyUtils::RenderVector3WithColorBars("Position", &SelectedBone.LocalPosition, 0.1f))
+	{
+		*bHasUnsavedChangesPtr = true;
+	}
+
+	// Rotation (Euler 저장 패턴으로 gimbal lock UI 문제 방지)
+	// NOTE: SceneComponent와 동일한 패턴 - Euler 입력값을 별도 저장하여 UI 값 뒤집힘 방지
+	FVector euler = SelectedBone.GetLocalRotationEuler();
+	if (UPropertyUtils::RenderVector3WithColorBars("Rotation", &euler, 1.0f))
+	{
+		SelectedBone.SetLocalRotationEuler(euler);
+		*bHasUnsavedChangesPtr = true;
+	}
+
+	// Scale
+	if (UPropertyUtils::RenderVector3WithColorBars("Scale", &SelectedBone.LocalScale, 0.01f))
+	{
+		*bHasUnsavedChangesPtr = true;
+	}
+
+	// 버튼을 하단에 배치하기 위해 남은 공간 계산
+	float availHeight = ImGui::GetContentRegionAvail().y;
+	float buttonHeight = 30.0f;
+	float spacing = 10.0f;
+
+	if (availHeight > buttonHeight + spacing)
+	{
+		ImGui::Dummy(ImVec2(0, availHeight - buttonHeight - spacing));
+	}
+
+	ImGui::Separator();
+	ImGui::Spacing();
+
+	// Apply / Cancel 버튼 (하단 고정)
+	if (ImGui::Button("Apply", ImVec2(100, 0)))
+	{
+		if (OnApplyCallback)
+			OnApplyCallback();
+	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Save changes to main editor");
+	}
+
+	ImGui::SameLine();
+
+	if (ImGui::Button("Cancel", ImVec2(100, 0)))
+	{
+		if (OnCancelCallback)
+			OnCancelCallback();
+	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Revert to original");
+	}
+}

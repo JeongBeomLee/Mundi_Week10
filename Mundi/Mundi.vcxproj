@@ -587,6 +587,9 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClCompile Include="Source\Slate\Widgets\SceneManagerWidget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\TargetActorTransformWidget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\ComponentDetailRenderer.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\BoneTransformCalculator.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\BoneHierarchyWidget.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\BoneTransformWidget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\SkeletalMeshEditorWidget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\Widget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\WorldDetailsWidget.cpp" />
@@ -981,6 +984,9 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Slate\Widgets\SceneManagerWidget.h" />
     <ClInclude Include="Source\Slate\Widgets\TargetActorTransformWidget.h" />
     <ClInclude Include="Source\Slate\Widgets\ComponentDetailRenderer.h" />
+    <ClInclude Include="Source\Slate\Widgets\BoneTransformCalculator.h" />
+    <ClInclude Include="Source\Slate\Widgets\BoneHierarchyWidget.h" />
+    <ClInclude Include="Source\Slate\Widgets\BoneTransformWidget.h" />
     <ClInclude Include="Source\Slate\Widgets\SkeletalMeshEditorWidget.h" />
     <ClInclude Include="Source\Slate\Widgets\Widget.h" />
     <ClInclude Include="Source\Slate\Widgets\WorldDetailsWidget.h" />

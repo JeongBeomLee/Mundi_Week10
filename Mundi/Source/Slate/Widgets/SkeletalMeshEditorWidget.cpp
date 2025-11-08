@@ -27,6 +27,9 @@
 #include "Color.h"
 #include "USlateManager.h"
 #include "PropertyUtils.h"
+#include "BoneTransformCalculator.h"
+#include "BoneHierarchyWidget.h"
+#include "BoneTransformWidget.h"
 
 extern UEditorEngine GEngine;
 
@@ -111,6 +114,14 @@ void USkeletalMeshEditorWidget::Initialize()
 	// EditorWorld 초기화 (최초 1회만 실행되는 싱글톤)
 	InitializeEditorWorld();
 
+	// BoneHierarchyWidget 생성 (SDetailsWindow 패턴)
+	HierarchyWidget = NewObject<UBoneHierarchyWidget>();
+	HierarchyWidget->Initialize();
+
+	// BoneTransformWidget 생성 (SDetailsWindow 패턴)
+	TransformWidget = NewObject<UBoneTransformWidget>();
+	TransformWidget->Initialize();
+
 	// D3D11Device 가져오기
 	ID3D11Device* Device = GEngine.GetRenderer()->GetRHIDevice()->GetDevice();
 	if (!Device)
@@ -165,6 +176,19 @@ void USkeletalMeshEditorWidget::Initialize()
 
 void USkeletalMeshEditorWidget::Shutdown()
 {
+	// 위젯 정리 (SDetailsWindow 패턴)
+	if (HierarchyWidget)
+	{
+		DeleteObject(HierarchyWidget);
+		HierarchyWidget = nullptr;
+	}
+
+	if (TransformWidget)
+	{
+		DeleteObject(TransformWidget);
+		TransformWidget = nullptr;
+	}
+
 	// NOTE: PreviewActor는 여기서 정리하지 않음
 	// - EditorWorld는 static이므로 에디터 창을 닫아도 유지됨
 	// - 다음에 다른 컴포넌트를 열면 SetTargetComponent()에서 교체됨
@@ -290,6 +314,17 @@ void USkeletalMeshEditorWidget::Update()
 		UE_LOG("SkeletalMeshEditorWidget: Bone selection changed to index %d", SelectedBoneIndex);
 	}
 
+	// 하위 위젯 업데이트 (SDetailsWindow 패턴)
+	if (HierarchyWidget)
+	{
+		HierarchyWidget->Update();
+	}
+
+	if (TransformWidget)
+	{
+		TransformWidget->Update();
+	}
+
 	// EditorWorld Tick (BoneGizmo 등 Embedded World의 액터들을 업데이트)
 	if (EditorWorld)
 	{
@@ -324,9 +359,16 @@ void USkeletalMeshEditorWidget::RenderWidget()
 	float col1Width = availSize.x * 0.25f;
 	float col2Width = availSize.x * 0.50f;
 
-	// 왼쪽: Bone Hierarchy
+	// 왼쪽: Bone Hierarchy (SDetailsWindow 패턴)
 	ImGui::BeginChild("BoneHierarchyPane", ImVec2(col1Width, 0), true);
-	RenderBoneHierarchy();
+	if (HierarchyWidget)
+	{
+		// 데이터 주입
+		HierarchyWidget->SetPreviewComponent(PreviewMeshComponent);
+		HierarchyWidget->SetSelectedBoneIndex(&SelectedBoneIndex);
+		// 렌더링
+		HierarchyWidget->RenderWidget();
+	}
 	ImGui::EndChild();
 
 	ImGui::SameLine();
@@ -338,169 +380,25 @@ void USkeletalMeshEditorWidget::RenderWidget()
 
 	ImGui::SameLine();
 
-	// 오른쪽: Transform Editor
+	// 오른쪽: Transform Editor (SDetailsWindow 패턴)
 	ImGui::BeginChild("TransformEditorPane", ImVec2(0, 0), true);
-	RenderTransformEditor();
+	if (TransformWidget)
+	{
+		// 데이터 주입
+		TransformWidget->SetPreviewComponent(PreviewMeshComponent);
+		TransformWidget->SetSelectedBoneIndex(&SelectedBoneIndex);
+		TransformWidget->SetHasUnsavedChanges(&bHasUnsavedChanges);
+
+		// 콜백 설정
+		TransformWidget->SetCallbacks(
+			[this]() { ApplyChanges(); },   // Apply
+			[this]() { CancelChanges(); }   // Cancel
+		);
+
+		// 렌더링
+		TransformWidget->RenderWidget();
+	}
 	ImGui::EndChild();
-}
-
-void USkeletalMeshEditorWidget::RenderBoneHierarchy()
-{
-	ImGui::Text("Bone Hierarchy");
-	ImGui::Separator();
-	ImGui::Spacing();
-
-	if (!PreviewMeshComponent || PreviewMeshComponent->EditableBones.empty())
-	{
-		ImGui::TextDisabled("No bones loaded");
-		return;
-	}
-
-	// Root bone부터 재귀 렌더링
-	for (size_t i = 0; i < PreviewMeshComponent->EditableBones.size(); ++i)
-	{
-		if (PreviewMeshComponent->EditableBones[i].ParentIndex < 0)  // Root bone
-		{
-			RenderBoneTreeNode(static_cast<int32>(i));
-		}
-	}
-}
-
-void USkeletalMeshEditorWidget::RenderBoneTreeNode(int32 BoneIndex)
-{
-	if (!PreviewMeshComponent || BoneIndex < 0 || BoneIndex >= PreviewMeshComponent->EditableBones.size())
-		return;
-
-	FBone& Bone = PreviewMeshComponent->EditableBones[BoneIndex];
-
-	// Tree node flags
-	ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow |
-	                           ImGuiTreeNodeFlags_SpanAvailWidth;
-
-	if (BoneIndex == SelectedBoneIndex)
-		flags |= ImGuiTreeNodeFlags_Selected;
-
-	// 자식 bone 찾기
-	bool bHasChildren = false;
-	for (size_t i = 0; i < PreviewMeshComponent->EditableBones.size(); ++i)
-	{
-		if (PreviewMeshComponent->EditableBones[i].ParentIndex == BoneIndex)
-		{
-			bHasChildren = true;
-			break;
-		}
-	}
-
-	if (!bHasChildren)
-		flags |= ImGuiTreeNodeFlags_Leaf;
-
-	// Tree node 렌더링
-	ImGui::PushID(BoneIndex);
-	bool bOpen = ImGui::TreeNodeEx(Bone.Name.c_str(), flags);
-
-	// 클릭 시 선택
-	if (ImGui::IsItemClicked())
-	{
-		SelectedBoneIndex = BoneIndex;
-		if (PreviewMeshComponent)
-			PreviewMeshComponent->SetSelectedBoneIndex(BoneIndex);
-	}
-
-	// 자식 bone 재귀 렌더링
-	if (bOpen)
-	{
-		if (bHasChildren)
-		{
-			for (size_t i = 0; i < PreviewMeshComponent->EditableBones.size(); ++i)
-			{
-				if (PreviewMeshComponent->EditableBones[i].ParentIndex == BoneIndex)
-				{
-					RenderBoneTreeNode(static_cast<int32>(i));
-				}
-			}
-		}
-		ImGui::TreePop();
-	}
-
-	ImGui::PopID();
-}
-
-void USkeletalMeshEditorWidget::RenderTransformEditor()
-{
-	ImGui::Text("Transform Editor");
-	ImGui::Separator();
-	ImGui::Spacing();
-
-	if (!PreviewMeshComponent || SelectedBoneIndex < 0 || SelectedBoneIndex >= PreviewMeshComponent->EditableBones.size())
-	{
-		ImGui::TextDisabled("Select a bone from the hierarchy");
-		return;
-	}
-
-	FBone& SelectedBone = PreviewMeshComponent->EditableBones[SelectedBoneIndex];
-
-	ImGui::Text("Bone: %s (Index: %d)", SelectedBone.Name.c_str(), SelectedBoneIndex);
-	ImGui::Separator();
-	ImGui::Spacing();
-
-	// Local Transform 편집 (PropertyRenderer 스타일)
-	ImGui::Text("Local Transform:");
-	ImGui::Spacing();
-
-	// Position
-	if (UPropertyUtils::RenderVector3WithColorBars("Position", &SelectedBone.LocalPosition, 0.1f))
-	{
-		bHasUnsavedChanges = true;
-	}
-
-	// Rotation (Euler 저장 패턴으로 gimbal lock UI 문제 방지)
-	// NOTE: SceneComponent와 동일한 패턴 - Euler 입력값을 별도 저장하여 UI 값 뒤집힘 방지
-	FVector euler = SelectedBone.GetLocalRotationEuler();
-	if (UPropertyUtils::RenderVector3WithColorBars("Rotation", &euler, 1.0f))
-	{
-		SelectedBone.SetLocalRotationEuler(euler);
-		bHasUnsavedChanges = true;
-	}
-
-	// Scale
-	if (UPropertyUtils::RenderVector3WithColorBars("Scale", &SelectedBone.LocalScale, 0.01f))
-	{
-		bHasUnsavedChanges = true;
-	}
-
-	// 버튼을 하단에 배치하기 위해 남은 공간 계산
-	float availHeight = ImGui::GetContentRegionAvail().y;
-	float buttonHeight = 30.0f;
-	float spacing = 10.0f;
-
-	if (availHeight > buttonHeight + spacing)
-	{
-		ImGui::Dummy(ImVec2(0, availHeight - buttonHeight - spacing));
-	}
-
-	ImGui::Separator();
-	ImGui::Spacing();
-
-	// Apply / Cancel 버튼 (하단 고정)
-	if (ImGui::Button("Apply", ImVec2(100, 0)))
-	{
-		ApplyChanges();
-	}
-	if (ImGui::IsItemHovered())
-	{
-		ImGui::SetTooltip("Save changes to main editor");
-	}
-
-	ImGui::SameLine();
-
-	if (ImGui::Button("Cancel", ImVec2(100, 0)))
-	{
-		CancelChanges();
-	}
-	if (ImGui::IsItemHovered())
-	{
-		ImGui::SetTooltip("Revert to original");
-	}
 }
 
 void USkeletalMeshEditorWidget::RenderViewport()
@@ -652,7 +550,7 @@ void USkeletalMeshEditorWidget::RenderViewport()
 			{
 				// 드래그 중 매 프레임 Gizmo Transform을 본에 적용 (실시간 피드백)
 				FTransform NewWorldTransform = BoneGizmo->GetActorTransform();
-				SetBoneWorldTransform(SelectedBoneIndex, NewWorldTransform);
+				FBoneTransformCalculator::SetBoneWorldTransform(PreviewMeshComponent, SelectedBoneIndex, NewWorldTransform);
 				bHasUnsavedChanges = true;
 			}
 		}
@@ -786,7 +684,7 @@ void USkeletalMeshEditorWidget::UpdateGizmoForSelectedBone()
 		SelectedBoneIndex, SelectionManager, PreviewMeshComponent, Selected, (int)CurrentGizmoMode);
 
 	// 선택된 본의 World Transform 계산
-	FTransform BoneWorldTransform = GetBoneWorldTransform(SelectedBoneIndex);
+	FTransform BoneWorldTransform = FBoneTransformCalculator::GetBoneWorldTransform(PreviewMeshComponent, SelectedBoneIndex);
 
 	// Gizmo를 본 위치로 이동
 	BoneGizmo->SetActorLocation(BoneWorldTransform.Translation);
@@ -804,19 +702,6 @@ void USkeletalMeshEditorWidget::UpdateGizmoForSelectedBone()
 	}
 
 	BoneGizmo->SetbRender(true);
-}
-
-bool USkeletalMeshEditorWidget::HasChildren(int32 BoneIndex) const
-{
-	if (!PreviewMeshComponent)
-		return false;
-
-	for (const auto& Bone : PreviewMeshComponent->EditableBones)
-	{
-		if (Bone.ParentIndex == BoneIndex)
-			return true;
-	}
-	return false;
 }
 
 void USkeletalMeshEditorWidget::ApplyChanges()
@@ -854,82 +739,4 @@ void USkeletalMeshEditorWidget::CancelChanges()
 	UpdateGizmoForSelectedBone();
 
 	UE_LOG("SkeletalMeshEditorWidget: Cancelled changes (reverted to original)");
-}
-
-FTransform USkeletalMeshEditorWidget::GetBoneWorldTransform(int32 BoneIndex) const
-{
-	if (!PreviewMeshComponent || BoneIndex < 0 || BoneIndex >= PreviewMeshComponent->EditableBones.size())
-		return FTransform();
-
-	// 부모 본들의 Local Transform을 누적하여 World Transform 계산
-	FTransform WorldTransform = FTransform();
-	int32 CurrentIndex = BoneIndex;
-
-	// Root부터 현재 본까지의 경로를 역순으로 저장
-	TArray<int32> BonePath;
-	while (CurrentIndex >= 0)
-	{
-		BonePath.push_back(CurrentIndex);
-		CurrentIndex = PreviewMeshComponent->EditableBones[CurrentIndex].ParentIndex;
-	}
-
-	// Root부터 순차적으로 누적 (역순 순회)
-	for (int32 i = static_cast<int32>(BonePath.size()) - 1; i >= 0; --i)
-	{
-		const FBone& Bone = PreviewMeshComponent->EditableBones[BonePath[i]];
-		FTransform LocalTransform(Bone.LocalPosition, Bone.LocalRotation, Bone.LocalScale);
-		WorldTransform = WorldTransform.GetWorldTransform(LocalTransform);  // 부모.GetWorldTransform(자식)
-	}
-
-	return WorldTransform;
-}
-
-void USkeletalMeshEditorWidget::SetBoneWorldTransform(int32 BoneIndex, const FTransform& WorldTransform)
-{
-	if (!PreviewMeshComponent || BoneIndex < 0 || BoneIndex >= PreviewMeshComponent->EditableBones.size())
-		return;
-
-	FBone& Bone = PreviewMeshComponent->EditableBones[BoneIndex];
-
-	// 부모가 없으면 World Transform을 그대로 Local로 사용
-	if (Bone.ParentIndex < 0)
-	{
-		Bone.LocalPosition = WorldTransform.Translation;
-		Bone.LocalRotation = WorldTransform.Rotation;
-		Bone.LocalScale = WorldTransform.Scale3D;
-	}
-	else
-	{
-		// 부모의 World Transform 계산
-		FTransform ParentWorldTransform = GetBoneWorldTransform(Bone.ParentIndex);
-
-		// World → Local 변환 (수동 계산)
-		// Local = ParentWorld^-1 * World
-
-		// Rotation: Local = ParentRot^-1 * WorldRot
-		FQuat ParentRotInv = ParentWorldTransform.Rotation.Conjugate();
-		Bone.LocalRotation = ParentRotInv * WorldTransform.Rotation;
-
-		// Translation: Local = ParentRot^-1 * (World - Parent) / ParentScale
-		FVector WorldPosRelative = WorldTransform.Translation - ParentWorldTransform.Translation;
-		FVector LocalPos = ParentRotInv.RotateVector(WorldPosRelative);
-		Bone.LocalPosition = FVector(
-			LocalPos.X / ParentWorldTransform.Scale3D.X,
-			LocalPos.Y / ParentWorldTransform.Scale3D.Y,
-			LocalPos.Z / ParentWorldTransform.Scale3D.Z
-		);
-
-		// Scale: Local = World / Parent (component-wise)
-		Bone.LocalScale = FVector(
-			WorldTransform.Scale3D.X / ParentWorldTransform.Scale3D.X,
-			WorldTransform.Scale3D.Y / ParentWorldTransform.Scale3D.Y,
-			WorldTransform.Scale3D.Z / ParentWorldTransform.Scale3D.Z
-		);
-	}
-
-	// Euler angle도 업데이트 (UI 표시용)
-	Bone.LocalRotationEuler = Bone.LocalRotation.ToEulerZYXDeg();
-
-	// 변경사항 플래그 설정
-	bHasUnsavedChanges = true;
 }
