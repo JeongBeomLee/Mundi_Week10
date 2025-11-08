@@ -20,6 +20,8 @@
 #include "StaticMesh.h"
 #include "Material.h"
 #include "ResourceManager.h"
+#include "WindowsBinReader.h"
+#include "WindowsBinWriter.h"
 
 using namespace fbxsdk;
 
@@ -175,116 +177,220 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
         return *It;
     }
 
-    // 2. FBX SDK 초기화
-    FbxManager* SdkManager = FbxManager::Create();
-    if (!SdkManager)
+    // 변수 선언 (USE_OBJ_CACHE 유무와 관계없이 필요)
+    FSkeletalMesh* SkeletalMeshData = nullptr;
+    TArray<FMaterialInfo> MaterialInfos;
+    bool bLoadedFromCache = false;
+
+#ifdef USE_OBJ_CACHE
+    // 캐시 경로 생성
+    FString CachePathStr = ConvertDataPathToCachePath(NormalizedPathStr);
+    const FString BinPathFileName = CachePathStr + ".sk.bin";
+    const FString MatBinPathFileName = CachePathStr + ".sk.mat.bin";
+
+    // 캐시 디렉토리 없을 시 캐시 디렉토리 생성
+    fs::path CacheFileDirPath(BinPathFileName);
+    if (CacheFileDirPath.has_parent_path())
     {
-        UE_LOG("FBXManager: Failed to create FbxManager!");
-        return nullptr;
+        fs::create_directories(CacheFileDirPath.parent_path());
     }
 
-    FbxIOSettings* ios = FbxIOSettings::Create(SdkManager, IOSROOT);
-    SdkManager->SetIOSettings(ios);
+    bool bCacheExists = fs::exists(BinPathFileName) && fs::exists(MatBinPathFileName);
+    bool bCacheisNewer = false;
 
-    // 3. FBX Importer 생성
-    FbxImporter* Importer = FbxImporter::Create(SdkManager, "");
-    if (!Importer->Initialize(NormalizedPathStr.c_str(), -1, SdkManager->GetIOSettings()))
+    // 캐시가 최신인지 확인
+    if (bCacheExists)
     {
-        UE_LOG("FBXManager: Failed to initialize importer for %s", NormalizedPathStr.c_str());
-        UE_LOG("  Error: %s", Importer->GetStatus().GetErrorString());
-        Importer->Destroy();
-        SdkManager->Destroy();
-        return nullptr;
-    }
-
-    // Scene 생성 및 임포트
-    FbxScene* Scene = FbxScene::Create(SdkManager, "TempScene");
-    if (!Importer->Import(Scene))
-    {
-        UE_LOG("FBXManager: Failed to import FBX file: %s", NormalizedPathStr.c_str());
-        Importer->Destroy();
-        Scene->Destroy();
-        SdkManager->Destroy();
-        return nullptr;
-    }
-    Importer->Destroy();
-
-    // 4. 좌표계 변환 (Z-up, X-forward, Left-handed - Unreal Engine 스타일)
-    FbxAxisSystem SceneAxisSystem = Scene->GetGlobalSettings().GetAxisSystem();
-    FbxAxisSystem OurAxisSystem(
-        FbxAxisSystem::eZAxis,
-        FbxAxisSystem::eParityOdd,
-        FbxAxisSystem::eLeftHanded);
-    
-    if (SceneAxisSystem != OurAxisSystem)
-    {
-        OurAxisSystem.ConvertScene(Scene);
-    }
-
-    // 5. 단위 변환 (cm로 통일)
-    FbxSystemUnit SceneSystemUnit = Scene->GetGlobalSettings().GetSystemUnit();
-    if (SceneSystemUnit.GetScaleFactor() != 1.0)
-    {
-        FbxSystemUnit::cm.ConvertScene(Scene);
-    }
-
-    // 6. Triangulate (모든 폴리곤을 삼각형으로 변환)
-    FbxGeometryConverter GeometryConverter(SdkManager);
-    GeometryConverter.Triangulate(Scene, true);
-
-    // 7. FSkeletalMesh 생성
-    FSkeletalMesh* SkeletalMeshData = new FSkeletalMesh();
-    SkeletalMeshData->PathFileName = NormalizedPathStr;
-
-
-    TArray<FbxMesh*> AllMeshes;
-    FindAllMeshesRecursive(Scene->GetRootNode(), AllMeshes);
-
-    if (AllMeshes.IsEmpty())
-    {
-        UE_LOG("FBXManager: No mesh found in FBX file: %s", NormalizedPathStr.c_str());
-        return nullptr;
-    }
-    UE_LOG("FBXManager: Loading %s (%zu mesh parts found)", 
-               NormalizedPathStr.c_str(), AllMeshes.size());
-
-    // 스킨 정보가 있는 "메인" 메시를 찾습니다.
-    // 뼈대(Hierarchy)와 가중치(Weights)는 이 메시를 기준으로 파싱합니다.
-    FbxMesh* MainMeshForSkinning = AllMeshes[0];
-    for (FbxMesh* Mesh : AllMeshes)
-    {
-        if (Mesh->GetDeformerCount(FbxDeformer::eSkin) > 0)
+        // FBX 원본이 없으면 캐시 무조건 사용
+        if (!fs::exists(NormalizedPathStr))
         {
-            MainMeshForSkinning = Mesh;
-            UE_LOG("FBXManager: Found main skin deformer on mesh: %s", 
-                   Mesh->GetNode() ? Mesh->GetNode()->GetName() : "");
-            break;
+            bCacheisNewer = true;
+        }
+        else
+        {
+            try
+            {
+                auto binTime = fs::last_write_time(BinPathFileName);
+                auto fbxTime = fs::last_write_time(NormalizedPathStr);
+                bCacheisNewer = (binTime > fbxTime);
+            }
+            catch (...)
+            {
+                bCacheisNewer = false;
+            }
         }
     }
 
-    UE_LOG("FBXManager: Loading %s", NormalizedPathStr.c_str());
-
-    // 8. 메시 데이터 파싱
-    TArray<int> VertexToControlPointMap;
-    ParseBoneHierarchy(MainMeshForSkinning, SkeletalMeshData);
-    for (FbxMesh* Mesh : AllMeshes)
+    if (bCacheisNewer)
     {
-        ParseMeshGeometry(Mesh, SkeletalMeshData, VertexToControlPointMap);
+        UE_LOG("Loading FBX skeletal mesh from cache: %s", NormalizedPathStr.c_str());
+        try
+        {
+            SkeletalMeshData = new FSkeletalMesh();
+
+            FWindowsBinReader Reader(BinPathFileName);
+            if (!Reader.IsOpen()) throw std::runtime_error("Failed to open bin");
+            Reader << *SkeletalMeshData;
+            Reader.Close();
+
+            FWindowsBinReader MatReader(MatBinPathFileName);
+            if (!MatReader.IsOpen()) throw std::runtime_error("Failed to open mat bin");
+            Serialization::ReadArray<FMaterialInfo>(MatReader, MaterialInfos);
+            MatReader.Close();
+
+            SkeletalMeshData->CacheFilePath = BinPathFileName;
+            bLoadedFromCache = true;
+            UE_LOG("Successfully loaded skeletal mesh from cache");
+        }
+        catch (const std::exception& e)
+        {
+            UE_LOG("Cache load failed: %s. Regenerating...", e.what());
+            delete SkeletalMeshData;
+            SkeletalMeshData = nullptr;
+            fs::remove(BinPathFileName);
+            fs::remove(MatBinPathFileName);
+        }
     }
-    ParseSkinWeights(MainMeshForSkinning, SkeletalMeshData, VertexToControlPointMap);
-    for (FbxMesh* Mesh : AllMeshes)
+#endif
+
+    // 캐시 로드 실패 시 fbx 파싱 (USE_OBJ_CACHE 없으면 무조건 파싱)
+    if (!bLoadedFromCache)
     {
-        LoadMaterials(Mesh);
+        // 2. FBX SDK 초기화
+        FbxManager* SdkManager = FbxManager::Create();
+        if (!SdkManager)
+        {
+            UE_LOG("FBXManager: Failed to create FbxManager!");
+            return nullptr;
+        }
+
+        FbxIOSettings* ios = FbxIOSettings::Create(SdkManager, IOSROOT);
+        SdkManager->SetIOSettings(ios);
+
+        // Material 및 Texture 로딩 활성화
+        ios->SetBoolProp(IMP_FBX_MATERIAL, true);
+        ios->SetBoolProp(IMP_FBX_TEXTURE, true);
+
+        // 3. FBX Importer 생성
+        FbxImporter* Importer = FbxImporter::Create(SdkManager, "");
+        if (!Importer->Initialize(NormalizedPathStr.c_str(), -1, SdkManager->GetIOSettings()))
+        {
+            UE_LOG("FBXManager: Failed to initialize importer for %s", NormalizedPathStr.c_str());
+            UE_LOG("  Error: %s", Importer->GetStatus().GetErrorString());
+            Importer->Destroy();
+            SdkManager->Destroy();
+            return nullptr;
+        }
+
+        // Scene 생성 및 임포트
+        FbxScene* Scene = FbxScene::Create(SdkManager, "TempScene");
+        if (!Importer->Import(Scene))
+        {
+            UE_LOG("FBXManager: Failed to import FBX file: %s", NormalizedPathStr.c_str());
+            Importer->Destroy();
+            Scene->Destroy();
+            SdkManager->Destroy();
+            return nullptr;
+        }
+        Importer->Destroy();
+
+        // 4. 좌표계 변환 (Z-up, X-forward, Left-handed - Unreal Engine 스타일)
+        FbxAxisSystem SceneAxisSystem = Scene->GetGlobalSettings().GetAxisSystem();
+        FbxAxisSystem OurAxisSystem(
+            FbxAxisSystem::eZAxis,
+            FbxAxisSystem::eParityOdd,
+            FbxAxisSystem::eLeftHanded);
+
+        if (SceneAxisSystem != OurAxisSystem)
+        {
+            OurAxisSystem.ConvertScene(Scene);
+        }
+
+        // 5. 단위 변환 (cm로 통일)
+        FbxSystemUnit SceneSystemUnit = Scene->GetGlobalSettings().GetSystemUnit();
+        if (SceneSystemUnit.GetScaleFactor() != 1.0)
+        {
+            FbxSystemUnit::cm.ConvertScene(Scene);
+        }
+
+        // 6. Triangulate (모든 폴리곤을 삼각형으로 변환)
+        FbxGeometryConverter GeometryConverter(SdkManager);
+        GeometryConverter.Triangulate(Scene, true);
+
+        // 7. FSkeletalMesh 생성
+        SkeletalMeshData = new FSkeletalMesh();
+        SkeletalMeshData->PathFileName = NormalizedPathStr;
+
+        TArray<FbxMesh*> AllMeshes;
+        FindAllMeshesRecursive(Scene->GetRootNode(), AllMeshes);
+
+        if (AllMeshes.IsEmpty())
+        {
+            UE_LOG("FBXManager: No mesh found in FBX file: %s", NormalizedPathStr.c_str());
+            Scene->Destroy();
+            SdkManager->Destroy();
+            return nullptr;
+        }
+        UE_LOG("FBXManager: Loading %s (%zu mesh parts found)",
+                   NormalizedPathStr.c_str(), AllMeshes.size());
+
+        // 스킨 정보가 있는 "메인" 메시를 찾습니다.
+        // 뼈대(Hierarchy)와 가중치(Weights)는 이 메시를 기준으로 파싱합니다.
+        FbxMesh* MainMeshForSkinning = AllMeshes[0];
+        for (FbxMesh* Mesh : AllMeshes)
+        {
+            if (Mesh->GetDeformerCount(FbxDeformer::eSkin) > 0)
+            {
+                MainMeshForSkinning = Mesh;
+                UE_LOG("FBXManager: Found main skin deformer on mesh: %s",
+                       Mesh->GetNode() ? Mesh->GetNode()->GetName() : "");
+                break;
+            }
+        }
+
+        UE_LOG("FBXManager: Loading %s", NormalizedPathStr.c_str());
+
+        // 8. 메시 데이터 파싱
+        TArray<int> VertexToControlPointMap;
+        ParseBoneHierarchy(MainMeshForSkinning, SkeletalMeshData);
+        for (FbxMesh* Mesh : AllMeshes)
+        {
+            ParseMeshGeometry(Mesh, SkeletalMeshData, VertexToControlPointMap);
+        }
+        ParseSkinWeights(MainMeshForSkinning, SkeletalMeshData, VertexToControlPointMap);
+        for (FbxMesh* Mesh : AllMeshes)
+        {
+            LoadMaterials(Mesh, &MaterialInfos);
+        }
+
+        UE_LOG("FBXManager: Successfully loaded skeletal mesh");
+        UE_LOG("  Vertices: %zu", SkeletalMeshData->Vertices.size());
+        UE_LOG("  Indices: %zu", SkeletalMeshData->Indices.size());
+        UE_LOG("  Bones: %zu", SkeletalMeshData->Bones.size());
+
+        // 9. FBX SDK 리소스 정리
+        Scene->Destroy();
+        SdkManager->Destroy();
+
+#ifdef USE_OBJ_CACHE
+        // 파싱 완료 후 캐시에 저장
+        try {
+            FWindowsBinWriter Writer(BinPathFileName);
+            Writer << *SkeletalMeshData;
+            Writer.Close();
+
+            FWindowsBinWriter MatWriter(MatBinPathFileName);
+            Serialization::WriteArray<FMaterialInfo>(MatWriter, MaterialInfos);
+            MatWriter.Close();
+
+            SkeletalMeshData->CacheFilePath = BinPathFileName;
+            UE_LOG("FBXManager: Skeletal mesh cache saved: %s", BinPathFileName.c_str());
+        }
+        catch (const std::exception& e) {
+            UE_LOG("FBXManager: Failed to save skeletal mesh cache: %s", e.what());
+        }
+#endif
     }
-
-    UE_LOG("FBXManager: Successfully loaded skeletal mesh");
-    UE_LOG("  Vertices: %zu", SkeletalMeshData->Vertices.size());
-    UE_LOG("  Indices: %zu", SkeletalMeshData->Indices.size());
-    UE_LOG("  Bones: %zu", SkeletalMeshData->Bones.size());
-
-    // 9. FBX SDK 리소스 정리
-    Scene->Destroy();
-    SdkManager->Destroy();
 
     // 10. 캐시에 저장하여 메모리 관리
     FBXSkeletalMeshMap.Add(NormalizedPathStr, SkeletalMeshData);
@@ -754,7 +860,31 @@ void FFBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMes
         OutMeshData->Bones.push_back(BoneInfo);
     }
 
-    UE_LOG("FBXManager: Parsed %d bones", OutMeshData->Bones.size());
+    // ========================================
+    // 5. BindPoseLocalTransform 계산
+    // ========================================
+    // 모든 본의 GlobalTransform(바인드 포즈)을 이미 계산했으므로,
+    // 이제 각 본의 LocalTransform을 계산합니다.
+    // LocalTransform = GlobalTransform * ParentGlobalTransform.Inverse()
+
+    for (size_t i = 0; i < OutMeshData->Bones.size(); i++)
+    {
+        FBoneInfo& Bone = OutMeshData->Bones[i];
+
+        if (Bone.ParentIndex == -1)
+        {
+            // 루트 본: 부모가 없으므로 Local = Global
+            Bone.BindPoseLocalTransform = Bone.GlobalTransform;
+        }
+        else
+        {
+            // 자식 본: Local = Global * ParentGlobal.Inverse()
+            const FMatrix& ParentGlobal = OutMeshData->Bones[Bone.ParentIndex].GlobalTransform;
+            Bone.BindPoseLocalTransform = Bone.GlobalTransform * ParentGlobal.InverseAffine();
+        }
+    }
+
+    UE_LOG("FBXManager: Parsed %d bones with bind pose local transforms", OutMeshData->Bones.size());
 }
 
 /*
@@ -863,7 +993,7 @@ void FFBXManager::ParseSkinWeights(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshD
  *
  * @param FbxMeshNode FBX 메시 노드
  */
-void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
+void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode, TArray<FMaterialInfo>* OutMaterialInfos)
 {
     if (!FbxMeshNode)
         return;
@@ -896,13 +1026,7 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
 
         FString MaterialName = FbxMaterial->GetName();
 
-        // 이미 로드된 Material인지 확인
-        if (UResourceManager::GetInstance().Get<UMaterial>(MaterialName))
-            continue;
-
-        UE_LOG("FBXManager: Creating material: '%s'", MaterialName.c_str());
-
-        // FMaterialInfo 생성
+        // FMaterialInfo 생성 (캐싱용, 항상 실행)
         FMaterialInfo MaterialInfo;
         MaterialInfo.MaterialName = MaterialName;
 
@@ -997,6 +1121,18 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
             }
         }
 
+        // OutMaterialInfos에 추가 (캐싱용)
+        if (OutMaterialInfos)
+        {
+            OutMaterialInfos->push_back(MaterialInfo);
+        }
+
+        // 이미 로드된 Material인지 확인 (UMaterial 생성만 스킵)
+        if (UResourceManager::GetInstance().Get<UMaterial>(MaterialName))
+            continue;
+
+        UE_LOG("FBXManager: Creating material: '%s'", MaterialName.c_str());
+
         // UMaterial 생성 및 등록
         UMaterial* Material = NewObject<UMaterial>();
         Material->SetMaterialInfo(MaterialInfo);
@@ -1031,111 +1167,213 @@ FStaticMesh* FFBXManager::LoadFBXStaticMeshAsset(const FString& PathFileName)
         return *It;
     }
 
-    UE_LOG("FBXManager: Loading static mesh from FBX: %s", NormalizedPathStr.c_str());
+    // 변수 선언 (USE_OBJ_CACHE 유무와 관계없이 필요)
+    FStaticMesh* StaticMeshData = nullptr;
+    TArray<FMaterialInfo> MaterialInfos;
+    bool bLoadedFromCache = false;
 
-    // 3. FBX Manager 및 Scene 생성
-    FbxManager* SdkManager = FbxManager::Create();
-    if (!SdkManager)
+#ifdef USE_OBJ_CACHE
+    // 캐시 경로 생성
+    FString CachePathStr = ConvertDataPathToCachePath(NormalizedPathStr);
+    const FString BinPathFileName = CachePathStr + ".sm.bin";
+    const FString MatBinPathFileName = CachePathStr + ".sm.mat.bin";
+
+    // 캐시 디렉토리 없을 시 캐시 디렉토리 생성
+    fs::path CacheFileDirPath(BinPathFileName);
+    if (CacheFileDirPath.has_parent_path())
     {
-        UE_LOG("FBXManager: Failed to create FBX SDK Manager");
-        return nullptr;
+        fs::create_directories(CacheFileDirPath.parent_path());
     }
 
-    FbxIOSettings* IOSettings = FbxIOSettings::Create(SdkManager, IOSROOT);
-    SdkManager->SetIOSettings(IOSettings);
+    bool bCacheExists = fs::exists(BinPathFileName) && fs::exists(MatBinPathFileName);
+    bool bCacheisNewer = false;
 
-    FbxScene* Scene = FbxScene::Create(SdkManager, "MyScene");
-    if (!Scene)
+    // 캐시가 최신인지 확인
+    if (bCacheExists)
     {
-        UE_LOG("FBXManager: Failed to create FBX Scene");
-        SdkManager->Destroy();
-        return nullptr;
+        // FBX 원본이 없으면 캐시 무조건 사용
+        if (!fs::exists(NormalizedPathStr))
+        {
+            bCacheisNewer = true;
+        }
+        else
+        {
+            try
+            {
+                auto binTime = fs::last_write_time(BinPathFileName);
+                auto fbxTime = fs::last_write_time(NormalizedPathStr);
+                bCacheisNewer = (binTime > fbxTime);
+            }
+            catch (...)
+            {
+                bCacheisNewer = false;
+            }
+        }
     }
 
-    // 4. FBX Importer 생성 및 파일 로드
-    FbxImporter* Importer = FbxImporter::Create(SdkManager, "");
-    if (!Importer->Initialize(NormalizedPathStr.c_str(), -1, SdkManager->GetIOSettings()))
+    if (bCacheisNewer)
     {
-        UE_LOG("FBXManager: Failed to initialize FBX Importer: %s", Importer->GetStatus().GetErrorString());
-        Scene->Destroy();
-        SdkManager->Destroy();
-        return nullptr;
-    }
+        UE_LOG("Loading FBX from cache: %s", NormalizedPathStr.c_str());
+        try
+        {
+            StaticMeshData = new FStaticMesh();
 
-    if (!Importer->Import(Scene))
+            FWindowsBinReader Reader(BinPathFileName);
+            if (!Reader.IsOpen()) throw std::runtime_error("Failed to open bin");
+            Reader << *StaticMeshData;
+            Reader.Close();
+
+            FWindowsBinReader MatReader(MatBinPathFileName);
+            if (!MatReader.IsOpen()) throw std::runtime_error("Failed to open mat bin");
+            Serialization::ReadArray<FMaterialInfo>(MatReader, MaterialInfos);
+            MatReader.Close();
+
+            StaticMeshData->CacheFilePath = BinPathFileName;
+            bLoadedFromCache = true;
+            UE_LOG("Successfully loaded from cache");
+        }
+        catch (const std::exception& e)
+        {
+            UE_LOG("Cache load failed: %s. Regenerating...", e.what());
+            delete StaticMeshData;
+            StaticMeshData = nullptr;
+            fs::remove(BinPathFileName);
+            fs::remove(MatBinPathFileName);
+        }
+    }
+#endif
+
+    // 캐시 로드 실패 시 fbx 파싱 (USE_OBJ_CACHE 없으면 무조건 파싱)
+    if (!bLoadedFromCache)
     {
-        UE_LOG("FBXManager: Failed to import FBX file: %s", Importer->GetStatus().GetErrorString());
+        UE_LOG("FBXManager: Loading static mesh from FBX: %s", NormalizedPathStr.c_str());
+
+        // 3. FBX Manager 및 Scene 생성
+        FbxManager* SdkManager = FbxManager::Create();
+        if (!SdkManager)
+        {
+            UE_LOG("FBXManager: Failed to create FBX SDK Manager");
+            return nullptr;
+        }
+
+        FbxIOSettings* IOSettings = FbxIOSettings::Create(SdkManager, IOSROOT);
+        SdkManager->SetIOSettings(IOSettings);
+
+        // Material 및 Texture 로딩 활성화
+        IOSettings->SetBoolProp(IMP_FBX_MATERIAL, true);
+        IOSettings->SetBoolProp(IMP_FBX_TEXTURE, true);
+
+        FbxScene* Scene = FbxScene::Create(SdkManager, "MyScene");
+        if (!Scene)
+        {
+            UE_LOG("FBXManager: Failed to create FBX Scene");
+            SdkManager->Destroy();
+            return nullptr;
+        }
+
+        // 4. FBX Importer 생성 및 파일 로드
+        FbxImporter* Importer = FbxImporter::Create(SdkManager, "");
+        if (!Importer->Initialize(NormalizedPathStr.c_str(), -1, SdkManager->GetIOSettings()))
+        {
+            UE_LOG("FBXManager: Failed to initialize FBX Importer: %s", Importer->GetStatus().GetErrorString());
+            Scene->Destroy();
+            SdkManager->Destroy();
+            return nullptr;
+        }
+
+        if (!Importer->Import(Scene))
+        {
+            UE_LOG("FBXManager: Failed to import FBX file: %s", Importer->GetStatus().GetErrorString());
+            Importer->Destroy();
+            Scene->Destroy();
+            SdkManager->Destroy();
+            return nullptr;
+        }
         Importer->Destroy();
+
+        // 5. Scene을 DirectX 왼손 좌표계로 변환 (Z-up → Y-up, 오른손 → 왼손)
+        FbxAxisSystem SceneAxisSystem = Scene->GetGlobalSettings().GetAxisSystem();
+        FbxAxisSystem TargetAxisSystem(FbxAxisSystem::eZAxis, FbxAxisSystem::eParityOdd, FbxAxisSystem::eLeftHanded);
+        if (SceneAxisSystem != TargetAxisSystem)
+        {
+            TargetAxisSystem.ConvertScene(Scene);
+        }
+
+        // [추가] 단위 변환 (cm로 통일)
+        FbxSystemUnit SceneSystemUnit = Scene->GetGlobalSettings().GetSystemUnit();
+        if (SceneSystemUnit.GetScaleFactor() != 1.0)
+        {
+            FbxSystemUnit::cm.ConvertScene(Scene);
+        }
+
+        // 6. Scene을 Triangulate (모든 Polygon을 Triangle로 변환)
+        FbxGeometryConverter GeometryConverter(SdkManager);
+        GeometryConverter.Triangulate(Scene, true);
+
+        // 7. [수정] Scene에서 모든 메시를 재귀적으로 찾습니다.
+        TArray<FbxMesh*> AllMeshes;
+        FindAllMeshesRecursive(Scene->GetRootNode(), AllMeshes);
+
+        if (AllMeshes.IsEmpty())
+        {
+            UE_LOG("FBXManager: No mesh found in FBX file: %s", NormalizedPathStr.c_str());
+            Scene->Destroy();
+            SdkManager->Destroy();
+            return nullptr;
+        }
+        UE_LOG("FBXManager: Loading %s (%zu mesh parts found)",
+                   NormalizedPathStr.c_str(), AllMeshes.size());
+
+        // 8. FStaticMesh 데이터 생성
+        StaticMeshData = new FStaticMesh();
+        StaticMeshData->PathFileName = NormalizedPathStr;
+
+        // 9. [수정] 모든 메시에 대해 Geometry와 Material을 파싱하고 누적합니다.
+        // Static Mesh는 Bone이나 Skinning 정보가 없으므로 Skeletal Mesh보다 과정이 간단합니다.
+        TArray<int> VertexToControlPointMap; // Static Mesh에서는 사용되지 않지만, ParseMeshGeometry의 시그니처를 위해 필요합니다.
+
+        // [수정] 위험한 캐스팅을 피하기 위해 임시 FSkeletalMesh를 사용합니다.
+        // ParseMeshGeometry는 기본 데이터(Vertices, Indices, Groups)만 채우므로 이 방식이 안전합니다.
+        FSkeletalMesh TempSkelData;
+        for (FbxMesh* Mesh : AllMeshes)
+        {
+            ParseMeshGeometry(Mesh, &TempSkelData, VertexToControlPointMap);
+            LoadMaterials(Mesh, &MaterialInfos);
+        }
+
+        // 임시 데이터에서 최종 StaticMesh로 복사
+        StaticMeshData->Vertices = TempSkelData.Vertices;
+        StaticMeshData->Indices = TempSkelData.Indices;
+        StaticMeshData->GroupInfos = TempSkelData.GroupInfos;
+        StaticMeshData->bHasMaterial = TempSkelData.bHasMaterial;
+
+        UE_LOG("FBXManager: Successfully loaded static mesh");
+        UE_LOG("  Vertices: %zu", StaticMeshData->Vertices.size());
+        UE_LOG("  Indices: %zu", StaticMeshData->Indices.size());
+
+        // 10. FBX SDK 리소스 정리
         Scene->Destroy();
         SdkManager->Destroy();
-        return nullptr;
+
+#ifdef USE_OBJ_CACHE
+        // 파싱 완료 후 캐시에 저장
+        try {
+            FWindowsBinWriter Writer(BinPathFileName);
+            Writer << *StaticMeshData;
+            Writer.Close();
+
+            FWindowsBinWriter MatWriter(MatBinPathFileName);
+            Serialization::WriteArray<FMaterialInfo>(MatWriter, MaterialInfos);
+            MatWriter.Close();
+
+            StaticMeshData->CacheFilePath = BinPathFileName;
+            UE_LOG("FBXManager: Cache saved: %s", BinPathFileName.c_str());
+        }
+        catch (const std::exception& e) {
+            UE_LOG("FBXManager: Failed to save cache: %s", e.what());
+        }
+#endif
     }
-    Importer->Destroy();
-
-    // 5. Scene을 DirectX 왼손 좌표계로 변환 (Z-up → Y-up, 오른손 → 왼손)
-    FbxAxisSystem SceneAxisSystem = Scene->GetGlobalSettings().GetAxisSystem();
-    FbxAxisSystem TargetAxisSystem(FbxAxisSystem::eZAxis, FbxAxisSystem::eParityOdd, FbxAxisSystem::eLeftHanded);
-    if (SceneAxisSystem != TargetAxisSystem)
-    {
-        TargetAxisSystem.ConvertScene(Scene);
-    }
-
-    // [추가] 단위 변환 (cm로 통일)                                               
-     FbxSystemUnit SceneSystemUnit = Scene->GetGlobalSettings().GetSystemUnit();   
-     if (SceneSystemUnit.GetScaleFactor() != 1.0)
-     {
-         FbxSystemUnit::cm.ConvertScene(Scene);
-     }
-    
-    // 6. Scene을 Triangulate (모든 Polygon을 Triangle로 변환)
-    FbxGeometryConverter GeometryConverter(SdkManager);
-    GeometryConverter.Triangulate(Scene, true);
-
-    // 7. [수정] Scene에서 모든 메시를 재귀적으로 찾습니다.
-    TArray<FbxMesh*> AllMeshes;
-    FindAllMeshesRecursive(Scene->GetRootNode(), AllMeshes);
-
-    if (AllMeshes.IsEmpty())
-    {
-        UE_LOG("FBXManager: No mesh found in FBX file: %s", NormalizedPathStr.c_str());
-        Scene->Destroy();
-        SdkManager->Destroy();
-        return nullptr;
-    }
-    UE_LOG("FBXManager: Loading %s (%zu mesh parts found)", 
-               NormalizedPathStr.c_str(), AllMeshes.size());
-
-    // 8. FStaticMesh 데이터 생성
-    FStaticMesh* StaticMeshData = new FStaticMesh();
-    StaticMeshData->PathFileName = NormalizedPathStr;
-
-    // 9. [수정] 모든 메시에 대해 Geometry와 Material을 파싱하고 누적합니다.
-    // Static Mesh는 Bone이나 Skinning 정보가 없으므로 Skeletal Mesh보다 과정이 간단합니다.
-    TArray<int> VertexToControlPointMap; // Static Mesh에서는 사용되지 않지만, ParseMeshGeometry의 시그니처를 위해 필요합니다.
-    
-    // [수정] 위험한 캐스팅을 피하기 위해 임시 FSkeletalMesh를 사용합니다.
-    // ParseMeshGeometry는 기본 데이터(Vertices, Indices, Groups)만 채우므로 이 방식이 안전합니다.
-    FSkeletalMesh TempSkelData;
-    for (FbxMesh* Mesh : AllMeshes)
-    {
-        ParseMeshGeometry(Mesh, &TempSkelData, VertexToControlPointMap);
-        LoadMaterials(Mesh);
-    }
-
-    // 임시 데이터에서 최종 StaticMesh로 복사
-    StaticMeshData->Vertices = TempSkelData.Vertices;
-    StaticMeshData->Indices = TempSkelData.Indices;
-    StaticMeshData->GroupInfos = TempSkelData.GroupInfos;
-    StaticMeshData->bHasMaterial = TempSkelData.bHasMaterial;
-
-
-    UE_LOG("FBXManager: Successfully loaded static mesh");
-    UE_LOG("  Vertices: %zu", StaticMeshData->Vertices.size());
-    UE_LOG("  Indices: %zu", StaticMeshData->Indices.size());
-
-    // 10. FBX SDK 리소스 정리
-    Scene->Destroy();
-    SdkManager->Destroy();
 
     // 11. 캐시에 저장하여 메모리 관리
     FBXStaticMeshMap.Add(NormalizedPathStr, StaticMeshData);
