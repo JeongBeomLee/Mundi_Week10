@@ -408,8 +408,12 @@ void USkeletalMeshEditorWidget::RenderViewport()
 			IO.WantCaptureKeyboard = true;
 		}
 
-		// 입력 처리
-		ViewportClient->ProcessImGuiInput(IO, bIsRightMouseDown);
+		// 뷰포트 중앙 좌표 계산 (스크린 좌표)
+		int ViewportCenterX = static_cast<int>(ImagePos.x + NewWidth * 0.5f);
+		int ViewportCenterY = static_cast<int>(ImagePos.y + NewHeight * 0.5f);
+
+		// 입력 처리 (무한 스크롤 지원)
+		ViewportClient->ProcessImGuiInput(IO, bIsRightMouseDown, ViewportCenterX, ViewportCenterY);
 	}
 	else
 	{

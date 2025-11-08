@@ -10,17 +10,44 @@ FOffscreenViewportClient::FOffscreenViewportClient()
 {
 }
 
-void FOffscreenViewportClient::ProcessImGuiInput(ImGuiIO& IO, bool bIsRightMouseDown)
+void FOffscreenViewportClient::ProcessImGuiInput(ImGuiIO& IO, bool bIsRightMouseDown, int ViewportCenterX, int ViewportCenterY)
 {
 	if (!Camera) return;
 
 	// 우클릭 드래그 중에만 입력 처리
 	if (bIsRightMouseDown)
 	{
-		// 마우스 델타로 카메라 회전
-		if (IO.MouseDelta.x != 0.0f || IO.MouseDelta.y != 0.0f)
+		// 드래그 시작 시 초기화
+		if (!bWasDragging)
 		{
-			RotateCamera(IO.MouseDelta.x, IO.MouseDelta.y);
+			POINT currentPos;
+			GetCursorPos(&currentPos);
+			LastMouseX = currentPos.x;
+			LastMouseY = currentPos.y;
+			bWasDragging = true;
+		}
+		else
+		{
+			// 현재 마우스 위치 읽기
+			POINT currentPos;
+			GetCursorPos(&currentPos);
+
+			// 델타 계산
+			int deltaX = currentPos.x - LastMouseX;
+			int deltaY = currentPos.y - LastMouseY;
+
+			// 마우스 델타로 카메라 회전
+			if (deltaX != 0 || deltaY != 0)
+			{
+				RotateCamera(static_cast<float>(deltaX), static_cast<float>(deltaY));
+			}
+
+			// 마우스를 뷰포트 중앙으로 리셋
+			SetCursorPos(ViewportCenterX, ViewportCenterY);
+
+			// 다음 프레임을 위해 LastPos 업데이트
+			LastMouseX = ViewportCenterX;
+			LastMouseY = ViewportCenterY;
 		}
 
 		// 키보드 입력으로 카메라 이동 (WASDQE)
@@ -39,6 +66,11 @@ void FOffscreenViewportClient::ProcessImGuiInput(ImGuiIO& IO, bool bIsRightMouse
 			MoveDirection.Normalize();
 			MoveCamera(MoveDirection, IO.DeltaTime);
 		}
+	}
+	else
+	{
+		// 드래그 종료
+		bWasDragging = false;
 	}
 }
 
