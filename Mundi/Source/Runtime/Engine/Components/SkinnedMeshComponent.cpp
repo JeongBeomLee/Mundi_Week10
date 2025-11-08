@@ -3,7 +3,7 @@
 
 IMPLEMENT_CLASS(USkinnedMeshComponent)
 BEGIN_PROPERTIES(USkinnedMeshComponent)
-
+    MARK_AS_COMPONENT("스킨 메시 컴포넌트", "스킨 메시")
 END_PROPERTIES(USkinnedMeshComponent)
 
 USkinnedMeshComponent::USkinnedMeshComponent()
@@ -52,17 +52,17 @@ void USkinnedMeshComponent::OnSerialized()
     UMeshComponent::OnSerialized();
 }
 
-void USkinnedMeshComponent::SetSkeletalMesh(USkeletalMesh* InSkeletalMesh)
+void USkinnedMeshComponent::SetSkeletalMesh(const FString& FilePath)
 {
-    if(!InSkeletalMesh)
+    if(FilePath.empty())
     {
-        UE_LOG("[USkinnedMeshComponent/SetskeletalMesh] InSkeletalMesh is null");
+        UE_LOG("[USkinnedMeshComponent/SetskeletalMesh] FilePath is empty");
         return;
     }
     
-    if (InSkeletalMesh != SkeletalMesh)
+    if (SkeletalMesh->GetFilePath() != FilePath)
     {
-        SkeletalMesh = InSkeletalMesh;
+        SkeletalMesh->SetFilePath(FilePath);
         bChangedSkeletalMesh = true;
         UpdateBoneMatrices();
         UpdateSkinningMatrices();

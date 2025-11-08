@@ -30,7 +30,7 @@ public:
 
     void OnSerialized() override;    
 
-    void SetSkeletalMesh(USkeletalMesh* InSkeletalMesh);
+    void SetSkeletalMesh(const FString& FilePath);
     USkeletalMesh* GetSkeletalMesh() const { return SkeletalMesh; }
 
 protected:
@@ -39,7 +39,7 @@ protected:
     void UpdateSkinningMatrices();
     void PerformCPUSkinning();
 
-private:
+protected:
     USkeletalMesh* SkeletalMesh = nullptr;
 
     // 부모 뼈 기준의 자식 배치, 부모 기준 상대적 로컬 변환
