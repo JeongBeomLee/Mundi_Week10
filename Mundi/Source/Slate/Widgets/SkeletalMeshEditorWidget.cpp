@@ -5,7 +5,7 @@
 #include "SkeletalMesh.h"
 #include "Enums.h"
 #include "FOffscreenViewport.h"
-#include "FViewportClient.h"
+#include "FOffscreenViewportClient.h"
 #include "World.h"
 #include "Gizmo/GizmoActor.h"
 #include "D3D11RHI.h"
@@ -93,8 +93,8 @@ void USkeletalMeshEditorWidget::Initialize()
 		return;
 	}
 
-	// FViewportClient 생성
-	ViewportClient = new FViewportClient();
+	// FOffscreenViewportClient 생성 (ImGui 입력 처리 지원)
+	ViewportClient = new FOffscreenViewportClient();
 	ViewportClient->SetViewportType(EViewportType::Perspective);
 
 	// ViewportClient에 EditorWorld 설정 (메인 World와 격리)
@@ -385,7 +385,22 @@ void USkeletalMeshEditorWidget::RenderViewport()
 	ID3D11ShaderResourceView* SRV = EmbeddedViewport->GetShaderResourceView();
 	if (SRV)
 	{
+		// 이미지 시작 위치 저장 (마우스 좌표 변환용)
+		ImVec2 ImagePos = ImGui::GetCursorScreenPos();
+
 		ImGui::Image((void*)SRV, ImVec2((float)NewWidth, (float)NewHeight));
+
+		// InvisibleButton으로 마우스 이벤트 캡처 (CameraBlendEditor 패턴)
+		ImGui::SetCursorScreenPos(ImagePos);
+		ImGui::InvisibleButton("ViewportCanvas", ImVec2((float)NewWidth, (float)NewHeight));
+
+		// 뷰포트 호버 여부 확인 (뒤에 다른 위젯이 있어도 감지)
+		bool bIsHovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+		bool bIsRightMouseDown = bIsHovered && ImGui::IsMouseDown(ImGuiMouseButton_Right);
+
+		// FOffscreenViewportClient를 통해 ImGui 입력 처리
+		ImGuiIO& IO = ImGui::GetIO();
+		ViewportClient->ProcessImGuiInput(IO, bIsRightMouseDown);
 	}
 	else
 	{

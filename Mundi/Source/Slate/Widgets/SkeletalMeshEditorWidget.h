@@ -4,7 +4,7 @@
 
 class USkeletalMeshComponent;
 class FOffscreenViewport;
-class FViewportClient;
+class FOffscreenViewportClient;
 class UWorld;
 class AGizmoActor;
 
@@ -64,7 +64,7 @@ private:
 
 	// Viewport 관련
 	FOffscreenViewport* EmbeddedViewport = nullptr;
-	FViewportClient* ViewportClient = nullptr;
+	FOffscreenViewportClient* ViewportClient = nullptr;
 
 	// 전용 World (모든 Skeletal Mesh Editor 인스턴스가 공유)
 	static inline UWorld* EditorWorld = nullptr;
