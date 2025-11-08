@@ -43,18 +43,22 @@ void UGlobalConsole::Log(const char* fmt, ...)
 
 void UGlobalConsole::LogV(const char* fmt, va_list args)
 {
+    // Format the message once
+    char tmp[4096];
+    vsnprintf_s(tmp, _countof(tmp), fmt, args);
+
+    // Always output to Visual Studio debug console
+    OutputDebugStringA(tmp);
+    OutputDebugStringA("\n");
+
+    // Also output to in-game console widget if available
     if (ConsoleWidget)
     {
-        ConsoleWidget->VAddLog(fmt, args);
-    }
-    else
-    {
-        // Fallback to OutputDebugString if console widget not available
-        char tmp[4096];
-        vsnprintf_s(tmp, _countof(tmp), fmt, args);
-        OutputDebugStringA("[No Console] ");
-        OutputDebugStringA(tmp);
-        OutputDebugStringA("\n");
+        // Need to use a copy of va_list for second call
+        va_list args_copy;
+        va_copy(args_copy, args);
+        ConsoleWidget->VAddLog(fmt, args_copy);
+        va_end(args_copy);
     }
 }
 

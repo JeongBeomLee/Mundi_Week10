@@ -15,16 +15,16 @@ public:
     virtual ~FViewport();
 
     // 초기화 및 정리
-    bool Initialize(float StartX, float StartY, float InSizeX, float InSizeY, ID3D11Device* Device);
-    void Cleanup();
+    virtual bool Initialize(float StartX, float StartY, float InSizeX, float InSizeY, ID3D11Device* Device);
+    virtual void Cleanup();
 
     // 렌더링
     void BeginRenderFrame();
-    void Render();
+    virtual void Render();
     void EndRenderFrame();
 
     // 크기 조정
-    void Resize(uint32 NewStartX, uint32 NewStartY,uint32 NewSizeX, uint32 NewSizeY);
+    virtual void Resize(uint32 NewStartX, uint32 NewStartY,uint32 NewSizeX, uint32 NewSizeY);
 
     // ViewportClient 설정
     void SetViewportClient(FViewportClient* InClient) { ViewportClient = InClient; }
@@ -37,8 +37,13 @@ public:
 
     uint32 GetStartX() const { return StartX; }
     uint32 GetStartY() const { return StartY; }
-    
+
     FVector2D GetViewportMousePosition() { return ViewportMousePosition; }
+
+    // 렌더 타겟 접근자 (가상 함수 - 오버라이드 가능)
+    // nullptr 반환 시 기본 BackBuffer 사용
+    virtual ID3D11RenderTargetView* GetRenderTargetView() const { return nullptr; }
+    virtual ID3D11DepthStencilView* GetDepthStencilView() const { return nullptr; }
 
     // 마우스/키보드 입력 처리
     void ProcessMouseMove(int32 X, int32 Y);
@@ -48,7 +53,7 @@ public:
     void ProcessKeyDown(int32 KeyCode);
     void ProcessKeyUp(int32 KeyCode);
 
-private:
+protected:
     // 뷰포트 속성
     uint32 SizeX = 0;
     uint32 SizeY = 0;

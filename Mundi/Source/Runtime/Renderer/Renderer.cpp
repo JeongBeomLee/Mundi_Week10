@@ -66,8 +66,19 @@ void URenderer::EndFrame()
 
 void URenderer::RenderSceneForView(UWorld* World, ACameraActor* Camera, FViewport* Viewport)
 {
+	// 0. SceneColor target을 clear (이전 렌더링 내용 제거)
+	// 각 World는 동일한 SceneColor target을 사용하므로, 매번 clear 필요
+	RHIDevice->OMSetRenderTargets(ERTVMode::SceneColorTarget);
+	RHIDevice->ClearAllBuffer();
+
 	// 1. 렌더에 필요한 정보를 모은 FSceneView를 생성합니다.
 	FSceneView View(Camera, Viewport, World->GetRenderSettings().GetViewModeIndex());	// NOTE: 현재 viewport에 해당하는 ViewMode가 적용되는지 확인 필요
+
+	// 1-1. 렌더 타겟 정보 설정 (오프스크린 렌더링 지원)
+	View.TargetRTV = Viewport->GetRenderTargetView();  // nullptr = BackBuffer
+	View.TargetDSV = Viewport->GetDepthStencilView();  // nullptr = 메인 DSV
+	View.TargetWidth = Viewport->GetSizeX();
+	View.TargetHeight = Viewport->GetSizeY();
 
 	// 2. FSceneRenderer 생성자에 'View'의 주소(&View)를 전달합니다.
 	FSceneRenderer SceneRenderer(World, &View, this);

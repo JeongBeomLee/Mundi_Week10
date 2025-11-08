@@ -111,6 +111,16 @@ FTransform USkeletalMeshComponent::GetBoneWorldTransform(int32 BoneIndex) const
 	return GetWorldTransform().GetWorldTransform(LocalTransform);
 }
 
+FVector USkeletalMeshComponent::GetBoneWorldPosition(int32 BoneIndex) const
+{
+	return GetBoneWorldTransform(BoneIndex).Translation;
+}
+
+FQuat USkeletalMeshComponent::GetBoneWorldRotation(int32 BoneIndex) const
+{
+	return GetBoneWorldTransform(BoneIndex).Rotation;
+}
+
 void USkeletalMeshComponent::SetBoneLocalTransform(int32 BoneIndex, const FTransform& Transform)
 {
 	// TODO(FBX): 나중에 구현

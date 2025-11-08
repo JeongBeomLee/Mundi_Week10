@@ -32,7 +32,11 @@ public:
     void SetViewportType(EViewportType InType) { ViewportType = InType; }
     EViewportType GetViewportType() const { return ViewportType; }
 
-    void SetWorld(UWorld* InWorld) { World = InWorld; }
+    void SetWorld(UWorld* InWorld)
+    {
+        UE_LOG("FViewportClient::SetWorld - this=%p, OldWorld=%p, NewWorld=%p", this, World, InWorld);
+        World = InWorld;
+    }
     UWorld* GetWorld() const { return World; }
 
     void SetCamera(ACameraActor* InCamera) { Camera = InCamera; }

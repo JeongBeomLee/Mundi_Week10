@@ -557,6 +557,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClCompile Include="Source\Runtime\InputCore\InputManager.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\SceneRenderer.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\FViewport.cpp" />
+    <ClCompile Include="Source\Runtime\Renderer\FOffscreenViewport.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\FViewportClient.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\Material.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\QuadManager.cpp" />
@@ -947,6 +948,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Runtime\Renderer\DecalStatManager.h" />
     <ClInclude Include="Source\Runtime\Renderer\SceneRenderer.h" />
     <ClInclude Include="Source\Runtime\Renderer\FViewport.h" />
+    <ClInclude Include="Source\Runtime\Renderer\FOffscreenViewport.h" />
     <ClInclude Include="Source\Runtime\Renderer\FViewportClient.h" />
     <ClInclude Include="Source\Runtime\Renderer\Material.h" />
     <ClInclude Include="Source\Runtime\Renderer\QuadManager.h" />

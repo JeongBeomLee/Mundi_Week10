@@ -27,6 +27,7 @@ FViewportClient::FViewportClient()
 	// 직교 뷰별 기본 카메라 설정
 	Camera = NewObject<ACameraActor>();
 	SetupCameraMode();
+	UE_LOG("FViewportClient::FViewportClient - this=%p, World=%p", this, World);
 }
 
 FViewportClient::~FViewportClient()
@@ -143,6 +144,16 @@ void FViewportClient::Tick(float DeltaTime)
 void FViewportClient::Draw(FViewport* Viewport)
 {
 	if (!Viewport || !World) return;
+
+	// 디버깅: 어떤 World를 렌더링하는지 확인
+	static int frameCount = 0;
+	if (frameCount++ % 60 == 0)  // 매 초마다 로그 (60fps 기준)
+	{
+		UE_LOG("FViewportClient::Draw - this=%p, World=%p, LevelActors=%d",
+			this,
+			World,
+			World->GetLevel() ? World->GetLevel()->GetActors().size() : 0);
+	}
 
 	// PIE 모드: PlayerController의 카메라 사용
 	// 에디터 모드: FViewportClient의 Camera 사용

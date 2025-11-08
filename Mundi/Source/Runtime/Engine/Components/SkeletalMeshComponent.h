@@ -35,8 +35,20 @@ public:
 	/** @brief Bone의 world space transform 계산 (hierarchy 누적) */
 	FTransform GetBoneWorldTransform(int32 BoneIndex) const;
 
+	/** @brief Bone의 world space 위치 반환 (피킹용) */
+	FVector GetBoneWorldPosition(int32 BoneIndex) const;
+
+	/** @brief Bone의 world space 회전 반환 (Gizmo용) */
+	FQuat GetBoneWorldRotation(int32 BoneIndex) const;
+
 	/** @brief Bone local transform 설정 (TODO: 나중에 구현) */
 	void SetBoneLocalTransform(int32 BoneIndex, const FTransform& Transform);
+
+	/** @brief 현재 선택된 Bone 인덱스 반환 */
+	int32 GetSelectedBoneIndex() const { return SelectedBoneIndex; }
+
+	/** @brief 선택된 Bone 인덱스 설정 */
+	void SetSelectedBoneIndex(int32 Index) { SelectedBoneIndex = Index; }
 
 	// ===== Editor 상태 =====
 
