@@ -13,6 +13,7 @@
 #include "StaticMeshComponent.h"
 #include "LightComponentBase.h"
 #include "DirectionalLightComponent.h"
+#include "SkeletalMeshComponent.h"
 
 // 정적 멤버 변수 초기화
 TArray<FString> UPropertyRenderer::CachedStaticMeshPaths;
@@ -23,6 +24,8 @@ TArray<FString> UPropertyRenderer::CachedShaderPaths;
 TArray<const char*> UPropertyRenderer::CachedShaderItems;
 TArray<FString> UPropertyRenderer::CachedTexturePaths;
 TArray<const char*> UPropertyRenderer::CachedTextureItems;
+TArray<FString> UPropertyRenderer::CachedSkeletalMeshPaths;
+TArray<const char*> UPropertyRenderer::CachedSkeletalMeshItems;
 
 bool UPropertyRenderer::RenderProperty(const FProperty& Property, void* ObjectInstance)
 {
@@ -75,6 +78,10 @@ bool UPropertyRenderer::RenderProperty(const FProperty& Property, void* ObjectIn
 
 	case EPropertyType::StaticMesh:
 		bChanged = RenderStaticMeshProperty(Property, ObjectInstance);
+		break;
+
+	case EPropertyType::SkeletalMesh:
+		bChanged = RenderSkeletalMeshProperty(Property, ObjectInstance);
 		break;
 
 	case EPropertyType::Material:
@@ -290,6 +297,18 @@ void UPropertyRenderer::CacheResources()
 			CachedTextureItems.push_back(path.c_str());
 		}
 	}
+
+	// 5. 스켈레탈 메시
+	if (CachedSkeletalMeshItems.IsEmpty() && CachedSkeletalMeshItems.IsEmpty())
+	{
+		CachedSkeletalMeshPaths = ResMgr.GetAllFilePaths<UStaticMesh>();
+		for (const FString& path : CachedSkeletalMeshPaths)
+		{
+			CachedSkeletalMeshItems.push_back(path.c_str());
+		}
+		CachedSkeletalMeshPaths.Insert("", 0);
+		CachedSkeletalMeshItems.Insert("None", 0);
+	}
 }
 
 void UPropertyRenderer::ClearResourcesCache()
@@ -302,6 +321,8 @@ void UPropertyRenderer::ClearResourcesCache()
 	CachedShaderItems.Empty();
 	CachedTexturePaths.Empty();
 	CachedTextureItems.Empty();
+	CachedSkeletalMeshPaths.Empty();
+	CachedSkeletalMeshItems.Empty();
 }
 
 // ===== 타입별 렌더링 구현 =====
@@ -874,6 +895,76 @@ bool UPropertyRenderer::RenderSingleMaterialSlot(const char* Label, UMaterialInt
 	}
 
 	return bElementChanged;
+}
+
+bool UPropertyRenderer::RenderSkeletalMeshProperty(const FProperty& Prop, void* Instance)
+{
+	USkeletalMesh** MeshPtr = Prop.GetValuePtr<USkeletalMesh*>(Instance);
+
+	FString CurrentPath;
+	if (*MeshPtr)
+	{
+		CurrentPath = (*MeshPtr)->GetFilePath();
+	}
+
+	if (CachedSkeletalMeshPaths.empty())
+	{
+		ImGui::Text("%s: <No Meshes>", Prop.Name);
+		return false;
+	}
+
+	int SelectedIdx = -1;
+	for (int i = 0; i < static_cast<int>(CachedSkeletalMeshPaths.size()); ++i)
+	{
+		if (CachedSkeletalMeshPaths[i] == CurrentPath)
+		{
+			SelectedIdx = i;
+			break;
+		}
+	}
+
+	ImGui::SetNextItemWidth(240);
+	if (ImGui::Combo(Prop.Name, &SelectedIdx, CachedSkeletalMeshItems.data(), static_cast<int>(CachedSkeletalMeshItems.size())))
+	{
+		if (SelectedIdx >= 0 && SelectedIdx < static_cast<int>(CachedSkeletalMeshPaths.size()))
+		{
+			// 컴포넌트별 Setter 호출
+			UObject* Object = static_cast<UObject*>(Instance);
+			if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(Object))
+			{
+				SkeletalMeshComponent->SetSkeletalMesh(CachedSkeletalMeshPaths[SelectedIdx]);
+			}
+			else
+			{
+				*MeshPtr = UResourceManager::GetInstance().Load<USkeletalMesh>(CachedSkeletalMeshPaths[SelectedIdx]);
+			}
+			return true;
+		}
+	}
+
+	// 닫힌 콤보박스 '텍스트' 부분에 마우스를 올렸을 때 전체 경로 툴팁
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::BeginTooltip();
+
+		// 1. 원본 경로 표시 (CurrentTexturePath는 null일 때 "None"을 가짐)
+		ImGui::TextUnformatted(CurrentPath.c_str());
+
+		// 2. CurrentTexture가 유효하고 캐시 파일 경로가 있다면 추가로 표시
+		if ((*MeshPtr))
+		{
+			const FString& CachedPath = (*MeshPtr)->GetCacheFilePath();
+			if (!CachedPath.empty())
+			{
+				ImGui::Separator(); // 원본 경로와 구분하기 위해 선 추가
+				ImGui::Text("Cache: %s", CachedPath.c_str());
+			}
+		}
+
+		ImGui::EndTooltip();
+	}
+
+	return false;
 }
 
 // ===== 텍스처 선택 헬퍼 함수 =====

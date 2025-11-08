@@ -1,5 +1,5 @@
 ﻿#include "pch.h"
-#include "SkinnedMehComponent.h"
+#include "SkinnedMeshComponent.h"
 
 IMPLEMENT_CLASS(USkinnedMeshComponent)
 BEGIN_PROPERTIES(USkinnedMeshComponent)
@@ -18,38 +18,33 @@ USkinnedMeshComponent::~USkinnedMeshComponent()
 
 void USkinnedMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 {
-    UMeshComponent::Serialize(bInIsLoading, InOutHandle);
+    Super::Serialize(bInIsLoading, InOutHandle);
 }
 
 void USkinnedMeshComponent::TickComponent(float DeltaTime)
 {
-    UMeshComponent::TickComponent(DeltaTime);
+    Super::TickComponent(DeltaTime);
 
     if (!SkeletalMesh)
     {
-        ComponentSpaceTransforms.Empty();
         SkinningMatrix.Empty();
         return;
-    }
-    
-    UpdateBoneMatrices();
-    UpdateSkinningMatrices();
-    
+    }    
 }
 
 void USkinnedMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
 {
-    UMeshComponent::CollectMeshBatches(OutMeshBatchElements, View);
+    Super::CollectMeshBatches(OutMeshBatchElements, View);
 }
 
 void USkinnedMeshComponent::DuplicateSubObjects()
 {
-    UMeshComponent::DuplicateSubObjects();
+    Super::DuplicateSubObjects();
 }
 
 void USkinnedMeshComponent::OnSerialized()
 {
-    UMeshComponent::OnSerialized();
+    Super::OnSerialized();
 }
 
 void USkinnedMeshComponent::SetSkeletalMesh(const FString& FilePath)
@@ -59,120 +54,51 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& FilePath)
         UE_LOG("[USkinnedMeshComponent/SetskeletalMesh] FilePath is empty");
         return;
     }
+
+    if (!SkeletalMesh)
+    {
+        UE_LOG("[USkinnedMeshComponent/SetskeletalMesh] SkeletalMesh is null");
+        return;
+    }
     
     if (SkeletalMesh->GetFilePath() != FilePath)
     {
         SkeletalMesh->SetFilePath(FilePath);
         bChangedSkeletalMesh = true;
-        UpdateBoneMatrices();
-        UpdateSkinningMatrices();
     }    
 }
 
-void USkinnedMeshComponent::UpdateBoneMatrices()
-{    
-    FSkeletalMesh* MeshAsset = SkeletalMesh ? SkeletalMesh->GetSkeletalMeshAsset() : nullptr;
-    if (!MeshAsset)
-    {
-        UE_LOG("[USkinnedMeshComponent/UpdateBoneMatrices] FSkeletalMesh is null");
-        return;
-    }
-
-    const int32 BoneCount = MeshAsset->Bones.Num();
-    if (BoneCount == 0)
-    {
-        UE_LOG("[USkinnedMeshComponent/UpdateBoneMatrices] BoneCount is zero");
-        ComponentSpaceTransforms.Empty();
-        return;
-    }
-
-    // 지금은 애니메이션이 없어서 BindPose 그대로 사용
-    ComponentSpaceTransforms.SetNum(BoneCount);
-    for (int i = 0; i < BoneCount; i++)
-    {
-        // 애니메이션 없으니까 바인드 포즈 사용        
-        ComponentSpaceTransforms[i] = MeshAsset->Bones[i].GlobalTransform;
-    }
-
-    // TODO 애니메이션 구현 후 사용 BoneSpaceTransforms채워서 사용
-    // for (int i = 0; i < BoneCount; i++)
-    // {
-    //     FMatrix BoneLocal = BoneSpaceTransforms[i];
-    //     int32 ParentIndex = MeshAsset->Bones[i].ParentIndex;
-    //     if (ParentIndex == -1)
-    //     {
-    //         ComponentSpaceTransforms[i] = BoneLocal;
-    //     }
-    //     else
-    //     {
-    //         ComponentSpaceTransforms[i] = BoneLocal * ComponentSpaceTransforms[ParentIndex];
-    //     }
-    // }
-}
-
-void USkinnedMeshComponent::UpdateSkinningMatrices()
-{
-    // 본 매트릭스가 없으면 스키닝 안함
-    const int32 BoneCount = ComponentSpaceTransforms.Num();
-    if (BoneCount == 0)
-    {
-        UE_LOG("[USkinnedMeshComponent/UpdateSkinningMatrices] BoneMatrices is zero");
-        return;
-    }
-    
-    FSkeletalMesh* MeshAsset = SkeletalMesh ? SkeletalMesh->GetSkeletalMeshAsset() : nullptr;
-    if (!MeshAsset)
-    {
-        UE_LOG("[USkinnedMeshComponent/UpdateSkinningMatrices] FSkeletalMesh is null");
-        return;
-    }
-
-    SkinningMatrix.SetNum(BoneCount);
-    SkinningInvTransMatrix.SetNum(BoneCount);
-    for (int i = 0; i < BoneCount; i++)
-    {
-        SkinningMatrix[i] = MeshAsset->Bones[i].InverseBindPoseMatrix * ComponentSpaceTransforms[i];
-        if (SkinningMatrix[i].IsOrtho())
-        {
-            SkinningInvTransMatrix[i] = SkinningMatrix[i];
-        }
-        else
-        {
-            SkinningInvTransMatrix[i] = SkinningMatrix[i].InverseAffine().Transpose();
-        }
-    }
-}
-
-void USkinnedMeshComponent::PerformCPUSkinning()
+void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVertices)
 {
     FSkeletalMesh* MeshAsset = SkeletalMesh ? SkeletalMesh->GetSkeletalMeshAsset() : nullptr;
     if (!MeshAsset)
     {
-        UE_LOG("[USkinnedMeshComponent/PerfromCPUSkinning] FSkeletalMesh is null");
+        UE_LOG("[USkinnedMeshComponent/PerformCPUSkinning] FSkeletalMesh is null");
         return;
     }
 
     if (SkinningMatrix.IsEmpty())
     {
-        UE_LOG("[USkinnedMeshComponent/PerfromCPUSkinning] SkinningMatrix is zero");
+        UE_LOG("[USkinnedMeshComponent/PerformCPUSkinning] SkinningMatrix is zero");
         return;
     }
 
     const int32 VertexCount = MeshAsset->SkinnedVertices.Num();
     if (VertexCount == 0)
     {
-        UE_LOG("[USkinnedMeshComponent/PerfromCPUSkinning] VertexCount is zero");
+        UE_LOG("[USkinnedMeshComponent/PerformCPUSkinning] VertexCount is zero");
         return;
     }
 
 
     // 정점 개수만큼 순회
-    TArray<FNormalVertex> AnimatedVertices;
+    AnimatedVertices.Empty();
     AnimatedVertices.SetNum(VertexCount);
     for (int i = 0; i < VertexCount; i++)
     {
         const FSkinnedVertex& SourceVertex = MeshAsset->SkinnedVertices[i];
-        FNormalVertex& AnimatedVertex = AnimatedVertices[i];
+        // 기존 구조체의 배열 재활용
+        FNormalVertex& AnimatedVertex = MeshAsset->Vertices[i];
         AnimatedVertex.pos = {};
         AnimatedVertex.normal = {};
         AnimatedVertex.Tangent = {};

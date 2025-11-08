@@ -48,6 +48,7 @@
 #include "GameModeBase.h"
 #include "PlayerController.h"
 #include "PlayerCameraManager.h"
+#include "SkeletalMeshComponent.h"
 
 // RenderLetterBoxPass 관련
 #include "PlayerController.h"
@@ -294,6 +295,8 @@ void FSceneRenderer::GatherVisibleProxies()
 	const bool bDrawLight = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_Lighting);
 	const bool bUseAntiAliasing = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_FXAA);
 	const bool bUseBillboard = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_Billboard);
+	// 일단 스태틱메시 사용
+	const bool bDrawSkeletalMeshes = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_StaticMeshes);
 
 	// 현재 뷰포트에서 piloting 중인 액터 확인
 	FViewportClient* ViewportClient = View->Viewport ? View->Viewport->GetViewportClient() : nullptr;
@@ -355,10 +358,10 @@ void FSceneRenderer::GatherVisibleProxies()
 						{
 							bShouldAdd = bDrawStaticMeshes;
 						}
-						// else if (USkeletalMeshComponent* SkeletalMeshComponent = ...)
-						// {
-						//     bShouldAdd = bDrawSkeletalMeshes;
-						// }
+						else if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(MeshComponent))
+						{
+						    bShouldAdd = bDrawSkeletalMeshes;
+						}
 
 						if (bShouldAdd)
 						{

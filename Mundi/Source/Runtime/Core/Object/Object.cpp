@@ -175,6 +175,36 @@ void UObject::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 			}
 			break;
 		}
+		case EPropertyType::SkeletalMesh:
+			{
+				USkeletalMesh** Value = Prop.GetValuePtr<USkeletalMesh*>(this);
+				if (bInIsLoading)
+				{
+					FString MeshPath;
+					FJsonSerializer::ReadString(InOutHandle, Prop.Name, MeshPath);
+					if (!MeshPath.empty())
+					{
+						*Value = UResourceManager::GetInstance().Load<USkeletalMesh>(MeshPath);
+					}
+					else
+					{
+						*Value = nullptr;
+					}
+				}
+				else
+				{
+					if (*Value)
+					{
+						InOutHandle[Prop.Name] = (*Value)->GetAssetPathFileName().c_str();
+					}
+					else
+					{
+						InOutHandle[Prop.Name] = "";
+					}
+				}
+				break;
+			}
+			
 		case EPropertyType::Material:
 		{
 			UMaterial** Value = Prop.GetValuePtr<UMaterial*>(this);

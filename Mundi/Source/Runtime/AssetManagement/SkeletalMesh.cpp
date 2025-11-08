@@ -7,6 +7,7 @@ IMPLEMENT_CLASS(USkeletalMesh)
 
 USkeletalMesh::~USkeletalMesh()
 {
+    ReleaseResources();
 }
 
 void USkeletalMesh::Load(const FString& InFilePath, ID3D11Device* InDevice, EVertexLayoutType InVertexType)
@@ -21,9 +22,9 @@ void USkeletalMesh::Load(const FString& InFilePath, ID3D11Device* InDevice, EVer
     if (SkeletalMeshAsset && 0 < SkeletalMeshAsset->Vertices.size() && 0 < SkeletalMeshAsset->Indices.size())
     {
         CacheFilePath = SkeletalMeshAsset->CacheFilePath;
-        // CreateVertexBuffer(SkeletalMeshAsset, InDevice, InVertexType);
-        // CreateIndexBuffer(SkeletalMeshAsset, InDevice);
-        // CreateLocalBound(SkeletalMeshAsset);
+        CreateVertexBuffer(SkeletalMeshAsset, InDevice, InVertexType);
+        CreateIndexBuffer(SkeletalMeshAsset, InDevice);
+        CreateLocalBound(SkeletalMeshAsset);
         VertexCount = static_cast<uint32>(SkeletalMeshAsset->Vertices.size());
         IndexCount = static_cast<uint32>(SkeletalMeshAsset->Indices.size());
     }
@@ -31,10 +32,112 @@ void USkeletalMesh::Load(const FString& InFilePath, ID3D11Device* InDevice, EVer
 
 void USkeletalMesh::Load(FMeshData* InData, ID3D11Device* InDevice, EVertexLayoutType InVertexType)
 {
+    assert(InDevice);
+
+    ReleaseResources();
+    SetVertexType(InVertexType);
+
+    CreateVertexBuffer(InData, InDevice, InVertexType);
+    CreateIndexBuffer(InData, InDevice);
+    CreateLocalBound(InData);
     
+    VertexCount = static_cast<uint32>(InData->Vertices.size());
+    IndexCount = static_cast<uint32>(InData->Indices.size());
 }
 
 void USkeletalMesh::SetVertexType(EVertexLayoutType InVertexLayoutType)
 {
-    
+    VertexType = InVertexLayoutType;
+
+    switch (VertexType)
+    {
+    case EVertexLayoutType::PositionColor:
+        VertexStride = sizeof(FVertexSimple);
+        break;
+    case EVertexLayoutType::PositionColorTexturNormal:
+        VertexStride = sizeof(FVertexDynamic);
+        break;
+    default:
+        {
+            assert(false && "Unsupported vertex layout for skeletal mesh");
+            VertexStride = sizeof(FVertexDynamic);            
+        }
+        break;
+    }
+}
+
+void USkeletalMesh::CreateVertexBuffer(FMeshData* InMeshData, ID3D11Device* InDevice, EVertexLayoutType InVertexType)
+{
+    HRESULT hr = D3D11RHI::CreateVertexBufferImpl<FVertexDynamic>(
+        InDevice,
+        *InMeshData,
+        &VertexBuffer,
+        D3D11_USAGE_DYNAMIC,
+        D3D11_CPU_ACCESS_WRITE);
+    assert(SUCCEEDED(hr));
+}
+
+void USkeletalMesh::CreateVertexBuffer(FSkeletalMesh* InSkeletalMesh, ID3D11Device* InDevice,
+    EVertexLayoutType InVertexType)
+{
+    HRESULT hr = D3D11RHI::CreateVertexBufferImpl<FVertexDynamic>(
+        InDevice,
+        InSkeletalMesh->Vertices,
+        &VertexBuffer,
+        D3D11_USAGE_DYNAMIC,
+        D3D11_CPU_ACCESS_WRITE);
+    assert(SUCCEEDED(hr));
+}
+
+void USkeletalMesh::CreateIndexBuffer(FMeshData* InMeshData, ID3D11Device* InDevice)
+{
+    HRESULT hr = D3D11RHI::CreateIndexBuffer(InDevice, InMeshData, &IndexBuffer);
+    assert(SUCCEEDED(hr));
+}
+
+void USkeletalMesh::CreateIndexBuffer(FSkeletalMesh* InSkeletalMesh, ID3D11Device* InDevice)
+{
+    HRESULT hr = D3D11RHI::CreateIndexBuffer(InDevice, InSkeletalMesh, &IndexBuffer);
+    assert(SUCCEEDED(hr));
+}
+
+void USkeletalMesh::CreateLocalBound(const FMeshData* InMeshData)
+{
+    TArray<FVector> Verts = InMeshData->Vertices;
+    FVector Min = Verts[0];
+    FVector Max = Verts[0];
+    for (FVector Vertex : Verts)
+    {
+        Min = Min.ComponentMin(Vertex);
+        Max = Max.ComponentMax(Vertex);
+    }
+    LocalBound = FAABB(Min, Max);
+}
+
+void USkeletalMesh::CreateLocalBound(const FSkeletalMesh* InSkeletalMesh)
+{
+    TArray<FNormalVertex> Verts = InSkeletalMesh->Vertices;
+    FVector Min = Verts[0].pos;
+    FVector Max = Verts[0].pos;
+    for (FNormalVertex Vertex : Verts)
+    {
+        FVector Pos = Vertex.pos;
+        Min = Min.ComponentMin(Pos);
+        Max = Max.ComponentMax(Pos);
+    }
+    LocalBound = FAABB(Min, Max);
+}
+
+void USkeletalMesh::ReleaseResources()
+{
+    if (VertexBuffer)
+    {
+        VertexBuffer->Release();
+        VertexBuffer = nullptr;
+    }
+    if (IndexBuffer)
+    {
+        IndexBuffer->Release();
+        IndexBuffer = nullptr;
+    }
 }

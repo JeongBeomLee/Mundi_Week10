@@ -30,25 +30,17 @@ public:
 
     void OnSerialized() override;    
 
-    void SetSkeletalMesh(const FString& FilePath);
+    virtual void SetSkeletalMesh(const FString& FilePath);
     USkeletalMesh* GetSkeletalMesh() const { return SkeletalMesh; }
 
+protected:    
+    virtual void UpdateSkinningMatrices() {};
+
+    // 매개변수 받게 변경, 자식 클래스 매개변수 전달받아서 채워주기
+    void PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVertices);
+
 protected:
-
-    void UpdateBoneMatrices();
-    void UpdateSkinningMatrices();
-    void PerformCPUSkinning();
-
-protected:
-    USkeletalMesh* SkeletalMesh = nullptr;
-
-    // 부모 뼈 기준의 자식 배치, 부모 기준 상대적 로컬 변환
-    // fbx에서 불러오거나 애니메이션에서 가져온다    
-    TArray<FMatrix> BoneSpaceTransforms;
-
-    // 애니메이션이 없을 때 Bind Pose, 존재하면 새로 계산해야함
-    // 특정 뼈의 로컬 -> 모델 공간
-    TArray<FMatrix> ComponentSpaceTransforms = {};
+    USkeletalMesh* SkeletalMesh = nullptr;    
 
     // Skinning Matrix
     // 현재 애니메이션이 없어서 Inverse Bind Pose * Bind Pose
