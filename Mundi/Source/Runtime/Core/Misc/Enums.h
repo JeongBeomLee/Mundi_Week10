@@ -218,26 +218,31 @@ struct FBoneInfo
     int32 ParentIndex;          // 부모 본 인덱스 (-1: 루트 본)
 
     // ========================================
-    // 스키닝 행렬 (3가지 행렬의 역할)
+    // 스키닝 행렬 (4가지 행렬의 역할)
     // ========================================
 
-    // 1. InverseBindPoseMatrix: 월드 좌표 → 본 로컬 좌표 (Model → Bone)
-    //    - 바인드 포즈에서 정점을 본의 로컬 공간으로 변환
-    //    - 계산: LinkTransform.Inverse() * MeshTransform
-    //    - 의미: "정점이 본 로컬 공간에서 어디에 있었나"를 기록
+    // 1. BindPoseLocalTransform: T-Pose에서의 부모 상대 변환 (Parent Local Space)
+    //    - 파싱 시 계산: BindPoseGlobalTransform * ParentBindPoseGlobalTransform.Inverse()
+    //    - 런타임 용도: 뷰어에서 본 회전/이동 시 이 값을 수정하고, 부모부터 곱해서 GlobalTransform 재계산
+    //    - 불변값: 애니메이션이 없으면 변하지 않음 (기준 포즈)
+    FMatrix BindPoseLocalTransform;
+
+    // 2. InverseBindPoseMatrix: Mesh Local → Bone Local (at T-Pose)
+    //    - 파싱 시 계산: BoneWorldTransform.Inverse() * MeshWorldTransform
+    //    - 용도: 스키닝 시 정점을 본 로컬 공간으로 변환
+    //    - 불변값: 절대 변하지 않음
     FMatrix InverseBindPoseMatrix;
 
-    // 2. GlobalTransform: 본 로컬 좌표 → 월드 좌표 (Bone → Model)
-    //    - 바인드 포즈 시: 초기 본의 월드 변환 (LinkTransform)
-    //    - 애니메이션 시: 현재 프레임의 본 월드 변환 (매 프레임 업데이트)
-    //    - 의미: "본이 현재 월드 공간에서 어디에 있나"
+    // 3. GlobalTransform: Bone Local → World (at current frame)
+    //    - 초기값: T-Pose의 본 월드 변환
+    //    - 런타임 업데이트: CurrentLocalTransform * ParentGlobalTransform (부모부터 자식으로 재귀 계산)
+    //    - 가변값: 애니메이션/사용자 입력으로 매 프레임 변경됨
     FMatrix GlobalTransform;
 
-    // 3. SkinningMatrix: 최종 스키닝 행렬 (셰이더에 전달)
+    // 4. SkinningMatrix: 최종 스키닝 행렬 (GPU로 전송)
     //    - 계산: InverseBindPoseMatrix * GlobalTransform
-    //    - 의미: (Model → Bone) × (Bone → Model) = 바인드 포즈 기준 본 변형
-    //    - 용도: 정점 셰이더에서 v' = v * SkinningMatrix
-    //    - 업데이트: 애니메이션 프레임마다 SkinningMatrix = InverseBindPoseMatrix * AnimatedGlobalTransform
+    //    - 의미: Mesh Local → Bone Local → World (animated)
+    //    - 업데이트: GlobalTransform이 변경될 때마다 재계산
     FMatrix SkinningMatrix;
 };
 

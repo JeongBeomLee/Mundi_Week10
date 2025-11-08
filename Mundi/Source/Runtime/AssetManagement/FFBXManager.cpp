@@ -754,7 +754,31 @@ void FFBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMes
         OutMeshData->Bones.push_back(BoneInfo);
     }
 
-    UE_LOG("FBXManager: Parsed %d bones", OutMeshData->Bones.size());
+    // ========================================
+    // 5. BindPoseLocalTransform 계산
+    // ========================================
+    // 모든 본의 GlobalTransform(바인드 포즈)을 이미 계산했으므로,
+    // 이제 각 본의 LocalTransform을 계산합니다.
+    // LocalTransform = GlobalTransform * ParentGlobalTransform.Inverse()
+
+    for (size_t i = 0; i < OutMeshData->Bones.size(); i++)
+    {
+        FBoneInfo& Bone = OutMeshData->Bones[i];
+
+        if (Bone.ParentIndex == -1)
+        {
+            // 루트 본: 부모가 없으므로 Local = Global
+            Bone.BindPoseLocalTransform = Bone.GlobalTransform;
+        }
+        else
+        {
+            // 자식 본: Local = Global * ParentGlobal.Inverse()
+            const FMatrix& ParentGlobal = OutMeshData->Bones[Bone.ParentIndex].GlobalTransform;
+            Bone.BindPoseLocalTransform = Bone.GlobalTransform * ParentGlobal.InverseAffine();
+        }
+    }
+
+    UE_LOG("FBXManager: Parsed %d bones with bind pose local transforms", OutMeshData->Bones.size());
 }
 
 /*
