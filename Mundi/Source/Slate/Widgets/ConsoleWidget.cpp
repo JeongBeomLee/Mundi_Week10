@@ -102,6 +102,47 @@ void UConsoleWidget::RenderToolbar()
 	ImGui::SameLine();
 
 	bool copy_to_clipboard = ImGui::SmallButton("Copy");
+	if (copy_to_clipboard)
+	{
+		// 모든 로그 아이템을 하나의 문자열로 결합
+		FString combined_text;
+		for (const FString& item : Items)
+		{
+			combined_text += item;
+			combined_text += "\n";
+		}
+
+		// Windows 클립보드에 복사
+		if (OpenClipboard(nullptr))
+		{
+			EmptyClipboard();
+
+			// 복사할 텍스트 크기 계산 (null terminator 포함)
+			size_t text_size = combined_text.size() + 1;
+			HGLOBAL h_global = GlobalAlloc(GMEM_MOVEABLE, text_size);
+
+			if (h_global)
+			{
+				// 메모리 잠금 및 데이터 복사
+				void* p_global = GlobalLock(h_global);
+				if (p_global)
+				{
+					memcpy(p_global, combined_text.c_str(), text_size);
+					GlobalUnlock(h_global);
+
+					// 클립보드에 데이터 설정
+					SetClipboardData(CF_TEXT, h_global);
+					AddLog("[info] %d messages copied to clipboard", Items.Num());
+				}
+			}
+
+			CloseClipboard();
+		}
+		else
+		{
+			AddLog("[error] Failed to open clipboard");
+		}
+	}
 
 	// Options menu
 	ImGui::SameLine();

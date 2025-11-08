@@ -236,41 +236,46 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
     FSkeletalMesh* SkeletalMeshData = new FSkeletalMesh();
     SkeletalMeshData->PathFileName = NormalizedPathStr;
 
-    // 첫 번째 Mesh 노드 찾기
-    FbxNode* RootNode = Scene->GetRootNode();
-    FbxMesh* FbxMeshNode = nullptr;
 
-    // 첫 번째 Mesh 노드 찾기 (대부분의 FBX는 단일 메시로 통합되어 있음)
-    if (RootNode)
-    {
-        for (int i = 0; i < RootNode->GetChildCount(); i++)
-        {
-            FbxNode* ChildNode = RootNode->GetChild(i);
-            if (ChildNode->GetMesh())
-            {
-                FbxMeshNode = ChildNode->GetMesh();
-                break;
-            }
-        }
-    }
+    TArray<FbxMesh*> AllMeshes;
+    FindAllMeshesRecursive(Scene->GetRootNode(), AllMeshes);
 
-    if (!FbxMeshNode)
+    if (AllMeshes.IsEmpty())
     {
         UE_LOG("FBXManager: No mesh found in FBX file: %s", NormalizedPathStr.c_str());
-        delete SkeletalMeshData;
-        Scene->Destroy();
-        SdkManager->Destroy();
         return nullptr;
+    }
+    UE_LOG("FBXManager: Loading %s (%zu mesh parts found)", 
+               NormalizedPathStr.c_str(), AllMeshes.size());
+
+    // 스킨 정보가 있는 "메인" 메시를 찾습니다.
+    // 뼈대(Hierarchy)와 가중치(Weights)는 이 메시를 기준으로 파싱합니다.
+    FbxMesh* MainMeshForSkinning = AllMeshes[0];
+    for (FbxMesh* Mesh : AllMeshes)
+    {
+        if (Mesh->GetDeformerCount(FbxDeformer::eSkin) > 0)
+        {
+            MainMeshForSkinning = Mesh;
+            UE_LOG("FBXManager: Found main skin deformer on mesh: %s", 
+                   Mesh->GetNode() ? Mesh->GetNode()->GetName() : "");
+            break;
+        }
     }
 
     UE_LOG("FBXManager: Loading %s", NormalizedPathStr.c_str());
 
     // 8. 메시 데이터 파싱
     TArray<int> VertexToControlPointMap;
-    ParseMeshGeometry(FbxMeshNode, SkeletalMeshData, VertexToControlPointMap);  // 기하 정보
-    ParseBoneHierarchy(FbxMeshNode, SkeletalMeshData);                          // 본 계층
-    ParseSkinWeights(FbxMeshNode, SkeletalMeshData, VertexToControlPointMap);   // 스킨 가중치
-    LoadMaterials(FbxMeshNode);                                                  // Material 로딩
+    ParseBoneHierarchy(MainMeshForSkinning, SkeletalMeshData);
+    for (FbxMesh* Mesh : AllMeshes)
+    {
+        ParseMeshGeometry(Mesh, SkeletalMeshData, VertexToControlPointMap);
+    }
+    ParseSkinWeights(MainMeshForSkinning, SkeletalMeshData, VertexToControlPointMap);
+    for (FbxMesh* Mesh : AllMeshes)
+    {
+        LoadMaterials(Mesh);
+    }
 
     UE_LOG("FBXManager: Successfully loaded skeletal mesh");
     UE_LOG("  Vertices: %zu", SkeletalMeshData->Vertices.size());
@@ -286,7 +291,7 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
 
     return SkeletalMeshData;
 }
- 
+
 
 USkeletalMesh* FFBXManager::LoadFBXSkeletalMesh(const FString& PathFileName)
 {
@@ -314,6 +319,33 @@ USkeletalMesh* FFBXManager::LoadFBXSkeletalMesh(const FString& PathFileName)
 // ========================================
 // Helper Functions
 // ========================================
+
+
+/*
+ * FindAllMeshesRecursive()
+ *
+ * FbxNode를 재귀적으로 탐색하여 씬(Scene)에 존재하는 모든 FbxMesh를 찾습니다.
+ *
+ * @param Node 현재 탐색 중인 FbxNode
+ * @param OutMeshes 찾은 FbxMesh 포인터를 담을 배열
+ */
+void FFBXManager::FindAllMeshesRecursive(FbxNode* FbxMeshNode, TArray<FbxMesh*>& OutMesh)
+{
+    if (!FbxMeshNode)
+    {
+        return;
+    }
+
+    if (FbxMesh* Mesh = FbxMeshNode->GetMesh())
+    {
+        OutMesh.Add(Mesh);
+    }
+
+    for (int i = 0; i < FbxMeshNode->GetChildCount(); ++i)
+    {
+        FindAllMeshesRecursive(FbxMeshNode->GetChild(i), OutMesh);
+    }
+}
 
 /*
  * ParseMeshGeometry()
@@ -504,13 +536,34 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
         }
     }
 
-    OutMeshData->Indices = Indices;
-
     // FbxNode에서 Material 이름 가져오기
     FbxNode* MeshNode = FbxMeshNode->GetNode();
     int MaterialCount = MeshNode ? MeshNode->GetMaterialCount() : 0;
 
+    // Scene에서 Material 리스트 가져오기 (GetMaterialCount()가 0일 경우 대비)
+    TArray<FbxSurfaceMaterial*> SceneMaterials;
+    FbxScene* Scene = FbxMeshNode->GetScene();
+
+    if (MaterialCount == 0 && Scene)
+    {
+        int SceneMaterialCount = Scene->GetMaterialCount();
+        UE_LOG("FBXManager: Node has no materials, using Scene materials (count: %d)", SceneMaterialCount);
+
+        for (int i = 0; i < SceneMaterialCount; ++i)
+        {
+            FbxSurfaceMaterial* Mat = Scene->GetMaterial(i);
+            if (Mat)
+            {
+                SceneMaterials.push_back(Mat);
+            }
+        }
+    }
+
+    UE_LOG("FBXManager: Material info - Node: %d, Scene: %zu, Groups: %zu",
+           MaterialCount, SceneMaterials.size(), MaterialGroups.size());
+
     // MaterialGroups에서 GroupInfos 생성
+    uint32 IndexBufferOffset = static_cast<uint32>(OutMeshData->Indices.size());
     if (MaterialGroups.size() > 0)
     {
         TArray<uint32> SortedIndices;
@@ -521,25 +574,30 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
             TArray<uint32>& GroupIndices = Pair.second;
 
             FGroupInfo GroupInfo;
-            GroupInfo.StartIndex = static_cast<uint32>(SortedIndices.size());
+            GroupInfo.StartIndex = IndexBufferOffset + static_cast<uint32>(SortedIndices.size());
             GroupInfo.IndexCount = static_cast<uint32>(GroupIndices.size());
+            
+            // Material 이름 설정 - 노드에서 먼저 시도, 실패하면 Scene에서 시도
+            FbxSurfaceMaterial* Material = nullptr;
 
-            // Material 이름 설정
             if (MeshNode && MaterialIndex >= 0 && MaterialIndex < MaterialCount)
             {
-                FbxSurfaceMaterial* Material = MeshNode->GetMaterial(MaterialIndex);
-                if (Material)
-                {
-                    GroupInfo.InitialMaterialName = Material->GetName();
-                }
-                else
-                {
-                    GroupInfo.InitialMaterialName = "";
-                }
+                Material = MeshNode->GetMaterial(MaterialIndex);
+            }
+            else if (MaterialIndex >= 0 && MaterialIndex < static_cast<int>(SceneMaterials.size()))
+            {
+                Material = SceneMaterials[MaterialIndex];
+            }
+
+            if (Material)
+            {
+                GroupInfo.InitialMaterialName = Material->GetName();
+                UE_LOG("FBXManager: Group %d -> Material '%s'", MaterialIndex, GroupInfo.InitialMaterialName.c_str());
             }
             else
             {
                 GroupInfo.InitialMaterialName = "";
+                UE_LOG("FBXManager: Group %d -> No material assigned", MaterialIndex);
             }
 
             OutMeshData->GroupInfos.push_back(GroupInfo);
@@ -550,18 +608,26 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
             }
         }
 
-        OutMeshData->Indices = SortedIndices;
-        OutMeshData->bHasMaterial = (MaterialGroups.size() > 1);
+        // Material 그룹 재정렬된 인덱스로 교체
+        OutMeshData->Indices.insert(OutMeshData->Indices.end(), SortedIndices.begin(), SortedIndices.end());
+        OutMeshData->bHasMaterial = true; // 그룹이 하나라도 있으면 true
     }
     else
     {
+        // Material이 없는 경우 원본 Indices 사용
         FGroupInfo GroupInfo;
-        GroupInfo.StartIndex = 0;
-        GroupInfo.IndexCount = static_cast<uint32>(Indices.size());
+        GroupInfo.StartIndex = IndexBufferOffset; // (전역 오프셋)
+        GroupInfo.IndexCount = static_cast<uint32>(Indices.size()); // (이 메시 조각의 전체 인덱스 수)
         GroupInfo.InitialMaterialName = "";
         OutMeshData->GroupInfos.push_back(GroupInfo);
-        OutMeshData->bHasMaterial = false;
+
+        // OutMeshData->Indices에 대입(=)하지 않고, 뒤에 추가(Append)합니다.
+        OutMeshData->Indices.insert(OutMeshData->Indices.end(), Indices.begin(), Indices.end());
+        OutMeshData->bHasMaterial = OutMeshData->bHasMaterial || false; // 기존 bHasMaterial 상태를 유지
     }
+
+    UE_LOG("FBXManager: Parsed geometry - Vertices: %zu, Indices: %zu",
+        OutMeshData->Vertices.size(), OutMeshData->Indices.size());
 }
 
 /*
@@ -793,17 +859,60 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
     if (!MeshNode)
         return;
 
+    // Material을 찾기 위한 여러 시도
     int MaterialCount = MeshNode->GetMaterialCount();
-    if (MaterialCount == 0)
+
+    UE_LOG("FBXManager: LoadMaterials - MeshNode MaterialCount: %d", MaterialCount);
+
+    // Material이 노드에 없으면 Scene에서 찾기
+    TArray<FbxSurfaceMaterial*> Materials;
+
+    if (MaterialCount > 0)
+    {
+        // 노드에서 직접 가져오기
+        for (int i = 0; i < MaterialCount; ++i)
+        {
+            FbxSurfaceMaterial* FbxMaterial = MeshNode->GetMaterial(i);
+            if (FbxMaterial)
+            {
+                Materials.push_back(FbxMaterial);
+            }
+        }
+    }
+    else
+    {
+        // Scene 전체에서 Material 검색
+        FbxScene* Scene = FbxMeshNode->GetScene();
+        if (Scene)
+        {
+            int SceneMaterialCount = Scene->GetMaterialCount();
+            UE_LOG("FBXManager: Searching Scene for materials - Found %d materials", SceneMaterialCount);
+
+            for (int i = 0; i < SceneMaterialCount; ++i)
+            {
+                FbxSurfaceMaterial* FbxMaterial = Scene->GetMaterial(i);
+                if (FbxMaterial)
+                {
+                    Materials.push_back(FbxMaterial);
+                }
+            }
+        }
+    }
+
+    if (Materials.empty())
+    {
+        UE_LOG("FBXManager: No materials found in FBX file");
         return;
+    }
+
+    UE_LOG("FBXManager: Loading %zu materials", Materials.size());
 
     UMaterial* DefaultMaterial = UResourceManager::GetInstance().GetDefaultMaterial();
     //@TODO 추가 쉐이더 작업 필..
     UShader* DefaultShader = DefaultMaterial ? DefaultMaterial->GetShader() : nullptr;
 
-    for (int i = 0; i < MaterialCount; ++i)
+    for (FbxSurfaceMaterial* FbxMaterial : Materials)
     {
-        FbxSurfaceMaterial* FbxMaterial = MeshNode->GetMaterial(i);
         if (!FbxMaterial)
             continue;
 
@@ -852,9 +961,10 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
                 }
             }
 
-            // Specular 텍스처 (Phong만 해당)
+            // Specular 텍스처 및 Exponent (Phong만 해당)
             if (FbxMaterial->GetClassId().Is(FbxSurfacePhong::ClassId))
             {
+                // Specular Texture
                 FbxProperty SpecularProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sSpecular);
                 if (SpecularProperty.IsValid())
                 {
@@ -867,6 +977,13 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
                             MaterialInfo.SpecularTextureFileName = Texture->GetFileName();
                         }
                     }
+                }
+
+                // [수정] Specular Exponent (Shininess) 읽기
+                FbxProperty ShininessProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sShininess);
+                if (ShininessProperty.IsValid())
+                {
+                    MaterialInfo.SpecularExponent = static_cast<float>(ShininessProperty.Get<FbxDouble>());
                 }
             }
         }
@@ -949,66 +1066,66 @@ FStaticMesh* FFBXManager::LoadFBXStaticMeshAsset(const FString& PathFileName)
 
     // 5. Scene을 DirectX 왼손 좌표계로 변환 (Z-up → Y-up, 오른손 → 왼손)
     FbxAxisSystem SceneAxisSystem = Scene->GetGlobalSettings().GetAxisSystem();
-    FbxAxisSystem TargetAxisSystem(FbxAxisSystem::eYAxis, FbxAxisSystem::eParityOdd, FbxAxisSystem::eLeftHanded);
+    FbxAxisSystem TargetAxisSystem(FbxAxisSystem::eZAxis, FbxAxisSystem::eParityOdd, FbxAxisSystem::eLeftHanded);
     if (SceneAxisSystem != TargetAxisSystem)
     {
         TargetAxisSystem.ConvertScene(Scene);
     }
 
+    // [추가] 단위 변환 (cm로 통일)                                               
+     FbxSystemUnit SceneSystemUnit = Scene->GetGlobalSettings().GetSystemUnit();   
+     if (SceneSystemUnit.GetScaleFactor() != 1.0)
+     {
+         FbxSystemUnit::cm.ConvertScene(Scene);
+     }
+    
     // 6. Scene을 Triangulate (모든 Polygon을 Triangle로 변환)
     FbxGeometryConverter GeometryConverter(SdkManager);
     GeometryConverter.Triangulate(Scene, true);
 
-    // 7. Root Node에서 첫 번째 Mesh 찾기
-    FbxNode* RootNode = Scene->GetRootNode();
-    FbxMesh* FirstMesh = nullptr;
+    // 7. [수정] Scene에서 모든 메시를 재귀적으로 찾습니다.
+    TArray<FbxMesh*> AllMeshes;
+    FindAllMeshesRecursive(Scene->GetRootNode(), AllMeshes);
 
-    std::function<void(FbxNode*)> FindFirstMesh = [&](FbxNode* Node) {
-        if (FirstMesh) return;
-
-        if (Node->GetNodeAttribute())
-        {
-            FbxNodeAttribute::EType AttributeType = Node->GetNodeAttribute()->GetAttributeType();
-            if (AttributeType == FbxNodeAttribute::eMesh)
-            {
-                FirstMesh = Node->GetMesh();
-                return;
-            }
-        }
-
-        for (int i = 0; i < Node->GetChildCount(); ++i)
-        {
-            FindFirstMesh(Node->GetChild(i));
-        }
-    };
-
-    FindFirstMesh(RootNode);
-
-    if (!FirstMesh)
+    if (AllMeshes.IsEmpty())
     {
         UE_LOG("FBXManager: No mesh found in FBX file: %s", NormalizedPathStr.c_str());
         Scene->Destroy();
         SdkManager->Destroy();
         return nullptr;
     }
+    UE_LOG("FBXManager: Loading %s (%zu mesh parts found)", 
+               NormalizedPathStr.c_str(), AllMeshes.size());
 
     // 8. FStaticMesh 데이터 생성
     FStaticMesh* StaticMeshData = new FStaticMesh();
     StaticMeshData->PathFileName = NormalizedPathStr;
 
-    // 9. 메시 데이터 파싱
-    // FStaticMesh와 FSkeletalMesh는 동일한 구조(Vertices, Indices, GroupInfos)를 가지므로 캐스팅 가능
-    TArray<int> VertexToControlPointMap;  // Static Mesh는 Skinning 안 하므로 사용 안 함
-    ParseMeshGeometry(FirstMesh, (FSkeletalMesh*)StaticMeshData, VertexToControlPointMap);
+    // 9. [수정] 모든 메시에 대해 Geometry와 Material을 파싱하고 누적합니다.
+    // Static Mesh는 Bone이나 Skinning 정보가 없으므로 Skeletal Mesh보다 과정이 간단합니다.
+    TArray<int> VertexToControlPointMap; // Static Mesh에서는 사용되지 않지만, ParseMeshGeometry의 시그니처를 위해 필요합니다.
+    
+    // [수정] 위험한 캐스팅을 피하기 위해 임시 FSkeletalMesh를 사용합니다.
+    // ParseMeshGeometry는 기본 데이터(Vertices, Indices, Groups)만 채우므로 이 방식이 안전합니다.
+    FSkeletalMesh TempSkelData;
+    for (FbxMesh* Mesh : AllMeshes)
+    {
+        ParseMeshGeometry(Mesh, &TempSkelData, VertexToControlPointMap);
+        LoadMaterials(Mesh);
+    }
 
-    // 10. Material 로딩
-    LoadMaterials(FirstMesh);
+    // 임시 데이터에서 최종 StaticMesh로 복사
+    StaticMeshData->Vertices = TempSkelData.Vertices;
+    StaticMeshData->Indices = TempSkelData.Indices;
+    StaticMeshData->GroupInfos = TempSkelData.GroupInfos;
+    StaticMeshData->bHasMaterial = TempSkelData.bHasMaterial;
+
 
     UE_LOG("FBXManager: Successfully loaded static mesh");
     UE_LOG("  Vertices: %zu", StaticMeshData->Vertices.size());
     UE_LOG("  Indices: %zu", StaticMeshData->Indices.size());
 
-    // 11. FBX SDK 리소스 정리
+    // 10. FBX SDK 리소스 정리
     Scene->Destroy();
     SdkManager->Destroy();
 
