@@ -20,6 +20,8 @@
 #include "StaticMesh.h"
 #include "Material.h"
 #include "ResourceManager.h"
+#include "WindowsBinReader.h"
+#include "WindowsBinWriter.h"
 
 using namespace fbxsdk;
 
@@ -174,7 +176,21 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
     {
         return *It;
     }
+#ifdef USE_OBJ_CACHE
+    // 캐시 경로 생성
+    FString CachePathStr = ConvertDataPathToCachePath(NormalizedPathStr);
+    const FString BinPathFileName = CachePathStr + ".bin";
+    const FString MatBinPathFileName = CachePathStr + ".mat.bin";
 
+    // 캐시 디렉토리 없을 시 캐시 디렉토리 생성
+    fs::path CacheFileDirPath(BinPathFileName);
+    if (CacheFileDirPath.has_parent_path())
+    {
+        fs::create_directories(CacheFileDirPath.parent_path());
+    }
+
+    
+#endif
     // 2. FBX SDK 초기화
     FbxManager* SdkManager = FbxManager::Create();
     if (!SdkManager)
@@ -1055,111 +1071,313 @@ FStaticMesh* FFBXManager::LoadFBXStaticMeshAsset(const FString& PathFileName)
         return *It;
     }
 
-    UE_LOG("FBXManager: Loading static mesh from FBX: %s", NormalizedPathStr.c_str());
+    // 변수 선언 (USE_OBJ_CACHE 유무와 관계없이 필요)
+    FStaticMesh* StaticMeshData = nullptr;
+    TArray<FMaterialInfo> MaterialInfos;
+    bool bLoadedFromCache = false;
 
-    // 3. FBX Manager 및 Scene 생성
-    FbxManager* SdkManager = FbxManager::Create();
-    if (!SdkManager)
+#ifdef USE_OBJ_CACHE
+    // 캐시 경로 생성
+    FString CachePathStr = ConvertDataPathToCachePath(NormalizedPathStr);
+    const FString BinPathFileName = CachePathStr + ".bin";
+    const FString MatBinPathFileName = CachePathStr + ".mat.bin";
+
+    // 캐시 디렉토리 없을 시 캐시 디렉토리 생성
+    fs::path CacheFileDirPath(BinPathFileName);
+    if (CacheFileDirPath.has_parent_path())
     {
-        UE_LOG("FBXManager: Failed to create FBX SDK Manager");
-        return nullptr;
+        fs::create_directories(CacheFileDirPath.parent_path());
     }
 
-    FbxIOSettings* IOSettings = FbxIOSettings::Create(SdkManager, IOSROOT);
-    SdkManager->SetIOSettings(IOSettings);
+    bool bCacheExists = fs::exists(BinPathFileName) && fs::exists(MatBinPathFileName);
+    bool bCacheisNewer = false;
 
-    FbxScene* Scene = FbxScene::Create(SdkManager, "MyScene");
-    if (!Scene)
+    // 캐시가 최신인지 확인
+    if (bCacheExists)
     {
-        UE_LOG("FBXManager: Failed to create FBX Scene");
-        SdkManager->Destroy();
-        return nullptr;
+        // FBX 원본이 없으면 캐시 무조건 사용
+        if (!fs::exists(NormalizedPathStr))
+        {
+            bCacheisNewer = true;
+        }
+        else
+        {
+            try
+            {
+                auto binTime = fs::last_write_time(BinPathFileName);
+                auto fbxTime = fs::last_write_time(NormalizedPathStr);
+                bCacheisNewer = (binTime > fbxTime);
+            }
+            catch (...)
+            {
+                bCacheisNewer = false;
+            }
+        }
     }
 
-    // 4. FBX Importer 생성 및 파일 로드
-    FbxImporter* Importer = FbxImporter::Create(SdkManager, "");
-    if (!Importer->Initialize(NormalizedPathStr.c_str(), -1, SdkManager->GetIOSettings()))
+    if (bCacheisNewer)
     {
-        UE_LOG("FBXManager: Failed to initialize FBX Importer: %s", Importer->GetStatus().GetErrorString());
-        Scene->Destroy();
-        SdkManager->Destroy();
-        return nullptr;
-    }
+        UE_LOG("Loading FBX from cache: %s", NormalizedPathStr.c_str());
+        try
+        {
+            StaticMeshData = new FStaticMesh();
 
-    if (!Importer->Import(Scene))
+            FWindowsBinReader Reader(BinPathFileName);
+            if (!Reader.IsOpen()) throw std::runtime_error("Failed to open bin");
+            Reader << *StaticMeshData;
+            Reader.Close();
+
+            FWindowsBinReader MatReader(MatBinPathFileName);
+            if (!MatReader.IsOpen()) throw std::runtime_error("Failed to open mat bin");
+            Serialization::ReadArray<FMaterialInfo>(MatReader, MaterialInfos);
+            MatReader.Close();
+
+            StaticMeshData->CacheFilePath = BinPathFileName;
+            bLoadedFromCache = true;
+            UE_LOG("Successfully loaded from cache");
+        }
+        catch (const std::exception& e)
+        {
+            UE_LOG("Cache load failed: %s. Regenerating...", e.what());
+            delete StaticMeshData;
+            StaticMeshData = nullptr;
+            fs::remove(BinPathFileName);
+            fs::remove(MatBinPathFileName);
+        }
+    }
+#endif
+
+    // 캐시 로드 실패 시 fbx 파싱 (USE_OBJ_CACHE 없으면 무조건 파싱)
+    if (!bLoadedFromCache)
     {
-        UE_LOG("FBXManager: Failed to import FBX file: %s", Importer->GetStatus().GetErrorString());
+        UE_LOG("FBXManager: Loading static mesh from FBX: %s", NormalizedPathStr.c_str());
+
+        // 3. FBX Manager 및 Scene 생성
+        FbxManager* SdkManager = FbxManager::Create();
+        if (!SdkManager)
+        {
+            UE_LOG("FBXManager: Failed to create FBX SDK Manager");
+            return nullptr;
+        }
+
+        FbxIOSettings* IOSettings = FbxIOSettings::Create(SdkManager, IOSROOT);
+        SdkManager->SetIOSettings(IOSettings);
+
+        FbxScene* Scene = FbxScene::Create(SdkManager, "MyScene");
+        if (!Scene)
+        {
+            UE_LOG("FBXManager: Failed to create FBX Scene");
+            SdkManager->Destroy();
+            return nullptr;
+        }
+
+        // 4. FBX Importer 생성 및 파일 로드
+        FbxImporter* Importer = FbxImporter::Create(SdkManager, "");
+        if (!Importer->Initialize(NormalizedPathStr.c_str(), -1, SdkManager->GetIOSettings()))
+        {
+            UE_LOG("FBXManager: Failed to initialize FBX Importer: %s", Importer->GetStatus().GetErrorString());
+            Scene->Destroy();
+            SdkManager->Destroy();
+            return nullptr;
+        }
+
+        if (!Importer->Import(Scene))
+        {
+            UE_LOG("FBXManager: Failed to import FBX file: %s", Importer->GetStatus().GetErrorString());
+            Importer->Destroy();
+            Scene->Destroy();
+            SdkManager->Destroy();
+            return nullptr;
+        }
         Importer->Destroy();
+
+        // 5. Scene을 DirectX 왼손 좌표계로 변환 (Z-up → Y-up, 오른손 → 왼손)
+        FbxAxisSystem SceneAxisSystem = Scene->GetGlobalSettings().GetAxisSystem();
+        FbxAxisSystem TargetAxisSystem(FbxAxisSystem::eZAxis, FbxAxisSystem::eParityOdd, FbxAxisSystem::eLeftHanded);
+        if (SceneAxisSystem != TargetAxisSystem)
+        {
+            TargetAxisSystem.ConvertScene(Scene);
+        }
+
+        // [추가] 단위 변환 (cm로 통일)
+        FbxSystemUnit SceneSystemUnit = Scene->GetGlobalSettings().GetSystemUnit();
+        if (SceneSystemUnit.GetScaleFactor() != 1.0)
+        {
+            FbxSystemUnit::cm.ConvertScene(Scene);
+        }
+
+        // 6. Scene을 Triangulate (모든 Polygon을 Triangle로 변환)
+        FbxGeometryConverter GeometryConverter(SdkManager);
+        GeometryConverter.Triangulate(Scene, true);
+
+        // 7. [수정] Scene에서 모든 메시를 재귀적으로 찾습니다.
+        TArray<FbxMesh*> AllMeshes;
+        FindAllMeshesRecursive(Scene->GetRootNode(), AllMeshes);
+
+        if (AllMeshes.IsEmpty())
+        {
+            UE_LOG("FBXManager: No mesh found in FBX file: %s", NormalizedPathStr.c_str());
+            Scene->Destroy();
+            SdkManager->Destroy();
+            return nullptr;
+        }
+        UE_LOG("FBXManager: Loading %s (%zu mesh parts found)",
+                   NormalizedPathStr.c_str(), AllMeshes.size());
+
+        // 8. FStaticMesh 데이터 생성
+        StaticMeshData = new FStaticMesh();
+        StaticMeshData->PathFileName = NormalizedPathStr;
+
+        // 9. [수정] 모든 메시에 대해 Geometry와 Material을 파싱하고 누적합니다.
+        // Static Mesh는 Bone이나 Skinning 정보가 없으므로 Skeletal Mesh보다 과정이 간단합니다.
+        TArray<int> VertexToControlPointMap; // Static Mesh에서는 사용되지 않지만, ParseMeshGeometry의 시그니처를 위해 필요합니다.
+
+        // [수정] 위험한 캐스팅을 피하기 위해 임시 FSkeletalMesh를 사용합니다.
+        // ParseMeshGeometry는 기본 데이터(Vertices, Indices, Groups)만 채우므로 이 방식이 안전합니다.
+        FSkeletalMesh TempSkelData;
+        for (FbxMesh* Mesh : AllMeshes)
+        {
+            ParseMeshGeometry(Mesh, &TempSkelData, VertexToControlPointMap);
+            LoadMaterials(Mesh);
+        }
+
+        // 임시 데이터에서 최종 StaticMesh로 복사
+        StaticMeshData->Vertices = TempSkelData.Vertices;
+        StaticMeshData->Indices = TempSkelData.Indices;
+        StaticMeshData->GroupInfos = TempSkelData.GroupInfos;
+        StaticMeshData->bHasMaterial = TempSkelData.bHasMaterial;
+
+        UE_LOG("FBXManager: Successfully loaded static mesh");
+        UE_LOG("  Vertices: %zu", StaticMeshData->Vertices.size());
+        UE_LOG("  Indices: %zu", StaticMeshData->Indices.size());
+
+        // Material 정보 수집 (캐시 저장용)
+        int SceneMaterialCount = Scene->GetMaterialCount();
+        for (int i = 0; i < SceneMaterialCount; ++i)
+        {
+            FbxSurfaceMaterial* FbxMaterial = Scene->GetMaterial(i);
+            if (!FbxMaterial) continue;
+
+            FMaterialInfo MaterialInfo;
+            MaterialInfo.MaterialName = FbxMaterial->GetName();
+
+            // FBX에서 텍스처 및 색상 경로 파싱
+            if (FbxMaterial->GetClassId().Is(FbxSurfacePhong::ClassId) ||
+                FbxMaterial->GetClassId().Is(FbxSurfaceLambert::ClassId))
+            {
+                // Ambient Color / Texture
+                FbxProperty AmbientProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sAmbient);
+                if (AmbientProperty.IsValid())
+                {
+                    if (AmbientProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
+                    {
+                        FbxFileTexture* Texture = AmbientProperty.GetSrcObject<FbxFileTexture>(0);
+                        if (Texture) MaterialInfo.AmbientTextureFileName = Texture->GetFileName();
+                    }
+                    else
+                    {
+                        FbxDouble3 Color = AmbientProperty.Get<FbxDouble3>();
+                        MaterialInfo.AmbientColor = FVector(static_cast<float>(Color[0]), static_cast<float>(Color[1]), static_cast<float>(Color[2]));
+                    }
+                }
+
+                // Diffuse Color / Texture
+                FbxProperty DiffuseProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sDiffuse);
+                if (DiffuseProperty.IsValid())
+                {
+                    if (DiffuseProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
+                    {
+                        FbxFileTexture* Texture = DiffuseProperty.GetSrcObject<FbxFileTexture>(0);
+                        if (Texture) MaterialInfo.DiffuseTextureFileName = Texture->GetFileName();
+                    }
+                    else
+                    {
+                        FbxDouble3 Color = DiffuseProperty.Get<FbxDouble3>();
+                        MaterialInfo.DiffuseColor = FVector(static_cast<float>(Color[0]), static_cast<float>(Color[1]), static_cast<float>(Color[2]));
+                    }
+                }
+
+                // Emissive Color / Texture
+                FbxProperty EmissiveProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sEmissive);
+                if (EmissiveProperty.IsValid())
+                {
+                    if (EmissiveProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
+                    {
+                        FbxFileTexture* Texture = EmissiveProperty.GetSrcObject<FbxFileTexture>(0);
+                        if (Texture) MaterialInfo.EmissiveTextureFileName = Texture->GetFileName();
+                    }
+                    else
+                    {
+                        FbxDouble3 Color = EmissiveProperty.Get<FbxDouble3>();
+                        MaterialInfo.EmissiveColor = FVector(static_cast<float>(Color[0]), static_cast<float>(Color[1]), static_cast<float>(Color[2]));
+                    }
+                }
+
+                // Normal Texture
+                FbxProperty NormalProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sNormalMap);
+                if (NormalProperty.IsValid())
+                {
+                    if (NormalProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
+                    {
+                        FbxFileTexture* Texture = NormalProperty.GetSrcObject<FbxFileTexture>(0);
+                        if (Texture) MaterialInfo.NormalTextureFileName = Texture->GetFileName();
+                    }
+                }
+
+                // Specular properties (Phong only)
+                if (FbxMaterial->GetClassId().Is(FbxSurfacePhong::ClassId))
+                {
+                    // Specular Color / Texture
+                    FbxProperty SpecularProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sSpecular);
+                    if (SpecularProperty.IsValid())
+                    {
+                        if (SpecularProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
+                        {
+                            FbxFileTexture* Texture = SpecularProperty.GetSrcObject<FbxFileTexture>(0);
+                            if (Texture) MaterialInfo.SpecularTextureFileName = Texture->GetFileName();
+                        }
+                        else
+                        {
+                            FbxDouble3 Color = SpecularProperty.Get<FbxDouble3>();
+                            MaterialInfo.SpecularColor = FVector(static_cast<float>(Color[0]), static_cast<float>(Color[1]), static_cast<float>(Color[2]));
+                        }
+                    }
+
+                    // Specular Exponent (Shininess)
+                    FbxProperty ShininessProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sShininess);
+                    if (ShininessProperty.IsValid())
+                    {
+                        MaterialInfo.SpecularExponent = static_cast<float>(ShininessProperty.Get<FbxDouble>());
+                    }
+                }
+            }
+
+            MaterialInfos.push_back(MaterialInfo);
+        }
+
+        // 10. FBX SDK 리소스 정리
         Scene->Destroy();
         SdkManager->Destroy();
-        return nullptr;
+
+#ifdef USE_OBJ_CACHE
+        // 파싱 완료 후 캐시에 저장
+        try {
+            FWindowsBinWriter Writer(BinPathFileName);
+            Writer << *StaticMeshData;
+            Writer.Close();
+
+            FWindowsBinWriter MatWriter(MatBinPathFileName);
+            Serialization::WriteArray<FMaterialInfo>(MatWriter, MaterialInfos);
+            MatWriter.Close();
+
+            StaticMeshData->CacheFilePath = BinPathFileName;
+            UE_LOG("FBXManager: Cache saved: %s", BinPathFileName.c_str());
+        }
+        catch (const std::exception& e) {
+            UE_LOG("FBXManager: Failed to save cache: %s", e.what());
+        }
+#endif
     }
-    Importer->Destroy();
-
-    // 5. Scene을 DirectX 왼손 좌표계로 변환 (Z-up → Y-up, 오른손 → 왼손)
-    FbxAxisSystem SceneAxisSystem = Scene->GetGlobalSettings().GetAxisSystem();
-    FbxAxisSystem TargetAxisSystem(FbxAxisSystem::eZAxis, FbxAxisSystem::eParityOdd, FbxAxisSystem::eLeftHanded);
-    if (SceneAxisSystem != TargetAxisSystem)
-    {
-        TargetAxisSystem.ConvertScene(Scene);
-    }
-
-    // [추가] 단위 변환 (cm로 통일)                                               
-     FbxSystemUnit SceneSystemUnit = Scene->GetGlobalSettings().GetSystemUnit();   
-     if (SceneSystemUnit.GetScaleFactor() != 1.0)
-     {
-         FbxSystemUnit::cm.ConvertScene(Scene);
-     }
-    
-    // 6. Scene을 Triangulate (모든 Polygon을 Triangle로 변환)
-    FbxGeometryConverter GeometryConverter(SdkManager);
-    GeometryConverter.Triangulate(Scene, true);
-
-    // 7. [수정] Scene에서 모든 메시를 재귀적으로 찾습니다.
-    TArray<FbxMesh*> AllMeshes;
-    FindAllMeshesRecursive(Scene->GetRootNode(), AllMeshes);
-
-    if (AllMeshes.IsEmpty())
-    {
-        UE_LOG("FBXManager: No mesh found in FBX file: %s", NormalizedPathStr.c_str());
-        Scene->Destroy();
-        SdkManager->Destroy();
-        return nullptr;
-    }
-    UE_LOG("FBXManager: Loading %s (%zu mesh parts found)", 
-               NormalizedPathStr.c_str(), AllMeshes.size());
-
-    // 8. FStaticMesh 데이터 생성
-    FStaticMesh* StaticMeshData = new FStaticMesh();
-    StaticMeshData->PathFileName = NormalizedPathStr;
-
-    // 9. [수정] 모든 메시에 대해 Geometry와 Material을 파싱하고 누적합니다.
-    // Static Mesh는 Bone이나 Skinning 정보가 없으므로 Skeletal Mesh보다 과정이 간단합니다.
-    TArray<int> VertexToControlPointMap; // Static Mesh에서는 사용되지 않지만, ParseMeshGeometry의 시그니처를 위해 필요합니다.
-    
-    // [수정] 위험한 캐스팅을 피하기 위해 임시 FSkeletalMesh를 사용합니다.
-    // ParseMeshGeometry는 기본 데이터(Vertices, Indices, Groups)만 채우므로 이 방식이 안전합니다.
-    FSkeletalMesh TempSkelData;
-    for (FbxMesh* Mesh : AllMeshes)
-    {
-        ParseMeshGeometry(Mesh, &TempSkelData, VertexToControlPointMap);
-        LoadMaterials(Mesh);
-    }
-
-    // 임시 데이터에서 최종 StaticMesh로 복사
-    StaticMeshData->Vertices = TempSkelData.Vertices;
-    StaticMeshData->Indices = TempSkelData.Indices;
-    StaticMeshData->GroupInfos = TempSkelData.GroupInfos;
-    StaticMeshData->bHasMaterial = TempSkelData.bHasMaterial;
-
-
-    UE_LOG("FBXManager: Successfully loaded static mesh");
-    UE_LOG("  Vertices: %zu", StaticMeshData->Vertices.size());
-    UE_LOG("  Indices: %zu", StaticMeshData->Indices.size());
-
-    // 10. FBX SDK 리소스 정리
-    Scene->Destroy();
-    SdkManager->Destroy();
 
     // 11. 캐시에 저장하여 메모리 관리
     FBXStaticMeshMap.Add(NormalizedPathStr, StaticMeshData);
