@@ -931,55 +931,85 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode)
         if (FbxMaterial->GetClassId().Is(FbxSurfacePhong::ClassId) ||
             FbxMaterial->GetClassId().Is(FbxSurfaceLambert::ClassId))
         {
-            // Diffuse 텍스처
+            // Ambient Color / Texture
+            FbxProperty AmbientProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sAmbient);
+            if (AmbientProperty.IsValid())
+            {
+                if (AmbientProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
+                {
+                    FbxFileTexture* Texture = AmbientProperty.GetSrcObject<FbxFileTexture>(0);
+                    if (Texture) MaterialInfo.AmbientTextureFileName = Texture->GetFileName();
+                }
+                else
+                {
+                    FbxDouble3 Color = AmbientProperty.Get<FbxDouble3>();
+                    MaterialInfo.AmbientColor = FVector(static_cast<float>(Color[0]), static_cast<float>(Color[1]), static_cast<float>(Color[2]));
+                }
+            }
+
+            // Diffuse Color / Texture
             FbxProperty DiffuseProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sDiffuse);
             if (DiffuseProperty.IsValid())
             {
-                int TextureCount = DiffuseProperty.GetSrcObjectCount<FbxFileTexture>();
-                if (TextureCount > 0)
+                if (DiffuseProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
                 {
                     FbxFileTexture* Texture = DiffuseProperty.GetSrcObject<FbxFileTexture>(0);
-                    if (Texture)
-                    {
-                        MaterialInfo.DiffuseTextureFileName = Texture->GetFileName();
-                    }
+                    if (Texture) MaterialInfo.DiffuseTextureFileName = Texture->GetFileName();
+                }
+                else
+                {
+                    FbxDouble3 Color = DiffuseProperty.Get<FbxDouble3>();
+                    MaterialInfo.DiffuseColor = FVector(static_cast<float>(Color[0]), static_cast<float>(Color[1]), static_cast<float>(Color[2]));
                 }
             }
 
-            // Normal 텍스처
+            // Emissive Color / Texture
+            FbxProperty EmissiveProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sEmissive);
+            if (EmissiveProperty.IsValid())
+            {
+                if (EmissiveProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
+                {
+                    FbxFileTexture* Texture = EmissiveProperty.GetSrcObject<FbxFileTexture>(0);
+                    if (Texture) MaterialInfo.EmissiveTextureFileName = Texture->GetFileName();
+                }
+                else
+                {
+                    FbxDouble3 Color = EmissiveProperty.Get<FbxDouble3>();
+                    MaterialInfo.EmissiveColor = FVector(static_cast<float>(Color[0]), static_cast<float>(Color[1]), static_cast<float>(Color[2]));
+                }
+            }
+
+            // Normal Texture
             FbxProperty NormalProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sNormalMap);
             if (NormalProperty.IsValid())
             {
-                int TextureCount = NormalProperty.GetSrcObjectCount<FbxFileTexture>();
-                if (TextureCount > 0)
+                if (NormalProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
                 {
                     FbxFileTexture* Texture = NormalProperty.GetSrcObject<FbxFileTexture>(0);
-                    if (Texture)
-                    {
-                        MaterialInfo.NormalTextureFileName = Texture->GetFileName();
-                    }
+                    if (Texture) MaterialInfo.NormalTextureFileName = Texture->GetFileName();
                 }
             }
 
-            // Specular 텍스처 및 Exponent (Phong만 해당)
+            // Specular properties (Phong only)
             if (FbxMaterial->GetClassId().Is(FbxSurfacePhong::ClassId))
             {
-                // Specular Texture
+                // Specular Color / Texture
                 FbxProperty SpecularProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sSpecular);
                 if (SpecularProperty.IsValid())
                 {
-                    int TextureCount = SpecularProperty.GetSrcObjectCount<FbxFileTexture>();
-                    if (TextureCount > 0)
+                    if (SpecularProperty.GetSrcObjectCount<FbxFileTexture>() > 0)
                     {
                         FbxFileTexture* Texture = SpecularProperty.GetSrcObject<FbxFileTexture>(0);
-                        if (Texture)
-                        {
-                            MaterialInfo.SpecularTextureFileName = Texture->GetFileName();
-                        }
+                        if (Texture) MaterialInfo.SpecularTextureFileName = Texture->GetFileName();
+                    }
+                    else
+                    {
+                        FbxDouble3 Color = SpecularProperty.Get<FbxDouble3>();
+                        MaterialInfo.SpecularColor = FVector(static_cast<float>(Color[0]), static_cast<float>(Color[1]), static_cast<float>(Color[2]));
                     }
                 }
 
-                // [수정] Specular Exponent (Shininess) 읽기
+                // Specular Exponent (Shininess)
                 FbxProperty ShininessProperty = FbxMaterial->FindProperty(FbxSurfaceMaterial::sShininess);
                 if (ShininessProperty.IsValid())
                 {
