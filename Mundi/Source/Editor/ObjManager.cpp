@@ -166,8 +166,8 @@ bool GetMtlDependencies(const FString& ObjPath, TArray<FString>& OutMtlFilePaths
 /**
  * @brief 캐시 파일이 원본(.obj) 및 모든 의존성(.mtl) 파일보다 최신인지 검사합니다.
  * @param ObjPath 원본 .obj 파일의 경로입니다.
- * @param BinPath 메쉬 데이터 캐시(.obj.bin) 파일의 경로입니다.
- * @param MatBinPath 머티리얼 데이터 캐시(.mtl.bin) 파일의 경로입니다.
+ * @param BinPath 메쉬 데이터 캐시(.obj.sm.bin) 파일의 경로입니다.
+ * @param MatBinPath 머티리얼 데이터 캐시(.obj.sm.mat.bin) 파일의 경로입니다.
  * @return 캐시를 다시 생성해야 하면 true, 캐시가 유효하면 false를 반환합니다.
  */
 bool ShouldRegenerateCache(const FString& ObjPath, const FString& BinPath, const FString& MatBinPath)
@@ -300,8 +300,8 @@ FStaticMesh* FObjManager::LoadObjStaticMeshAsset(const FString& PathFileName)
 	// 2-1. 캐시 파일 경로 설정
 	FString CachePathStr = ConvertDataPathToCachePath(NormalizedPathStr);
 
-	const FString BinPathFileName = CachePathStr + ".bin";
-	const FString MatBinPathFileName = CachePathStr + ".mat.bin";
+	const FString BinPathFileName = CachePathStr + ".sm.bin";
+	const FString MatBinPathFileName = CachePathStr + ".sm.mat.bin";
 
 	// 캐시를 저장할 디렉토리가 없으면 생성
 	fs::path CacheFileDirPath(BinPathFileName);

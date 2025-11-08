@@ -118,6 +118,7 @@ struct FGroupInfo
 inline FArchive& operator<<(FArchive& Ar, FVector& V) { Ar.Serialize(&V.X, sizeof(float) * 3); return Ar; }
 inline FArchive& operator<<(FArchive& Ar, FVector2D& V) { Ar.Serialize(&V.X, sizeof(float) * 2); return Ar; }
 inline FArchive& operator<<(FArchive& Ar, FVector4& V) { Ar.Serialize(&V.X, sizeof(float) * 4); return Ar; }
+inline FArchive& operator<<(FArchive& Ar, FMatrix& Mat) { Ar.Serialize(&Mat.M[0][0], sizeof(float) * 16); return Ar; }
 
 // 직렬화 포맷 (FVertexDynamic와 역할이 달라서 분리됨)
 struct FNormalVertex
@@ -244,6 +245,21 @@ struct FBoneInfo
     //    - 의미: Mesh Local → Bone Local → World (animated)
     //    - 업데이트: GlobalTransform이 변경될 때마다 재계산
     FMatrix SkinningMatrix;
+
+    friend FArchive& operator<<(FArchive& Ar, FBoneInfo& Bone)
+    {
+        if (Ar.IsSaving())
+            Serialization::WriteString(Ar, Bone.BoneName);
+        else if (Ar.IsLoading())
+            Serialization::ReadString(Ar, Bone.BoneName);
+
+        Ar << Bone.ParentIndex;
+        Ar << Bone.BindPoseLocalTransform;
+        Ar << Bone.InverseBindPoseMatrix;
+        Ar << Bone.GlobalTransform;
+        Ar << Bone.SkinningMatrix;
+        return Ar;
+    }
 };
 
 // Skinning Vertex (Bone Weights + Indices 포함)
@@ -257,6 +273,14 @@ struct FSkinnedVertex
     {
         BoneIndices[0] = BoneIndices[1] = BoneIndices[2] = BoneIndices[3] = 0;
         BoneWeights[0] = BoneWeights[1] = BoneWeights[2] = BoneWeights[3] = 0.0f;
+    }
+
+    friend FArchive& operator<<(FArchive& Ar, FSkinnedVertex& Vtx)
+    {
+        Ar << Vtx.BaseVertex;
+        Ar.Serialize(&Vtx.BoneIndices[0], sizeof(uint8) * 4);
+        Ar.Serialize(&Vtx.BoneWeights[0], sizeof(float) * 4);
+        return Ar;
     }
 };
 
@@ -289,6 +313,15 @@ struct FSkeletalMesh
             for (auto& g : Mesh.GroupInfos) Ar << g;
 
             Ar << Mesh.bHasMaterial;
+
+            // Skeletal Mesh 전용 데이터
+            uint32_t boneCount = (uint32_t)Mesh.Bones.size();
+            Ar << boneCount;
+            for (auto& bone : Mesh.Bones) Ar << bone;
+
+            uint32_t skinnedVtxCount = (uint32_t)Mesh.SkinnedVertices.size();
+            Ar << skinnedVtxCount;
+            for (auto& vtx : Mesh.SkinnedVertices) Ar << vtx;
         }
         else if (Ar.IsLoading())
         {
@@ -302,6 +335,17 @@ struct FSkeletalMesh
             for (auto& g : Mesh.GroupInfos) Ar << g;
 
             Ar << Mesh.bHasMaterial;
+
+            // Skeletal Mesh 전용 데이터
+            uint32_t boneCount;
+            Ar << boneCount;
+            Mesh.Bones.resize(boneCount);
+            for (auto& bone : Mesh.Bones) Ar << bone;
+
+            uint32_t skinnedVtxCount;
+            Ar << skinnedVtxCount;
+            Mesh.SkinnedVertices.resize(skinnedVtxCount);
+            for (auto& vtx : Mesh.SkinnedVertices) Ar << vtx;
         }
         return Ar;
     }
