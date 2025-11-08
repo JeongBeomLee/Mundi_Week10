@@ -267,6 +267,10 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
         FbxIOSettings* ios = FbxIOSettings::Create(SdkManager, IOSROOT);
         SdkManager->SetIOSettings(ios);
 
+        // Material 및 Texture 로딩 활성화
+        ios->SetBoolProp(IMP_FBX_MATERIAL, true);
+        ios->SetBoolProp(IMP_FBX_TEXTURE, true);
+
         // 3. FBX Importer 생성
         FbxImporter* Importer = FbxImporter::Create(SdkManager, "");
         if (!Importer->Initialize(NormalizedPathStr.c_str(), -1, SdkManager->GetIOSettings()))
@@ -1254,6 +1258,10 @@ FStaticMesh* FFBXManager::LoadFBXStaticMeshAsset(const FString& PathFileName)
 
         FbxIOSettings* IOSettings = FbxIOSettings::Create(SdkManager, IOSROOT);
         SdkManager->SetIOSettings(IOSettings);
+
+        // Material 및 Texture 로딩 활성화
+        IOSettings->SetBoolProp(IMP_FBX_MATERIAL, true);
+        IOSettings->SetBoolProp(IMP_FBX_TEXTURE, true);
 
         FbxScene* Scene = FbxScene::Create(SdkManager, "MyScene");
         if (!Scene)
