@@ -30,14 +30,14 @@ public:
 
     void OnSerialized() override;    
 
-    void SetskeletalMesh(USkeletalMesh* InSkeletalMesh);
+    void SetSkeletalMesh(USkeletalMesh* InSkeletalMesh);
     USkeletalMesh* GetSkeletalMesh() const { return SkeletalMesh; }
 
 protected:
 
     void UpdateBoneMatrices();
     void UpdateSkinningMatrices();
-    void PerfromCPUSkinning();
+    void PerformCPUSkinning();
 
 private:
     USkeletalMesh* SkeletalMesh = nullptr;
@@ -54,6 +54,8 @@ private:
     // 현재 애니메이션이 없어서 Inverse Bind Pose * Bind Pose
     // 애니메이션 생기면 Inverse Bind Pose * BoneMatrix(Transformed Bind Pose) 
     TArray<FMatrix> SkinningMatrix = {};
+    
+    TArray<FMatrix> SkinningInvTransMatrix = {};
 
     bool bChangedSkeletalMesh = false;
 };

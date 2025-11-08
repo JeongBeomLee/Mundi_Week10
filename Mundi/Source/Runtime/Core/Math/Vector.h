@@ -381,6 +381,12 @@ struct FVector
 	}*/
 };
 
+// Scalar * Vector 연산을 위해서 추가
+inline FVector operator*(float S, const FVector& V)
+{
+	return V * S;
+}
+
 // ─────────────────────────────
 // FRotator (Rotation in Euler Angles)
 // ─────────────────────────────
@@ -480,6 +486,11 @@ struct alignas(16) FVector4
 
 	FVector4(const __m128& InSimd) : SimdData(InSimd) {}
 
+	FVector4(const FVector& V, float InW = 0.0f)
+	{
+		SimdData = _mm_set_ps(InW, V.Z, V.Y, V.X);
+	}
+
 	FVector4 operator+(const FVector4& V) const { return FVector4(_mm_add_ps(SimdData, V.SimdData)); }
 	FVector4 operator-(const FVector4& V) const { return FVector4(_mm_sub_ps(SimdData, V.SimdData)); }
 	FVector4 operator*(float S) const { return FVector4(_mm_mul_ps(SimdData, _mm_set1_ps(S))); }
@@ -517,7 +528,51 @@ struct alignas(16) FVector4
 	{
 		return FVector4(D.X, D.Y, D.Z, 0.0f);
 	}
+
+	float Size()
+	{		
+		return std::sqrt(X * X + Y * Y + Z * Z + W * W);
+	}
+
+	float SizeSquared()
+	{
+		return X * X + Y * Y + Z * Z + W * W;
+	}
+
+	void Normalize()
+	{
+		float S = Size();
+		if (S > KINDA_SMALL_NUMBER)
+		{
+			*this /= S;
+		} 
+	}
+
+	void SafeNormalize()
+	{
+		float S = Size();
+		if (S > KINDA_SMALL_NUMBER)
+		{
+			*this /= S;
+		}
+		else
+		{
+			*this = 0.0f;
+		}
+	}
+
+	FVector4 GetSafeNormal()
+	{
+		FVector4 Vector = *this;
+		Vector.SafeNormalize();
+		return Vector;
+	}
 };
+
+inline FVector4 operator*(float S, const FVector4& V)
+{
+	return V * S;
+}
 
 // Quaternion 정규화(+w 기준 캐논화)
 inline void NormalizeQuat(float& x, float& y, float& z, float& w)
@@ -1154,7 +1209,34 @@ struct alignas(16) FMatrix
 		inv.Rows[3] = _mm_set_ps(1.0f, Zn, 0.0f, 0.0f);
 		return inv;
 	}
+
+	bool IsOrtho()
+	{
+		const float A00 = M[0][0], A01 = M[0][1], A02 = M[0][2];
+		const float A10 = M[1][0], A11 = M[1][1], A12 = M[1][2];
+		const float A20 = M[2][0], A21 = M[2][1], A22 = M[2][2];
+
+		// 오르소노멀(순수 회전) 빠른 체크: 행(또는 열) 직교 & 단위길이
+		auto dot = [](float x0, float y0, float z0, float x1, float y1, float z1)
+			{
+				return x0 * x1 + y0 * y1 + z0 * z1;
+			};
+		auto len2 = [&](float x, float y, float z) { return dot(x, y, z, x, y, z); };
+
+		const float e = 1e-4f; // 허용 오차
+		const bool ortho =
+			std::fabs(len2(A00, A01, A02) - 1.f) < e &&
+			std::fabs(len2(A10, A11, A12) - 1.f) < e &&
+			std::fabs(len2(A20, A21, A22) - 1.f) < e &&
+			std::fabs(dot(A00, A01, A02, A10, A11, A12)) < e &&
+			std::fabs(dot(A00, A01, A02, A20, A21, A22)) < e &&
+			std::fabs(dot(A10, A11, A12, A20, A21, A22)) < e;
+
+		return ortho;
+	}
 };
+
+
 
 // ─────────────────────────────
 // 전역 연산자들
@@ -1236,6 +1318,12 @@ inline FMatrix operator*(const FMatrix& A, const FMatrix& B)
 	Result.VRows[2] = A.VRows[2] * B;
 	Result.VRows[3] = A.VRows[3] * B;
 
+	return Result;
+}
+
+inline FVector4 TransformDirection(const FVector4& V, const FMatrix& M)
+{
+	const FVector4 Result = FVector4(V.X, V.Y, V.Z, 0.0f) * M;
 	return Result;
 }
 

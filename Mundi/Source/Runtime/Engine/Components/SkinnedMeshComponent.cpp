@@ -52,7 +52,7 @@ void USkinnedMeshComponent::OnSerialized()
     UMeshComponent::OnSerialized();
 }
 
-void USkinnedMeshComponent::SetskeletalMesh(USkeletalMesh* InSkeletalMesh)
+void USkinnedMeshComponent::SetSkeletalMesh(USkeletalMesh* InSkeletalMesh)
 {
     if(!InSkeletalMesh)
     {
@@ -128,13 +128,79 @@ void USkinnedMeshComponent::UpdateSkinningMatrices()
     }
 
     SkinningMatrix.SetNum(BoneCount);
+    SkinningInvTransMatrix.SetNum(BoneCount);
     for (int i = 0; i < BoneCount; i++)
     {
         SkinningMatrix[i] = MeshAsset->Bones[i].InverseBindPoseMatrix * ComponentSpaceTransforms[i];
+        if (SkinningMatrix[i].IsOrtho())
+        {
+            SkinningInvTransMatrix[i] = SkinningMatrix[i];
+        }
+        else
+        {
+            SkinningInvTransMatrix[i] = SkinningMatrix[i].InverseAffine().Transpose();
+        }
     }
 }
 
-
-void USkinnedMeshComponent::PerfromCPUSkinning()
+void USkinnedMeshComponent::PerformCPUSkinning()
 {
+    FSkeletalMesh* MeshAsset = SkeletalMesh ? SkeletalMesh->GetSkeletalMeshAsset() : nullptr;
+    if (!MeshAsset)
+    {
+        UE_LOG("[USkinnedMeshComponent/PerfromCPUSkinning] FSkeletalMesh is null");
+        return;
+    }
+
+    if (SkinningMatrix.IsEmpty())
+    {
+        UE_LOG("[USkinnedMeshComponent/PerfromCPUSkinning] SkinningMatrix is zero");
+        return;
+    }
+
+    const int32 VertexCount = MeshAsset->SkinnedVertices.Num();
+    if (VertexCount == 0)
+    {
+        UE_LOG("[USkinnedMeshComponent/PerfromCPUSkinning] VertexCount is zero");
+        return;
+    }
+
+
+    // 정점 개수만큼 순회
+    TArray<FNormalVertex> AnimatedVertices;
+    AnimatedVertices.SetNum(VertexCount);
+    for (int i = 0; i < VertexCount; i++)
+    {
+        const FSkinnedVertex& SourceVertex = MeshAsset->SkinnedVertices[i];
+        FNormalVertex& AnimatedVertex = AnimatedVertices[i];
+        AnimatedVertex.pos = {};
+        AnimatedVertex.normal = {};
+        AnimatedVertex.Tangent = {};
+        // 총 4개의 가중치
+        for (int j = 0; j < 4; j++)
+        {
+            int BoneIndex = SourceVertex.BoneIndices[j];
+            float BoneWeight = SourceVertex.BoneWeights[j];
+            // 가중치가 0이거나 유효하지 않은 뼈 인덱스는 스킵
+            if (BoneWeight <= KINDA_SMALL_NUMBER || BoneIndex >= SkinningMatrix.Num() || BoneIndex < 0)
+            {
+                continue;;
+            }
+
+            FVector Pos = SourceVertex.BaseVertex.pos * SkinningMatrix[BoneIndex];
+            FVector4 Normal4 = FVector4(SourceVertex.BaseVertex.normal, 0.0f);
+            Normal4 = TransformDirection(Normal4, SkinningInvTransMatrix[BoneIndex]);
+            FVector Normal = FVector(Normal4.X, Normal4.Y, Normal4.Z);
+            FVector4 Tangent = TransformDirection(SourceVertex.BaseVertex.Tangent, SkinningInvTransMatrix[BoneIndex]);
+            
+            AnimatedVertex.pos += BoneWeight * Pos;
+            AnimatedVertex.normal += BoneWeight * Normal;
+            AnimatedVertex.Tangent += BoneWeight * Tangent;
+        }
+
+        AnimatedVertex.normal.Normalize();
+        AnimatedVertex.Tangent.Normalize();
+        AnimatedVertex.color = SourceVertex.BaseVertex.color;
+        AnimatedVertex.tex = SourceVertex.BaseVertex.tex;
+    }    
 }
