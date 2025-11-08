@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "SkeletalMeshTypes.h"
 #include "Enums.h"
 
@@ -9,13 +9,13 @@
  * @return 편집 가능한 FBone 인스턴스
  *
  * 동작 원리:
- * 1. OffsetMatrix = InverseBindPose (Mesh Local → Bone Local)
- * 2. OffsetMatrix.Inverse() = Bone Bind Pose World Transform
- * 3. Child의 Local = ParentWorld^-1 * ChildWorld
- * 4. Matrix Decompose → Position, Rotation, Scale
+ * 1. GlobalTransform = 바인드 포즈에서 본의 월드 변환 (LinkTransform)
+ * 2. Child의 Local = ParentWorld^-1 * ChildWorld
+ * 3. Matrix Decompose → Position, Rotation, Scale
  *
- * TODO: 나중에 FBoneInfo에 LocalTransformMatrix가 추가되면
- *       Inverse 계산 대신 직접 사용하도록 변경
+ * 최적화:
+ * - Root bone: GlobalTransform을 직접 사용 (역행렬 계산 불필요)
+ * - Child bone: 1번의 역행렬 계산으로 로컬 변환 추출
  */
 FBone FBone::FromBoneInfo(int32 Index, const TArray<FBoneInfo>& AllBoneInfos)
 {
@@ -32,21 +32,21 @@ FBone FBone::FromBoneInfo(int32 Index, const TArray<FBoneInfo>& AllBoneInfos)
 	Bone.Index = Index;
 	Bone.ParentIndex = BoneInfo.ParentIndex;
 
-	// OffsetMatrix.InverseAffine() = Bone의 Bind Pose World Transform
-	FMatrix BoneWorld = BoneInfo.OffsetMatrix.InverseAffine();
-
 	FMatrix LocalMatrix;
 
 	if (Bone.ParentIndex >= 0 && Bone.ParentIndex < AllBoneInfos.size())
 	{
 		// Child bone: Local = ParentWorld^-1 * ChildWorld
-		FMatrix ParentWorld = AllBoneInfos[Bone.ParentIndex].OffsetMatrix.InverseAffine();
-		LocalMatrix = ParentWorld.InverseAffine() * BoneWorld;
+		const FMatrix& ParentGlobalTransform = AllBoneInfos[Bone.ParentIndex].GlobalTransform;
+		const FMatrix& ChildGlobalTransform = BoneInfo.GlobalTransform;
+
+		FMatrix ParentWorldInverse = ParentGlobalTransform.InverseAffine();
+		LocalMatrix = ParentWorldInverse * ChildGlobalTransform;
 	}
 	else
 	{
-		// Root bone: World = Local
-		LocalMatrix = BoneWorld;
+		// Root bone: World = Local (역행렬 계산 불필요)
+		LocalMatrix = BoneInfo.GlobalTransform;
 	}
 
 	// Translation 추출

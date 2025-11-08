@@ -18,45 +18,51 @@ USkeletalMeshComponent::USkeletalMeshComponent()
 	FBoneInfo rootInfo;
 	rootInfo.BoneName = "Root";
 	rootInfo.ParentIndex = -1;
-	rootInfo.OffsetMatrix = FMatrix::Identity().InverseAffine();
+	rootInfo.GlobalTransform = FMatrix::Identity();
+	rootInfo.InverseBindPoseMatrix = rootInfo.GlobalTransform.InverseAffine();
+	rootInfo.SkinningMatrix = rootInfo.InverseBindPoseMatrix * rootInfo.GlobalTransform;
 	DummyBoneInfos.push_back(rootInfo);
 
 	// Spine (Root의 자식, Z+10)
 	FBoneInfo spineInfo;
 	spineInfo.BoneName = "Spine";
 	spineInfo.ParentIndex = 0;
-	FMatrix spineWorld = FMatrix::Identity();
-	spineWorld.M[3][2] = 10.0f;
-	spineInfo.OffsetMatrix = spineWorld.InverseAffine();
+	spineInfo.GlobalTransform = FMatrix::Identity();
+	spineInfo.GlobalTransform.M[3][2] = 10.0f;
+	spineInfo.InverseBindPoseMatrix = spineInfo.GlobalTransform.InverseAffine();
+	spineInfo.SkinningMatrix = spineInfo.InverseBindPoseMatrix * spineInfo.GlobalTransform;
 	DummyBoneInfos.push_back(spineInfo);
 
-	// Head (Spine의 자식, World Z+15)
+	// Head (Spine의 자식, World Z+25)
 	FBoneInfo headInfo;
 	headInfo.BoneName = "Head";
 	headInfo.ParentIndex = 1;
-	FMatrix headWorld = FMatrix::Identity();
-	headWorld.M[3][2] = 25.0f;
-	headInfo.OffsetMatrix = headWorld.InverseAffine();
+	headInfo.GlobalTransform = FMatrix::Identity();
+	headInfo.GlobalTransform.M[3][2] = 25.0f;
+	headInfo.InverseBindPoseMatrix = headInfo.GlobalTransform.InverseAffine();
+	headInfo.SkinningMatrix = headInfo.InverseBindPoseMatrix * headInfo.GlobalTransform;
 	DummyBoneInfos.push_back(headInfo);
 
 	// LeftArm (Spine의 자식, X-8, Z+18)
 	FBoneInfo leftArmInfo;
 	leftArmInfo.BoneName = "LeftArm";
 	leftArmInfo.ParentIndex = 1;
-	FMatrix leftArmWorld = FMatrix::Identity();
-	leftArmWorld.M[3][0] = -8.0f;
-	leftArmWorld.M[3][2] = 18.0f;
-	leftArmInfo.OffsetMatrix = leftArmWorld.InverseAffine();
+	leftArmInfo.GlobalTransform = FMatrix::Identity();
+	leftArmInfo.GlobalTransform.M[3][0] = -8.0f;
+	leftArmInfo.GlobalTransform.M[3][2] = 18.0f;
+	leftArmInfo.InverseBindPoseMatrix = leftArmInfo.GlobalTransform.InverseAffine();
+	leftArmInfo.SkinningMatrix = leftArmInfo.InverseBindPoseMatrix * leftArmInfo.GlobalTransform;
 	DummyBoneInfos.push_back(leftArmInfo);
 
 	// RightArm (Spine의 자식, X+8, Z+18)
 	FBoneInfo rightArmInfo;
 	rightArmInfo.BoneName = "RightArm";
 	rightArmInfo.ParentIndex = 1;
-	FMatrix rightArmWorld = FMatrix::Identity();
-	rightArmWorld.M[3][0] = 8.0f;
-	rightArmWorld.M[3][2] = 18.0f;
-	rightArmInfo.OffsetMatrix = rightArmWorld.InverseAffine();
+	rightArmInfo.GlobalTransform = FMatrix::Identity();
+	rightArmInfo.GlobalTransform.M[3][0] = 8.0f;
+	rightArmInfo.GlobalTransform.M[3][2] = 18.0f;
+	rightArmInfo.InverseBindPoseMatrix = rightArmInfo.GlobalTransform.InverseAffine();
+	rightArmInfo.SkinningMatrix = rightArmInfo.InverseBindPoseMatrix * rightArmInfo.GlobalTransform;
 	DummyBoneInfos.push_back(rightArmInfo);
 
 	// FBoneInfo → FBone 변환
