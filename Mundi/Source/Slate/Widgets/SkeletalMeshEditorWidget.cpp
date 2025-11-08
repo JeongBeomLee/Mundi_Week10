@@ -210,7 +210,7 @@ void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Compo
 	}
 
 	TargetComponent = Component;
-	SelectedBoneIndex = Component ? Component->SelectedBoneIndex : -1;
+	SelectedBoneIndex = Component ? Component->GetSelectedBoneIndex() : -1;
 	bHasUnsavedChanges = false;  // 새 컴포넌트 로드 시 리셋
 
 	if (!EditorWorld)
@@ -239,7 +239,7 @@ void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Compo
 
 		// TargetComponent의 Bone 데이터 복사 (초기 로드)
 		PreviewMeshComponent->EditableBones = Component->EditableBones;
-		PreviewMeshComponent->SelectedBoneIndex = Component->SelectedBoneIndex;
+		PreviewMeshComponent->SetSelectedBoneIndex(Component->GetSelectedBoneIndex());
 
 		PreviewActor->SetRootComponent(PreviewMeshComponent);
 
@@ -284,9 +284,9 @@ void USkeletalMeshEditorWidget::Update()
 	}
 
 	// 선택 동기화 (PreviewMeshComponent 기준)
-	if (PreviewMeshComponent && SelectedBoneIndex != PreviewMeshComponent->SelectedBoneIndex)
+	if (PreviewMeshComponent && SelectedBoneIndex != PreviewMeshComponent->GetSelectedBoneIndex())
 	{
-		SelectedBoneIndex = PreviewMeshComponent->SelectedBoneIndex;
+		SelectedBoneIndex = PreviewMeshComponent->GetSelectedBoneIndex();
 		UE_LOG("SkeletalMeshEditorWidget: Bone selection changed to index %d", SelectedBoneIndex);
 	}
 
@@ -403,7 +403,7 @@ void USkeletalMeshEditorWidget::RenderBoneTreeNode(int32 BoneIndex)
 	{
 		SelectedBoneIndex = BoneIndex;
 		if (PreviewMeshComponent)
-			PreviewMeshComponent->SelectedBoneIndex = BoneIndex;
+			PreviewMeshComponent->SetSelectedBoneIndex(BoneIndex);
 	}
 
 	// 자식 bone 재귀 렌더링
@@ -829,7 +829,7 @@ void USkeletalMeshEditorWidget::ApplyChanges()
 
 	// PreviewMeshComponent → TargetComponent 복사
 	TargetComponent->EditableBones = PreviewMeshComponent->EditableBones;
-	TargetComponent->SelectedBoneIndex = PreviewMeshComponent->SelectedBoneIndex;
+	TargetComponent->SetSelectedBoneIndex(PreviewMeshComponent->GetSelectedBoneIndex());
 
 	bHasUnsavedChanges = false;  // 저장 완료
 
@@ -846,7 +846,7 @@ void USkeletalMeshEditorWidget::CancelChanges()
 
 	// TargetComponent → PreviewMeshComponent 복사 (되돌리기)
 	PreviewMeshComponent->EditableBones = TargetComponent->EditableBones;
-	PreviewMeshComponent->SelectedBoneIndex = TargetComponent->SelectedBoneIndex;
+	PreviewMeshComponent->SetSelectedBoneIndex(TargetComponent->GetSelectedBoneIndex());
 
 	bHasUnsavedChanges = false;  // 변경사항 취소됨
 

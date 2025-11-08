@@ -59,14 +59,14 @@ void UComponentDetailRenderer::RenderCustomUIImpl(USkeletalMeshComponent* Compon
 	int32 BoneCount = Component->GetBoneCount();
 	ImGui::Text("Total Bones: %d", BoneCount);
 
-	if (Component->SelectedBoneIndex >= 0)
+	if (Component->GetSelectedBoneIndex() >= 0)
 	{
-		FBone* SelectedBone = Component->GetBone(Component->SelectedBoneIndex);
+		FBone* SelectedBone = Component->GetBone(Component->GetSelectedBoneIndex());
 		if (SelectedBone)
 		{
 			ImGui::Text("Selected: %s (Index: %d)",
 				SelectedBone->Name.c_str(),
-				Component->SelectedBoneIndex);
+				Component->GetSelectedBoneIndex());
 		}
 	}
 	else

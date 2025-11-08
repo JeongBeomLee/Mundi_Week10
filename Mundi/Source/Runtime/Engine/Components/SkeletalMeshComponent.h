@@ -62,13 +62,14 @@ public:
 	/** @brief 선택된 Bone 인덱스 설정 */
 	void SetSelectedBoneIndex(int32 Index) { SelectedBoneIndex = Index; }
 
+	/** @brief 편집 가능한 Bone 배열 (Editor Widget이 직접 수정) */
+	TArray<FBone> EditableBones;
+
+private:
 	// ===== Editor 상태 =====
 
 	/** @brief 현재 선택된 bone index (-1 = none) */
 	int32 SelectedBoneIndex = -1;
-
-	/** @brief 편집 가능한 Bone 배열 (Editor Widget이 직접 수정) */
-	TArray<FBone> EditableBones;
 
 	// ===== Viewport 렌더링 (다형성) =====
 
