@@ -540,14 +540,18 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
     FbxNode* MeshNode = FbxMeshNode->GetNode();
     int MaterialCount = MeshNode ? MeshNode->GetMaterialCount() : 0;
 
-    // Scene에서 Material 리스트 가져오기 (GetMaterialCount()가 0일 경우 대비)
+    // Scene에서 Material 리스트 가져오기
+    // 노드에 Material이 있든 없든, MaterialElement가 Scene Material을 참조할 수 있으므로 항상 가져옴
     TArray<FbxSurfaceMaterial*> SceneMaterials;
     FbxScene* Scene = FbxMeshNode->GetScene();
 
-    if (MaterialCount == 0 && Scene)
+    if (Scene)
     {
         int SceneMaterialCount = Scene->GetMaterialCount();
-        UE_LOG("FBXManager: Node has no materials, using Scene materials (count: %d)", SceneMaterialCount);
+        if (MaterialCount == 0)
+        {
+            UE_LOG("FBXManager: Node has no materials, using Scene materials (count: %d)", SceneMaterialCount);
+        }
 
         for (int i = 0; i < SceneMaterialCount; ++i)
         {
@@ -691,21 +695,27 @@ void FFBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMes
         }
 
         // ========================================
-        // 1. InverseBindPoseMatrix 계산
+        // 1. 행렬 가져오기
         // ========================================
-        // FBX는 열우선(Column-major): v' = M * v (오른쪽부터 적용)
-        // DirectX는 행우선(Row-major): v' = v * M (왼쪽부터 적용)
+        // FBX SDK API:
+        // - GetTransformMatrix(): 메시의 T-Pose 월드 행렬 (Model Local → World)
+        // - GetTransformLinkMatrix(): 뼈의 T-Pose 월드 행렬 (Bone Local → World)
 
-        FbxAMatrix MeshTransform;   // Mesh Local → World
-        FbxAMatrix LinkTransform;   // Bone World Transform at Bind Pose
+        FbxAMatrix MeshTransform;          // Mesh Local → World
+        FbxAMatrix BoneWorldTransform;     // Bone Local → World (at Bind Pose)
         Cluster->GetTransformMatrix(MeshTransform);
-        Cluster->GetTransformLinkMatrix(LinkTransform);
+        Cluster->GetTransformLinkMatrix(BoneWorldTransform);
 
-        // InverseBindPoseMatrix: 바인드 포즈에서 월드 좌표 → 본 로컬 좌표 (Model → Bone)
-        // = LinkTransform.Inverse() * MeshTransform
-        FbxAMatrix FbxInverseBindPose = LinkTransform.Inverse() * MeshTransform;
+        // ========================================
+        // 2. InverseBindPoseMatrix 계산
+        // ========================================
+        // InverseBindPose = T-Pose 시점의 월드 공간 정점을 뼈 로컬 공간으로 변환
+        // = (World → Bone Local) * (Mesh Local → World)
+        // = BoneWorldTransform.Inverse() * MeshTransform
+        // = Mesh Local → Bone Local
+        FbxAMatrix FbxInverseBindPose = BoneWorldTransform.Inverse() * MeshTransform;
 
-        // 전치 없이 그대로 복사 (i, j)
+        // FBX 행렬을 DirectX 행렬로 복사 (전치 없이)
         BoneInfo.InverseBindPoseMatrix = FMatrix::Identity();
         for (int i = 0; i < 4; i++)
         {
@@ -716,26 +726,29 @@ void FFBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMes
         }
 
         // ========================================
-        // 2. GlobalTransform: 본 로컬 좌표 → 월드 좌표 (Bone → Model)
+        // 3. GlobalTransform: Bone Local → World (at Bind Pose)
         // ========================================
         // 바인드 포즈 시점의 본 월드 변환
-        FbxAMatrix FbxGlobalTransform = LinkTransform;
-
-        // 전치 없이 그대로 복사 (i, j)
+        // 애니메이션 시에는 현재 프레임의 본 변환으로 교체됨
         BoneInfo.GlobalTransform = FMatrix::Identity();
         for (int i = 0; i < 4; i++)
         {
             for (int j = 0; j < 4; j++)
             {
-                BoneInfo.GlobalTransform.M[i][j] = static_cast<float>(FbxGlobalTransform.Get(i, j));
+                BoneInfo.GlobalTransform.M[i][j] = static_cast<float>(BoneWorldTransform.Get(i, j));
             }
         }
 
         // ========================================
-        // 3. SkinningMatrix: InverseBindPoseMatrix × GlobalTransform
+        // 4. SkinningMatrix: 바인드 포즈에서의 최종 변환
         // ========================================
-        // = (Model → Bone) × (Bone → Model)
-        // = 바인드 포즈 기준으로 정점을 애니메이션된 본에 맞춰 변형
+        // SkinningMatrix = InverseBindPose * GlobalTransform (at Bind Pose)
+        //                = (Mesh Local → Bone Local) * (Bone Local → World)
+        //                = Mesh Local → World
+        //
+        // 애니메이션 적용 시: AnimatedBoneTransform * InverseBindPose
+        //                = (Bone Local → World at current frame) * (Mesh Local → Bone Local)
+        //                = Mesh Local → World (animated)
         BoneInfo.SkinningMatrix = BoneInfo.InverseBindPoseMatrix * BoneInfo.GlobalTransform;
 
         OutMeshData->Bones.push_back(BoneInfo);
