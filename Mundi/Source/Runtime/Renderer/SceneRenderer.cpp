@@ -352,20 +352,27 @@ void FSceneRenderer::GatherVisibleProxies()
 					if (UMeshComponent* MeshComponent = Cast<UMeshComponent>(PrimitiveComponent))
 					{
 						bool bShouldAdd = true;
+						bool bShouldSkeletalAdd = true;
 
 						// 메시 타입이 '스태틱 메시'인 경우에만 ShowFlag를 검사하여 추가 여부를 결정
 						if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(MeshComponent))
 						{
 							bShouldAdd = bDrawStaticMeshes;
-						}
+							bShouldSkeletalAdd = false;
+						}						
 						else if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(MeshComponent))
 						{
-						    bShouldAdd = bDrawSkeletalMeshes;
+						    bShouldSkeletalAdd = bDrawSkeletalMeshes;
+							bShouldAdd = false;
 						}
 
 						if (bShouldAdd)
 						{
 							Proxies.Meshes.Add(MeshComponent);
+						}
+						else if (bShouldSkeletalAdd)
+						{
+							SkeletalProxies.Add(MeshComponent);
 						}
 					}
 					else if (UBillboardComponent* BillboardComponent = Cast<UBillboardComponent>(PrimitiveComponent); BillboardComponent && bUseBillboard)
@@ -889,11 +896,25 @@ void FSceneRenderer::RenderOpaquePass(EViewModeIndex InRenderViewMode)
 		MeshComponent->CollectMeshBatches(MeshBatchElements, View);
 	}
 
+	SkeletalMeshElements.Empty();
+	for (UMeshComponent* MeshComponenent : SkeletalProxies)
+	{
+		MeshComponenent->CollectMeshBatches(SkeletalMeshElements, View);
+	}
+
 	// --- UMeshComponent 셰이더 오버라이드 ---
 	if (bNeedsShaderOverride && ShaderVariant)
 	{
 		// 수집된 UMeshComponent 배치 요소의 셰이더를 ViewModeShader로 강제 변경
 		for (FMeshBatchElement& BatchElement : MeshBatchElements)
+		{
+			BatchElement.VertexShader = ShaderVariant->VertexShader;
+			BatchElement.PixelShader = ShaderVariant->PixelShader;
+			BatchElement.InputLayout = ShaderVariant->InputLayout;
+		}
+
+		// Skeletal Mesh
+		for (FMeshBatchElement& BatchElement : SkeletalMeshElements)
 		{
 			BatchElement.VertexShader = ShaderVariant->VertexShader;
 			BatchElement.PixelShader = ShaderVariant->PixelShader;
@@ -914,9 +935,11 @@ void FSceneRenderer::RenderOpaquePass(EViewModeIndex InRenderViewMode)
 
 	// --- 2. 정렬 (Sort) ---
 	MeshBatchElements.Sort();
+	SkeletalMeshElements.Sort();
 
 	// --- 3. 그리기 (Draw) ---
 	DrawMeshBatches(MeshBatchElements, true);
+	DrawMeshBatches(SkeletalMeshElements, true);
 }
 
 void FSceneRenderer::RenderDecalPass()
@@ -1637,7 +1660,7 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 
 	// 정렬된 리스트 순회
 	for (const FMeshBatchElement& Batch : InMeshBatches)
-	{
+	{		
 		// --- 필수 요소 유효성 검사 ---
 		// Shadow Pass에서는 Pixel Shader가 없을 수 있음 (depth-only rendering)
 		bool bRequiresPixelShader = !bIsShadowPass;

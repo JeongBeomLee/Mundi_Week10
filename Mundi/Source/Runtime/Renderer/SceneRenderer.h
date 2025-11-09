@@ -24,6 +24,7 @@ class FSceneView;
 class FTileLightCuller;
 class ULineComponent;
 struct FShadowRenderContext;
+class USkeletalMeshComponent;
 
 struct FCandidateDrawable;
 
@@ -193,6 +194,9 @@ private:
 	// 수집된 렌더링 대상 목록
 	FVisibleRenderProxySet Proxies;
 
+	// 스켈레탈용 프록시배열
+	TArray<UMeshComponent*> SkeletalProxies;
+	
 	// 씬 지역 설정
 	FSceneLocals SceneLocals;
 
@@ -204,6 +208,8 @@ private:
 
 	// 각 패스에서 수집된 드로우 콜 정보 리스트
 	TArray<FMeshBatchElement> MeshBatchElements;
+
+	TArray<FMeshBatchElement> SkeletalMeshElements;
 
 	// 타일 기반 라이트 컬링 시스템 (매 프레임 생성되고 소멸되어서 스마트 포인터로 설정)
 	std::unique_ptr<FTileLightCuller> TileLightCuller;
