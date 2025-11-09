@@ -79,6 +79,7 @@ public:
     // ──────────────────────────────
     USceneComponent* GetAttachParent() const { return AttachParent; }
     const TArray<USceneComponent*>& GetAttachChildren() const { return AttachChildren; }
+    UBillboardComponent* GetSpriteComponent() const { return SpriteComponent; }
     UWorld* GetWorld();
 
     // ───── 복사 관련 ────────────────────────────

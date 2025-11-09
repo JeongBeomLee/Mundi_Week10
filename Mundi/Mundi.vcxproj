@@ -373,6 +373,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClCompile Include="Source\Runtime\Engine\Audio\SoundManager.cpp" />
     <ClCompile Include="Source\Runtime\Core\Math\UCurveFloat.cpp" />
     <ClCompile Include="Source\Runtime\Core\Math\UPerlinNoiseFloat.cpp" />
+    <ClCompile Include="Source\Runtime\Core\Misc\FBone.cpp" />
     <ClCompile Include="Source\Runtime\Engine\CameraManagement\CameraBlendPreset.cpp" />
     <ClCompile Include="Source\Runtime\Engine\CameraManagement\CameraBlendPresetLibrary.cpp" />
     <ClCompile Include="Source\Runtime\Engine\CameraManagement\CameraTypes.cpp" />
@@ -399,6 +400,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClCompile Include="Source\Runtime\Engine\Components\PointLightComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\ProjectileMovementComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\RotatingMovementComponent.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Components\SkeletalMeshComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\SpotLightComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\SpringArmComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\GameFramework\AmbientLightActor.cpp" />
@@ -431,6 +433,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">/bigobj %(AdditionalOptions)</AdditionalOptions>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='StandAlone|x64'">/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <ClCompile Include="Source\Runtime\Renderer\FOffscreenViewportClient.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\LightManager.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\SceneView.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\ShadowConfiguration.cpp" />
@@ -438,6 +441,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClCompile Include="Source\Runtime\Renderer\ShadowMap.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\TileLightCuller.cpp" />
     <ClCompile Include="Source\Slate\Widgets\PropertyRenderer.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\PropertyUtils.cpp" />
     <ClCompile Include="Source\Slate\Windows\CameraBlendEditorWindow.cpp" />
     <ClCompile Include="ThirdParty\ImGui\imgui.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -496,6 +500,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='StandAlone|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Source\Editor\Gizmo\GizmoActor.cpp" />
+    <ClCompile Include="Source\Editor\Gizmo\OffscreenGizmoActor.cpp" />
     <ClCompile Include="Source\Editor\Gizmo\GizmoArrowComponent.cpp" />
     <ClCompile Include="Source\Editor\Gizmo\GizmoRotateComponent.cpp" />
     <ClCompile Include="Source\Editor\Gizmo\GizmoScaleComponent.cpp" />
@@ -555,6 +560,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClCompile Include="Source\Runtime\InputCore\InputManager.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\SceneRenderer.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\FViewport.cpp" />
+    <ClCompile Include="Source\Runtime\Renderer\FOffscreenViewport.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\FViewportClient.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\Material.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\QuadManager.cpp" />
@@ -580,6 +586,12 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClCompile Include="Source\Slate\Widgets\GameControlWindow.cpp" />
     <ClCompile Include="Source\Slate\Widgets\SceneManagerWidget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\TargetActorTransformWidget.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\ComponentDetailRenderer.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\BoneTransformCalculator.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\BoneHierarchyWidget.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\BoneTransformWidget.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\ViewportWidget.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\SkeletalMeshEditorWidget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\Widget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\WorldDetailsWidget.cpp" />
     <ClCompile Include="Source\Slate\Windows\ConsoleWindow.cpp" />
@@ -594,6 +606,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClCompile Include="Source\Slate\Windows\SSplitterH.cpp" />
     <ClCompile Include="Source\Slate\Windows\SSplitterV.cpp" />
     <ClCompile Include="Source\Slate\Windows\SViewportWindow.cpp" />
+    <ClCompile Include="Source\Slate\Windows\SSkeletalMeshEditorWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\SWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\UIWindow.cpp" />
   </ItemGroup>
@@ -786,6 +799,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Runtime\Core\Math\UPerlinNoiseFloat.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\Delegate.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\PathUtils.h" />
+    <ClInclude Include="Source\Runtime\Core\Misc\SkeletalMeshTypes.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\WeakPtr.h" />
     <ClInclude Include="Source\Runtime\Core\Object\Property.h" />
     <ClInclude Include="Source\Runtime\Engine\Audio\SoundManager.h" />
@@ -809,6 +823,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Runtime\Engine\Components\ParticleComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\ProjectileMovementComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\RotatingMovementComponent.h" />
+    <ClInclude Include="Source\Runtime\Engine\Components\SkeletalMeshComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\SpringArmComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\AmbientLightActor.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\Character.h" />
@@ -837,6 +852,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Runtime\LuaScripting\CoroutineScheduler.h" />
     <ClInclude Include="Source\Runtime\LuaScripting\ScriptGlobalFunction.h" />
     <ClInclude Include="Source\Runtime\LuaScripting\UScriptManager.h" />
+    <ClInclude Include="Source\Runtime\Renderer\FOffscreenViewportClient.h" />
     <ClInclude Include="Source\Runtime\Renderer\LightManager.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\AmbientLightComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\DirectionalLightComponent.h" />
@@ -858,6 +874,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Runtime\RHI\ConstantBufferType.h" />
     <ClInclude Include="Source\Slate\Widgets\GameControlWindow.h" />
     <ClInclude Include="Source\Slate\Widgets\PropertyRenderer.h" />
+    <ClInclude Include="Source\Slate\Widgets\PropertyUtils.h" />
     <ClInclude Include="Source\Slate\Windows\CameraBlendEditorWindow.h" />
     <ClInclude Include="ThirdParty\ImGui\imconfig.h" />
     <ClInclude Include="ThirdParty\ImGui\imgui.h" />
@@ -868,6 +885,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="ThirdParty\ImGui\imstb_textedit.h" />
     <ClInclude Include="ThirdParty\ImGui\imstb_truetype.h" />
     <ClInclude Include="Source\Editor\Gizmo\GizmoActor.h" />
+    <ClInclude Include="Source\Editor\Gizmo\OffscreenGizmoActor.h" />
     <ClInclude Include="Source\Editor\Gizmo\GizmoArrowComponent.h" />
     <ClInclude Include="Source\Editor\Gizmo\GizmoRotateComponent.h" />
     <ClInclude Include="Source\Editor\Gizmo\GizmoScaleComponent.h" />
@@ -940,6 +958,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Runtime\Renderer\DecalStatManager.h" />
     <ClInclude Include="Source\Runtime\Renderer\SceneRenderer.h" />
     <ClInclude Include="Source\Runtime\Renderer\FViewport.h" />
+    <ClInclude Include="Source\Runtime\Renderer\FOffscreenViewport.h" />
     <ClInclude Include="Source\Runtime\Renderer\FViewportClient.h" />
     <ClInclude Include="Source\Runtime\Renderer\Material.h" />
     <ClInclude Include="Source\Runtime\Renderer\QuadManager.h" />
@@ -965,6 +984,12 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Slate\Widgets\GameHUDWidget.h" />
     <ClInclude Include="Source\Slate\Widgets\SceneManagerWidget.h" />
     <ClInclude Include="Source\Slate\Widgets\TargetActorTransformWidget.h" />
+    <ClInclude Include="Source\Slate\Widgets\ComponentDetailRenderer.h" />
+    <ClInclude Include="Source\Slate\Widgets\BoneTransformCalculator.h" />
+    <ClInclude Include="Source\Slate\Widgets\BoneHierarchyWidget.h" />
+    <ClInclude Include="Source\Slate\Widgets\BoneTransformWidget.h" />
+    <ClInclude Include="Source\Slate\Widgets\ViewportWidget.h" />
+    <ClInclude Include="Source\Slate\Widgets\SkeletalMeshEditorWidget.h" />
     <ClInclude Include="Source\Slate\Widgets\Widget.h" />
     <ClInclude Include="Source\Slate\Widgets\WorldDetailsWidget.h" />
     <ClInclude Include="Source\Slate\Windows\ConsoleWindow.h" />
@@ -979,6 +1004,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Slate\Windows\SSplitterH.h" />
     <ClInclude Include="Source\Slate\Windows\SSplitterV.h" />
     <ClInclude Include="Source\Slate\Windows\SViewportWindow.h" />
+    <ClInclude Include="Source\Slate\Windows\SSkeletalMeshEditorWindow.h" />
     <ClInclude Include="Source\Slate\Windows\SWindow.h" />
     <ClInclude Include="Source\Slate\Windows\UIWindow.h" />
   </ItemGroup>

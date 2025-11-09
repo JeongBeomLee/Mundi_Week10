@@ -40,12 +40,20 @@ class UWorld final : public UObject
 {
 public:
     DECLARE_CLASS(UWorld, UObject)
-    UWorld();
+    UWorld(EWorldType InWorldType = EWorldType::Editor);
     ~UWorld() override;
 
+    // TODO: bPie를 제거하고 IsPIE() (WorldType 기반)로 전환
     bool bPie = false;
 
 public:
+    /** 월드 타입 */
+    EWorldType GetWorldType() const { return WorldType; }
+    void SetWorldType(EWorldType InWorldType) { WorldType = InWorldType; }
+    bool IsPIE() const { return WorldType == EWorldType::Game; }
+    bool IsEditor() const { return WorldType == EWorldType::Editor; }
+    bool IsEmbedded() const { return WorldType == EWorldType::Embedded; }
+
     /** 초기화 */
     void Initialize();
     void InitializeGrid();
@@ -104,6 +112,20 @@ public:
     AGridActor* GetGridActor() { return GridActor; }
     UWorldPartitionManager* GetPartitionManager() { return Partition.get(); }
 
+    /** @brief 특정 타입의 첫 번째 Actor 찾기 (언리얼 스타일) */
+    template<typename T>
+    T* GetActorOfClass()
+    {
+        if (!Level) return nullptr;
+        for (AActor* Actor : Level->GetActors())
+        {
+            T* TypedActor = Cast<T>(Actor);
+            if (TypedActor)
+                return TypedActor;
+        }
+        return nullptr;
+    }
+
     // Per-world render settings
     URenderSettings& GetRenderSettings() { return RenderSettings; }
     const URenderSettings& GetRenderSettings() const { return RenderSettings; }
@@ -159,6 +181,9 @@ public:
     FVector PlayerSpawnLocation = FVector(0.0f, 0.0f, 0.0f);
 
 private:
+    /** === 월드 타입 === */
+    EWorldType WorldType = EWorldType::Editor;
+
     /** === 에디터 특수 액터 관리 === */
     TArray<AActor*> EditorActors;
     ACameraActor* MainCameraActor = nullptr;
@@ -220,7 +245,10 @@ inline T* UWorld::SpawnActor(const FTransform& Transform)
 
     //  월드 등록
     NewActor->SetWorld(this);
-    
+
+    // PostActorCreated 호출 (World 설정 완료 후 초기화)
+    NewActor->PostActorCreated();
+
     // 월드에 등록
     AddActorToLevel(NewActor);
 

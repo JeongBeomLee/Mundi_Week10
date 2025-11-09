@@ -832,6 +832,14 @@ struct FQuat
 	// 선언: 행렬 변환
 	FMatrix ToMatrix() const;
 
+	/**
+	 * @brief 3x3 회전 행렬에서 Quaternion 생성
+	 * @param RotMatrix 회전 행렬 (Scale 제거된 순수 회전)
+	 * @return 정규화된 Quaternion
+	 * @note Shoemake's algorithm 사용 (trace-based method)
+	 */
+	static FQuat FromRotationMatrix(const FMatrix& RotMatrix);
+
 private:
 	// 보조 연산 (내부용)
 	FQuat operator+(const FQuat& Quat) const { return FQuat(X + Quat.X, Y + Quat.Y, Z + Quat.Z, W + Quat.W); }
@@ -1237,6 +1245,50 @@ inline FMatrix operator*(const FMatrix& A, const FMatrix& B)
 	Result.VRows[3] = A.VRows[3] * B;
 
 	return Result;
+}
+
+// ─────────────────────────────
+// FQuat::FromRotationMatrix 구현 (FMatrix 정의 이후)
+// ─────────────────────────────
+inline FQuat FQuat::FromRotationMatrix(const FMatrix& RotMatrix)
+{
+	float trace = RotMatrix.M[0][0] + RotMatrix.M[1][1] + RotMatrix.M[2][2];
+
+	FQuat q;
+	if (trace > 0.0f)
+	{
+		float s = std::sqrt(trace + 1.0f) * 2.0f; // s = 4 * w
+		q.W = 0.25f * s;
+		q.X = (RotMatrix.M[2][1] - RotMatrix.M[1][2]) / s;
+		q.Y = (RotMatrix.M[0][2] - RotMatrix.M[2][0]) / s;
+		q.Z = (RotMatrix.M[1][0] - RotMatrix.M[0][1]) / s;
+	}
+	else if ((RotMatrix.M[0][0] > RotMatrix.M[1][1]) && (RotMatrix.M[0][0] > RotMatrix.M[2][2]))
+	{
+		float s = std::sqrt(1.0f + RotMatrix.M[0][0] - RotMatrix.M[1][1] - RotMatrix.M[2][2]) * 2.0f; // s = 4 * x
+		q.W = (RotMatrix.M[2][1] - RotMatrix.M[1][2]) / s;
+		q.X = 0.25f * s;
+		q.Y = (RotMatrix.M[0][1] + RotMatrix.M[1][0]) / s;
+		q.Z = (RotMatrix.M[0][2] + RotMatrix.M[2][0]) / s;
+	}
+	else if (RotMatrix.M[1][1] > RotMatrix.M[2][2])
+	{
+		float s = std::sqrt(1.0f + RotMatrix.M[1][1] - RotMatrix.M[0][0] - RotMatrix.M[2][2]) * 2.0f; // s = 4 * y
+		q.W = (RotMatrix.M[0][2] - RotMatrix.M[2][0]) / s;
+		q.X = (RotMatrix.M[0][1] + RotMatrix.M[1][0]) / s;
+		q.Y = 0.25f * s;
+		q.Z = (RotMatrix.M[1][2] + RotMatrix.M[2][1]) / s;
+	}
+	else
+	{
+		float s = std::sqrt(1.0f + RotMatrix.M[2][2] - RotMatrix.M[0][0] - RotMatrix.M[1][1]) * 2.0f; // s = 4 * z
+		q.W = (RotMatrix.M[1][0] - RotMatrix.M[0][1]) / s;
+		q.X = (RotMatrix.M[0][2] + RotMatrix.M[2][0]) / s;
+		q.Y = (RotMatrix.M[1][2] + RotMatrix.M[2][1]) / s;
+		q.Z = 0.25f * s;
+	}
+
+	return q.GetNormalized();
 }
 
 // ─────────────────────────────

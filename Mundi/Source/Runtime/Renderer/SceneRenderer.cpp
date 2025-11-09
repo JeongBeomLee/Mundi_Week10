@@ -144,8 +144,17 @@ void FSceneRenderer::Render()
 	// FXAA 등 화면에서 최종 이미지 품질을 위해 적용되는 효과를 적용
 	ApplyScreenEffectsPass();
 
-	// 최종적으로 Scene에 그려진 텍스쳐를 Back 버퍼에 그힌다
-	CompositeToBackBuffer();
+	// 최종적으로 Scene에 그려진 텍스쳐를 렌더 타겟에 합성
+	if (View->TargetRTV != nullptr)
+	{
+		// 오프스크린 렌더링: 커스텀 RenderTarget으로 합성
+		CompositeToRenderTarget(View->TargetRTV, View->TargetWidth, View->TargetHeight);
+	}
+	else
+	{
+		// 메인 뷰포트: BackBuffer로 합성
+		CompositeToBackBuffer();
+	}
 }
 
 //====================================================================================
@@ -434,7 +443,9 @@ void FSceneRenderer::GatherVisibleProxies()
 	}
 
 	// Collect from Level Actors (including their Gizmo components)
-	for (AActor* Actor : World->GetActors())
+	const TArray<AActor*>& LevelActors = World->GetActors();
+
+	for (AActor* Actor : LevelActors)
 	{
 		CollectComponentsFromActor(Actor, false);
 	}
@@ -1854,7 +1865,17 @@ void FSceneRenderer::CompositeToBackBuffer()
 	// 2. 렌더 타겟을 백버퍼로 설정 (깊이 버퍼 없음)
 	RHIDevice->OMSetRenderTargets(ERTVMode::BackBufferWithoutDepth);
 
-	// 3. 텍스처 및 샘플러 설정
+	// 3. Viewport 설정 (View의 ViewRect 기반)
+	D3D11_VIEWPORT Viewport = {};
+	Viewport.TopLeftX = static_cast<float>(View->ViewRect.MinX);
+	Viewport.TopLeftY = static_cast<float>(View->ViewRect.MinY);
+	Viewport.Width = static_cast<float>(View->ViewRect.Width());
+	Viewport.Height = static_cast<float>(View->ViewRect.Height());
+	Viewport.MinDepth = 0.0f;
+	Viewport.MaxDepth = 1.0f;
+	RHIDevice->GetDeviceContext()->RSSetViewports(1, &Viewport);
+
+	// 4. 텍스처 및 샘플러 설정
 	// 이제 RHI_SRV_Index가 아닌, 현재 상태에 맞는 Source SRV를 직접 가져옴
 	ID3D11ShaderResourceView* SourceSRV = RHIDevice->GetCurrentSourceSRV();
 	ID3D11SamplerState* SamplerState = RHIDevice->GetSamplerState(RHI_Sampler_Index::LinearClamp);
@@ -1864,11 +1885,11 @@ void FSceneRenderer::CompositeToBackBuffer()
 		return; // 가드가 자동으로 스왑을 되돌리고 SRV를 해제해줌
 	}
 
-	// 4. 셰이더 리소스 바인딩
+	// 5. 셰이더 리소스 바인딩
 	RHIDevice->GetDeviceContext()->PSSetShaderResources(0, 1, &SourceSRV);
 	RHIDevice->GetDeviceContext()->PSSetSamplers(0, 1, &SamplerState);
 
-	// 5. 셰이더 준비 - Gamma Correction 적용
+	// 6. 셰이더 준비 - Gamma Correction 적용
 	UShader* FullScreenTriangleVS = UResourceManager::GetInstance().Load<UShader>("Shaders/Utility/FullScreenTriangle_VS.hlsl");
 	UShader* GammaCorrectionPS = UResourceManager::GetInstance().Load<UShader>("Shaders/PostProcess/GammaCorrection_PS.hlsl");
 	if (!FullScreenTriangleVS || !FullScreenTriangleVS->GetVertexShader() || !GammaCorrectionPS || !GammaCorrectionPS->GetPixelShader())
@@ -1878,7 +1899,7 @@ void FSceneRenderer::CompositeToBackBuffer()
 	}
 	RHIDevice->PrepareShader(FullScreenTriangleVS, GammaCorrectionPS);
 
-	// 6. Gamma Correction 상수 버퍼 설정
+	// 7. Gamma Correction 상수 버퍼 설정
 	URenderSettings& RenderSettings = World->GetRenderSettings();
 	RHIDevice->SetAndUpdateConstantBuffer(GammaCorrectionBufferType{
 		RenderSettings.GetGamma(),
@@ -1887,9 +1908,67 @@ void FSceneRenderer::CompositeToBackBuffer()
 		RenderSettings.GetSaturation()
 	});
 
-	// 7. 그리기
+	// 8. 그리기
 	RHIDevice->DrawFullScreenQuad();
 
-	// 8. 모든 작업이 성공했으므로 Commit
+	// 9. 모든 작업이 성공했으므로 Commit
+	SwapGuard.Commit();
+}
+
+// 오프스크린 렌더링을 위해 Scene 텍스처를 커스텀 RenderTarget으로 합성하는 함수
+void FSceneRenderer::CompositeToRenderTarget(ID3D11RenderTargetView* TargetRTV, uint32 Width, uint32 Height)
+{
+	// 1. 최종 결과물을 Source로 만들기 위해 스왑하고, 작업 후 SRV 슬롯 0을 자동 해제하는 가드 생성
+	FSwapGuard SwapGuard(RHIDevice, 0, 1);
+
+	// 2. 렌더 타겟을 커스텀 RTV로 설정 (깊이 버퍼 없음)
+	RHIDevice->GetDeviceContext()->OMSetRenderTargets(1, &TargetRTV, nullptr);
+
+	// 3. Viewport 설정 (타겟 크기에 맞춤)
+	D3D11_VIEWPORT Viewport = {};
+	Viewport.Width = static_cast<float>(Width);
+	Viewport.Height = static_cast<float>(Height);
+	Viewport.MinDepth = 0.0f;
+	Viewport.MaxDepth = 1.0f;
+	Viewport.TopLeftX = 0.0f;
+	Viewport.TopLeftY = 0.0f;
+	RHIDevice->GetDeviceContext()->RSSetViewports(1, &Viewport);
+
+	// 4. 텍스처 및 샘플러 설정
+	ID3D11ShaderResourceView* SourceSRV = RHIDevice->GetCurrentSourceSRV();
+	ID3D11SamplerState* SamplerState = RHIDevice->GetSamplerState(RHI_Sampler_Index::LinearClamp);
+	if (!SourceSRV || !SamplerState)
+	{
+		UE_LOG("CompositeToRenderTarget에 필요한 리소스 없음!\n");
+		return; // 가드가 자동으로 스왑을 되돌리고 SRV를 해제해줌
+	}
+
+	// 5. 셰이더 리소스 바인딩
+	RHIDevice->GetDeviceContext()->PSSetShaderResources(0, 1, &SourceSRV);
+	RHIDevice->GetDeviceContext()->PSSetSamplers(0, 1, &SamplerState);
+
+	// 6. 셰이더 준비 - Gamma Correction 적용
+	UShader* FullScreenTriangleVS = UResourceManager::GetInstance().Load<UShader>("Shaders/Utility/FullScreenTriangle_VS.hlsl");
+	UShader* GammaCorrectionPS = UResourceManager::GetInstance().Load<UShader>("Shaders/PostProcess/GammaCorrection_PS.hlsl");
+	if (!FullScreenTriangleVS || !FullScreenTriangleVS->GetVertexShader() || !GammaCorrectionPS || !GammaCorrectionPS->GetPixelShader())
+	{
+		UE_LOG("GammaCorrection용 셰이더 없음!\n");
+		return; // 가드가 자동으로 스왑을 되돌리고 SRV를 해제해줌
+	}
+	RHIDevice->PrepareShader(FullScreenTriangleVS, GammaCorrectionPS);
+
+	// 7. Gamma Correction 상수 버퍼 설정
+	URenderSettings& RenderSettings = World->GetRenderSettings();
+	RHIDevice->SetAndUpdateConstantBuffer(GammaCorrectionBufferType{
+		RenderSettings.GetGamma(),
+		RenderSettings.GetInvGamma(),
+		RenderSettings.GetBrightness(),
+		RenderSettings.GetSaturation()
+	});
+
+	// 8. 그리기
+	RHIDevice->DrawFullScreenQuad();
+
+	// 9. 모든 작업이 성공했으므로 Commit
 	SwapGuard.Commit();
 }

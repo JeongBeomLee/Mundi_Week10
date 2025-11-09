@@ -32,7 +32,10 @@ public:
     void SetViewportType(EViewportType InType) { ViewportType = InType; }
     EViewportType GetViewportType() const { return ViewportType; }
 
-    void SetWorld(UWorld* InWorld) { World = InWorld; }
+    void SetWorld(UWorld* InWorld)
+    {
+        World = InWorld;
+    }
     UWorld* GetWorld() const { return World; }
 
     void SetCamera(ACameraActor* InCamera) { Camera = InCamera; }

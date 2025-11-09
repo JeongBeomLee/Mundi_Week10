@@ -32,8 +32,9 @@
 
 IMPLEMENT_CLASS(UWorld)
 
-UWorld::UWorld()
-	: Partition(new UWorldPartitionManager())
+UWorld::UWorld(EWorldType InWorldType)
+	: WorldType(InWorldType)
+	, Partition(new UWorldPartitionManager())
 {
 	SelectionMgr = std::make_unique<USelectionManager>();
 	//PIE의 경우 Initalize 없이 빈 Level 생성만 해야함
@@ -68,10 +69,25 @@ UWorld::~UWorld()
 
 void UWorld::Initialize()
 {
-	CreateLevel();
+	// Embedded World는 기본 액터(라이트) 없이 빈 레벨 생성
+	// Editor/Game World는 기본 라이트 포함된 레벨 생성
+	if (WorldType == EWorldType::Embedded)
+	{
+		SetLevel(ULevelService::CreateDefaultLevel());
+	}
+	else
+	{
+		CreateLevel();
+	}
 
+	// Grid는 공간감을 위해 모든 World에 필요
 	InitializeGrid();
-	InitializeGizmo();
+
+	// Gizmo는 Editor World만 필요 (Embedded/PIE에서는 불필요)
+	if (WorldType == EWorldType::Editor)
+	{
+		InitializeGizmo();
+	}
 
 	//// Pawn 생성
 	//APawn* MyPawn = SpawnActor<APawn>();
@@ -425,6 +441,9 @@ AActor* UWorld::SpawnActor(UClass* Class, const FTransform& Transform)
 
 	// 월드 참조 설정
 	NewActor->SetWorld(this);
+
+	// PostActorCreated 호출 (World 설정 완료 후 초기화)
+	NewActor->PostActorCreated();
 
 	// 현재 레벨에 액터 등록
 	AddActorToLevel(NewActor);

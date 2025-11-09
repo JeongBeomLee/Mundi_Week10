@@ -630,8 +630,9 @@ enum class EWorldType : uint8
 {
     None = 0,
 
-    Editor,
-    Game,
+    Editor,      // 기본 에디터 월드 (Grid, Gizmo 포함)
+    Game,        // Play In Editor / PIE (GameMode 활성화)
+    Embedded,    // 임베디드 뷰포트 (SkeletalMeshEditor 등, Grid/Gizmo 없음)
 
     End,
 };

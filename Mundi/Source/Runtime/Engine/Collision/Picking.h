@@ -6,6 +6,7 @@
 
 class UStaticMeshComponent;
 class AGizmoActor;
+class AOffscreenGizmoActor;
 // Forward Declarations
 class AActor;
 class ACameraActor;
@@ -79,11 +80,13 @@ public:
                                           const FVector2D& ViewportOffset,
                                           float ViewportAspectRatio, FViewport* Viewport);
 
-    // 뷰포트 정보를 명시적으로 받는 기즈모 호버링 검사
-    static uint32 IsHoveringGizmoForViewport(AGizmoActor* GizmoActor, const ACameraActor* Camera,
+    // 템플릿 기반 Gizmo 호버링 검사 (선언만, 구현은 .cpp)
+    // GetArrowX/Y/Z(), GetScaleX/Y/Z(), GetRotateX/Y/Z(), GetMode() 인터페이스만 있으면 동작
+    template<typename TGizmoActor>
+    static uint32 IsHoveringGizmoForViewport(TGizmoActor* GizmoActor, const ACameraActor* Camera,
                                              const FVector2D& ViewportMousePos,
                                              const FVector2D& ViewportSize,
-                                             const FVector2D& ViewportOffset,FViewport*Viewport,
+                                             const FVector2D& ViewportOffset, FViewport* Viewport,
                                              FVector& OutImpactPoint);
     
     // 기즈모 드래그로 액터를 이동시키는 함수
@@ -96,11 +99,13 @@ public:
     static uint32 GetPickCount() { return TotalPickCount; }
     static uint64 GetLastPickTime() { return LastPickTime; }
     static uint64 GetTotalPickTime() { return TotalPickTime; }
-private:
-    /** === 내부 헬퍼 함수들 === */
-    static bool CheckGizmoComponentPicking(UStaticMeshComponent* Component, const FRay& Ray, 
+
+    /** === 헬퍼 함수들 (AOffscreenGizmoActor에서도 사용) === */
+    static bool CheckGizmoComponentPicking(UStaticMeshComponent* Component, const FRay& Ray,
                                            float ViewWidth, float ViewHeight, const FMatrix& ViewMatrix, const FMatrix& ProjectionMatrix,
                                            float& OutDistance, FVector& OutImpactPoint);
+
+private:
 
     static uint32 TotalPickCount;
     static uint64 LastPickTime;

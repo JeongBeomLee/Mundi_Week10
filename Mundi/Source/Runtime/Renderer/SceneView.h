@@ -48,4 +48,11 @@ public:
 
     // 뷰포트 참조 (ViewportClient 접근용)
     FViewport* Viewport = nullptr;
+
+    // 렌더 타겟 정보 (오프스크린 렌더링 지원)
+    // nullptr = 기본 BackBuffer 사용
+    ID3D11RenderTargetView* TargetRTV = nullptr;
+    ID3D11DepthStencilView* TargetDSV = nullptr;
+    uint32 TargetWidth = 0;
+    uint32 TargetHeight = 0;
 };

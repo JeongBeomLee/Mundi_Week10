@@ -148,6 +148,7 @@ void FViewportClient::Draw(FViewport* Viewport)
 	// 에디터 모드: FViewportClient의 Camera 사용
 	ACameraActor* RenderCamera = Camera;
 
+	// TODO: bPie를 World->IsPIE()로 대체 (EWorldType 기반 체크)
 	if (World->bPie && World->GetCameraActor() && World->GetGameMode())
 	{
 		// PIE 모드에서 GameMode로부터 PlayerController 가져오기
