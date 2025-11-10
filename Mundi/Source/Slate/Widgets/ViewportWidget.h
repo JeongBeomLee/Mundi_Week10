@@ -70,6 +70,9 @@ private:
 	// Viewport 렌더링
 	void RenderViewportToolbar();
 
+	// 툴바 아이콘 지연 로드 (최초 1회만 실행)
+	void LoadToolbarIcons();
+
 	// 외부에서 주입된 데이터 (포인터)
 	FOffscreenViewport* EmbeddedViewport = nullptr;
 	FOffscreenViewportClient* ViewportClient = nullptr;
@@ -80,4 +83,12 @@ private:
 	int32* SelectedBoneIndexPtr = nullptr;
 	EGizmoMode* GizmoModePtr = nullptr;
 	EGizmoSpace* GizmoSpacePtr = nullptr;
+
+	// 툴바 아이콘 텍스처 (메인 뷰포트와 동일)
+	class UTexture* IconSelect = nullptr;
+	class UTexture* IconMove = nullptr;
+	class UTexture* IconRotate = nullptr;
+	class UTexture* IconScale = nullptr;
+	class UTexture* IconWorldSpace = nullptr;
+	class UTexture* IconLocalSpace = nullptr;
 };

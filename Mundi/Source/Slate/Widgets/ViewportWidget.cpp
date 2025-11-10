@@ -20,6 +20,7 @@ UViewportWidget::UViewportWidget()
 void UViewportWidget::Initialize()
 {
 	// 외부에서 주입된 데이터를 사용하므로 초기화 불필요
+	// 아이콘 텍스처는 RenderViewportToolbar()에서 지연 로드
 }
 
 void UViewportWidget::Update()
@@ -81,8 +82,13 @@ void UViewportWidget::RenderWidget()
 		// Gizmo 드래그 상태 확인
 		bool bIsGizmoDragging = BoneGizmo ? BoneGizmo->GetbIsDragging() : false;
 
-		// 뷰포트에 호버 중이거나 Gizmo 드래그 중일 때 키보드 입력 캡처 (메인 뷰포트로 전달 방지)
-		if (bIsHovered || bIsGizmoDragging)
+		// 에디터가 켜져있으면 항상 키보드 입력 캡처 (메인 뷰포트로 전달 방지)
+		// 단, 우클릭 카메라 회전 중에는 뷰포트 호버 시에만 캡처
+		if (!bIsRightMouseDown)
+		{
+			IO.WantCaptureKeyboard = true;
+		}
+		else if (bIsHovered)
 		{
 			IO.WantCaptureKeyboard = true;
 		}
@@ -102,33 +108,58 @@ void UViewportWidget::RenderWidget()
 			ImGui::SetMouseCursor(ImGuiMouseCursor_None);
 		}
 
-		// Gizmo 모드 전환 키 (뷰포트에 호버 중이거나 Gizmo 드래그 중일 때, 우클릭 드래그 중 아닐 때)
-		// NOTE: 우클릭 중에는 Q/W/E가 카메라 이동 키로 사용되므로 Gizmo 모드 전환 비활성화
-		if ((bIsHovered || bIsGizmoDragging) && BoneGizmo && !bIsRightMouseDown && GizmoModePtr)
+		// Gizmo 모드/공간 전환 키 (에디터가 켜져있으면 항상 작동, 우클릭 중 제외)
+		if (BoneGizmo && !bIsRightMouseDown && GizmoModePtr && GizmoSpacePtr)
 		{
-			// 스페이스: 모드 순환 (Translate → Rotate → Scale → Translate)
-			if (ImGui::IsKeyPressed(ImGuiKey_Space))
+			// Tab: World/Local 공간 전환
+			if (ImGui::IsKeyPressed(ImGuiKey_Tab))
 			{
-				BoneGizmo->ProcessGizmoModeSwitch();
-				*GizmoModePtr = BoneGizmo->GetMode();
+				*GizmoSpacePtr = (*GizmoSpacePtr == EGizmoSpace::Local) ? EGizmoSpace::World : EGizmoSpace::Local;
+				BoneGizmo->SetSpace(*GizmoSpacePtr);
 			}
 
-			// Q: Translate 모드
+			// 스페이스: 모드 순환 (Translate → Rotate → Scale, Select 제외)
+			if (ImGui::IsKeyPressed(ImGuiKey_Space))
+			{
+				// Translate(0) → Rotate(1) → Scale(2) 순환
+				if (*GizmoModePtr == EGizmoMode::Translate)
+				{
+					*GizmoModePtr = EGizmoMode::Rotate;
+				}
+				else if (*GizmoModePtr == EGizmoMode::Rotate)
+				{
+					*GizmoModePtr = EGizmoMode::Scale;
+				}
+				else  // Scale 또는 Select인 경우 → Translate로
+				{
+					*GizmoModePtr = EGizmoMode::Translate;
+				}
+				BoneGizmo->SetMode(*GizmoModePtr);
+			}
+
+			// Q: Select 모드
 			if (ImGui::IsKeyPressed(ImGuiKey_Q))
+			{
+				*GizmoModePtr = EGizmoMode::Select;
+				BoneGizmo->SetMode(EGizmoMode::Select);
+			}
+
+			// W: Translate 모드
+			if (ImGui::IsKeyPressed(ImGuiKey_W))
 			{
 				*GizmoModePtr = EGizmoMode::Translate;
 				BoneGizmo->SetMode(EGizmoMode::Translate);
 			}
 
-			// W: Rotate 모드
-			if (ImGui::IsKeyPressed(ImGuiKey_W))
+			// E: Rotate 모드
+			if (ImGui::IsKeyPressed(ImGuiKey_E))
 			{
 				*GizmoModePtr = EGizmoMode::Rotate;
 				BoneGizmo->SetMode(EGizmoMode::Rotate);
 			}
 
-			// E: Scale 모드
-			if (ImGui::IsKeyPressed(ImGuiKey_E))
+			// R: Scale 모드
+			if (ImGui::IsKeyPressed(ImGuiKey_R))
 			{
 				*GizmoModePtr = EGizmoMode::Scale;
 				BoneGizmo->SetMode(EGizmoMode::Scale);
@@ -173,79 +204,206 @@ void UViewportWidget::RenderWidget()
 	}
 }
 
+void UViewportWidget::LoadToolbarIcons()
+{
+	// 이미 로드되었으면 스킵
+	if (IconSelect)
+		return;
+
+	// Viewport가 준비되지 않았으면 스킵
+	if (!EmbeddedViewport)
+		return;
+
+	// pch.h에 extern 선언되어 있음
+	ID3D11Device* Device = GEngine.GetRenderer()->GetRHIDevice()->GetDevice();
+
+	if (!Device)
+		return;
+
+	// 메인 뷰포트와 동일한 아이콘 로드
+	IconSelect = NewObject<UTexture>();
+	IconSelect->Load(GDataDir + "/Icon/Viewport_Toolbar_Select.png", Device);
+
+	IconMove = NewObject<UTexture>();
+	IconMove->Load(GDataDir + "/Icon/Viewport_Toolbar_Move.png", Device);
+
+	IconRotate = NewObject<UTexture>();
+	IconRotate->Load(GDataDir + "/Icon/Viewport_Toolbar_Rotate.png", Device);
+
+	IconScale = NewObject<UTexture>();
+	IconScale->Load(GDataDir + "/Icon/Viewport_Toolbar_Scale.png", Device);
+
+	IconWorldSpace = NewObject<UTexture>();
+	IconWorldSpace->Load(GDataDir + "/Icon/Viewport_Toolbar_WorldSpace.png", Device);
+
+	IconLocalSpace = NewObject<UTexture>();
+	IconLocalSpace->Load(GDataDir + "/Icon/Viewport_Toolbar_LocalSpace.png", Device);
+}
+
 void UViewportWidget::RenderViewportToolbar()
 {
 	if (!BoneGizmo || !GizmoModePtr || !GizmoSpacePtr)
 		return;
 
-	// Gizmo 모드 버튼
+	// 툴바 아이콘 지연 로드 (최초 1회만)
+	LoadToolbarIcons();
+
 	EGizmoMode CurrentMode = BoneGizmo->GetMode();
+	const ImVec2 IconSize(17, 17);  // 메인 뷰포트와 동일한 크기
+
+	// 메인 뷰포트와 동일한 스타일 설정
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2, 0));  // 간격 좁히기
+	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);        // 모서리 둥글게
+
+	// 툴바 배경색과 동일한 버튼 배경색 설정 (호버되지 않았을 때 자연스럽게 녹아듦)
+	ImVec4 ToolbarBgColor = ImGui::GetStyleColorVec4(ImGuiCol_MenuBarBg);
+	ImGui::PushStyleColor(ImGuiCol_Button, ToolbarBgColor);
+
+	// Select 버튼
+	bool bIsSelectActive = (CurrentMode == EGizmoMode::Select);
+	ImVec4 SelectTintColor = bIsSelectActive ? ImVec4(0.3f, 0.6f, 1.0f, 1.0f) : ImVec4(1, 1, 1, 1);
+
+	if (IconSelect && IconSelect->GetShaderResourceView())
+	{
+		if (ImGui::ImageButton("##SelectBtn", (void*)IconSelect->GetShaderResourceView(), IconSize,
+			ImVec2(0, 0), ImVec2(1, 1), ImVec4(0, 0, 0, 0), SelectTintColor))
+		{
+			*GizmoModePtr = EGizmoMode::Select;
+			BoneGizmo->SetMode(EGizmoMode::Select);
+		}
+	}
+	else
+	{
+		if (ImGui::Button("Select", ImVec2(60, 0)))
+		{
+			*GizmoModePtr = EGizmoMode::Select;
+			BoneGizmo->SetMode(EGizmoMode::Select);
+		}
+	}
+
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Select mode [Q]");
+
+	ImGui::SameLine();
 
 	// Translate 버튼
 	bool bIsTranslateActive = (CurrentMode == EGizmoMode::Translate);
-	if (bIsTranslateActive)
-		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.6f, 1.0f, 1.0f));
+	ImVec4 TranslateTintColor = bIsTranslateActive ? ImVec4(0.3f, 0.6f, 1.0f, 1.0f) : ImVec4(1, 1, 1, 1);
 
-	if (ImGui::Button("Translate (W)", ImVec2(100, 0)))
+	if (IconMove && IconMove->GetShaderResourceView())
 	{
-		*GizmoModePtr = EGizmoMode::Translate;
-		BoneGizmo->SetMode(EGizmoMode::Translate);
+		if (ImGui::ImageButton("##TranslateBtn", (void*)IconMove->GetShaderResourceView(), IconSize,
+			ImVec2(0, 0), ImVec2(1, 1), ImVec4(0, 0, 0, 0), TranslateTintColor))
+		{
+			*GizmoModePtr = EGizmoMode::Translate;
+			BoneGizmo->SetMode(EGizmoMode::Translate);
+		}
 	}
+	else
+	{
+		if (ImGui::Button("Move", ImVec2(60, 0)))
+		{
+			*GizmoModePtr = EGizmoMode::Translate;
+			BoneGizmo->SetMode(EGizmoMode::Translate);
+		}
+	}
+
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("Move bone [W]");
-
-	if (bIsTranslateActive)
-		ImGui::PopStyleColor();
 
 	ImGui::SameLine();
 
 	// Rotate 버튼
 	bool bIsRotateActive = (CurrentMode == EGizmoMode::Rotate);
-	if (bIsRotateActive)
-		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.6f, 1.0f, 1.0f));
+	ImVec4 RotateTintColor = bIsRotateActive ? ImVec4(0.3f, 0.6f, 1.0f, 1.0f) : ImVec4(1, 1, 1, 1);
 
-	if (ImGui::Button("Rotate (E)", ImVec2(100, 0)))
+	if (IconRotate && IconRotate->GetShaderResourceView())
 	{
-		*GizmoModePtr = EGizmoMode::Rotate;
-		BoneGizmo->SetMode(EGizmoMode::Rotate);
+		if (ImGui::ImageButton("##RotateBtn", (void*)IconRotate->GetShaderResourceView(), IconSize,
+			ImVec2(0, 0), ImVec2(1, 1), ImVec4(0, 0, 0, 0), RotateTintColor))
+		{
+			*GizmoModePtr = EGizmoMode::Rotate;
+			BoneGizmo->SetMode(EGizmoMode::Rotate);
+		}
 	}
+	else
+	{
+		if (ImGui::Button("Rotate", ImVec2(60, 0)))
+		{
+			*GizmoModePtr = EGizmoMode::Rotate;
+			BoneGizmo->SetMode(EGizmoMode::Rotate);
+		}
+	}
+
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("Rotate bone [E]");
-
-	if (bIsRotateActive)
-		ImGui::PopStyleColor();
 
 	ImGui::SameLine();
 
 	// Scale 버튼
 	bool bIsScaleActive = (CurrentMode == EGizmoMode::Scale);
-	if (bIsScaleActive)
-		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.6f, 1.0f, 1.0f));
+	ImVec4 ScaleTintColor = bIsScaleActive ? ImVec4(0.3f, 0.6f, 1.0f, 1.0f) : ImVec4(1, 1, 1, 1);
 
-	if (ImGui::Button("Scale (R)", ImVec2(100, 0)))
+	if (IconScale && IconScale->GetShaderResourceView())
 	{
-		*GizmoModePtr = EGizmoMode::Scale;
-		BoneGizmo->SetMode(EGizmoMode::Scale);
+		if (ImGui::ImageButton("##ScaleBtn", (void*)IconScale->GetShaderResourceView(), IconSize,
+			ImVec2(0, 0), ImVec2(1, 1), ImVec4(0, 0, 0, 0), ScaleTintColor))
+		{
+			*GizmoModePtr = EGizmoMode::Scale;
+			BoneGizmo->SetMode(EGizmoMode::Scale);
+		}
 	}
+	else
+	{
+		if (ImGui::Button("Scale", ImVec2(60, 0)))
+		{
+			*GizmoModePtr = EGizmoMode::Scale;
+			BoneGizmo->SetMode(EGizmoMode::Scale);
+		}
+	}
+
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("Scale bone [R]");
 
-	if (bIsScaleActive)
-		ImGui::PopStyleColor();
-
-	ImGui::SameLine();
-	ImGui::Spacing();
 	ImGui::SameLine();
 
-	// Local/World 공간 전환 버튼
-	const char* SpaceLabel = (*GizmoSpacePtr == EGizmoSpace::Local) ? "Local" : "World";
-	if (ImGui::Button(SpaceLabel, ImVec2(60, 0)))
+	// 구분선 (Gizmo 모드와 공간 전환 사이)
+	ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+	ImGui::SameLine();
+
+	// World/Local 공간 전환 버튼 (아이콘)
+	bool bIsWorldSpace = (*GizmoSpacePtr == EGizmoSpace::World);
+	UTexture* SpaceIcon = bIsWorldSpace ? IconWorldSpace : IconLocalSpace;
+	ImVec4 SpaceTintColor = ImVec4(1, 1, 1, 1);  // 항상 흰색 (선택 상태 구분 없음)
+
+	if (SpaceIcon && SpaceIcon->GetShaderResourceView())
 	{
-		*GizmoSpacePtr = (*GizmoSpacePtr == EGizmoSpace::Local) ? EGizmoSpace::World : EGizmoSpace::Local;
-		BoneGizmo->SetSpace(*GizmoSpacePtr);
+		if (ImGui::ImageButton("##SpaceBtn", (void*)SpaceIcon->GetShaderResourceView(), IconSize,
+			ImVec2(0, 0), ImVec2(1, 1), ImVec4(0, 0, 0, 0), SpaceTintColor))
+		{
+			*GizmoSpacePtr = bIsWorldSpace ? EGizmoSpace::Local : EGizmoSpace::World;
+			BoneGizmo->SetSpace(*GizmoSpacePtr);
+		}
 	}
+	else
+	{
+		const char* SpaceLabel = bIsWorldSpace ? "World" : "Local";
+		if (ImGui::Button(SpaceLabel, ImVec2(60, 0)))
+		{
+			*GizmoSpacePtr = bIsWorldSpace ? EGizmoSpace::Local : EGizmoSpace::World;
+			BoneGizmo->SetSpace(*GizmoSpacePtr);
+		}
+	}
+
 	if (ImGui::IsItemHovered())
-		ImGui::SetTooltip("Toggle Local/World space");
+	{
+		const char* SpaceTooltip = bIsWorldSpace ? "World space [Tab]" : "Local space [Tab]";
+		ImGui::SetTooltip(SpaceTooltip);
+	}
+
+	// 스타일 복원
+	ImGui::PopStyleColor();  // Button 배경색
+	ImGui::PopStyleVar(2);   // ItemSpacing, FrameRounding
 }
 
 void UViewportWidget::UpdateGizmoForSelectedBone()
