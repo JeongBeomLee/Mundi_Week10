@@ -334,10 +334,10 @@ void USkeletalMeshComponent::UpdateVertexBuffer(D3D11RHI* InDevice)
     }
     
     FVertexDynamic* VertexData = static_cast<FVertexDynamic*>(MSR.pData);
-    const int32 VertexCount = MeshAsset->Vertices.Num();    
+    const int32 VertexCount = AnimatedVertices.Num();    
     for (int i = 0; i < VertexCount; i++)
     {
-        VertexData[i].FillFrom(MeshAsset->Vertices[i]);
+        VertexData[i].FillFrom(AnimatedVertices[i]);
     }    
 
     DeviceContext->Unmap(VertexBuffer, 0);
@@ -365,7 +365,7 @@ void USkeletalMeshComponent::UpdateBoneMatrices()
     for (int i = 0; i < BoneCount; i++)
     {
         // 애니메이션 없으니까 바인드 포즈 사용        
-        ComponentSpaceTransforms[i] = MeshAsset->Bones[i].GlobalTransform;
+        ComponentSpaceTransforms[i] = MeshAsset->Bones[i].InverseBindPoseMatrix.InverseAffine();
     }
 
     // TODO 애니메이션 구현 후 사용 BoneSpaceTransforms채워서 사용

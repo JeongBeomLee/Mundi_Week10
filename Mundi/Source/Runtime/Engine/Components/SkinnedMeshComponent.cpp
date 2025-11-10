@@ -1,7 +1,6 @@
 ﻿#include "pch.h"
 #include "SkinnedMeshComponent.h"
 
-#include "SkeletalMeshComponent.h"
 
 IMPLEMENT_CLASS(USkinnedMeshComponent)
 
@@ -93,8 +92,8 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
     for (int i = 0; i < VertexCount; i++)
     {
         const FSkinnedVertex& SourceVertex = MeshAsset->SkinnedVertices[i];
-        //FNormalVertex& AnimatedVertex = AnimatedVertices[i];
-        FNormalVertex& AnimatedVertex = MeshAsset->Vertices[i];
+        FNormalVertex& AnimatedVertex = AnimatedVertices[i];
+        //FNormalVertex& AnimatedVertex = MeshAsset->Vertices[i];
         AnimatedVertex.pos = {};
         AnimatedVertex.normal = {};
         AnimatedVertex.Tangent = {};
@@ -113,7 +112,8 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
             FVector4 Normal4 = FVector4(SourceVertex.BaseVertex.normal, 0.0f);
             Normal4 = TransformDirection(Normal4, SkinningInvTransMatrix[BoneIndex]);
             FVector Normal = FVector(Normal4.X, Normal4.Y, Normal4.Z);
-            FVector4 Tangent = TransformDirection(SourceVertex.BaseVertex.Tangent, SkinningInvTransMatrix[BoneIndex]);
+            // FVector4 Tangent = TransformDirection(SourceVertex.BaseVertex.Tangent, SkinningMatrix[BoneIndex]);
+            FVector4 Tangent = SourceVertex.BaseVertex.Tangent * SkinningMatrix[BoneIndex];
             
             AnimatedVertex.pos += BoneWeight * Pos;
             AnimatedVertex.normal += BoneWeight * Normal;
