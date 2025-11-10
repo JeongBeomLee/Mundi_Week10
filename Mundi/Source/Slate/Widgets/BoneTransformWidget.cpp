@@ -48,7 +48,6 @@ void UBoneTransformWidget::RenderWidget()
 	UPropertyUtils::RenderVector3WithColorBars("Position", &SelectedBone.LocalPosition, 0.1f);
 
 	// Rotation (Euler 저장 패턴으로 gimbal lock UI 문제 방지)
-	// NOTE: SceneComponent와 동일한 패턴 - Euler 입력값을 별도 저장하여 UI 값 뒤집힘 방지
 	FVector euler = SelectedBone.GetLocalRotationEuler();
 	if (UPropertyUtils::RenderVector3WithColorBars("Rotation", &euler, 1.0f))
 	{

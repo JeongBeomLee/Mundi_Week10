@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "BoneHierarchyWidget.h"
 #include "ImGui/imgui.h"
 #include "SkeletalMeshComponent.h"
@@ -27,7 +27,13 @@ void UBoneHierarchyWidget::RenderWidget()
 	ImGui::Separator();
 	ImGui::Spacing();
 
-	if (!PreviewComponent || PreviewComponent->EditableBones.empty())
+	if (!PreviewComponent)
+	{
+		ImGui::TextDisabled("No skeletal mesh component loaded");
+		return;
+	}
+
+	if (PreviewComponent->EditableBones.size() <= 0)
 	{
 		ImGui::TextDisabled("No bones loaded");
 		return;

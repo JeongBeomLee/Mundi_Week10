@@ -1099,6 +1099,65 @@ struct alignas(16) FMatrix
 		return rot;
 	}
 
+	// Affine 행렬 분해: M = T * R * S
+	void Decompose(FVector& OutScale, FQuat& OutRotation, FVector& OutTranslation) const
+	{
+		// Translation 추출 (마지막 row)
+		OutTranslation = FVector(M[3][0], M[3][1], M[3][2]);
+
+		// 상단 3x3에서 Scale 추출
+		FVector Row0(M[0][0], M[0][1], M[0][2]);
+		FVector Row1(M[1][0], M[1][1], M[1][2]);
+		FVector Row2(M[2][0], M[2][1], M[2][2]);
+
+		OutScale.X = Row0.Size();
+		OutScale.Y = Row1.Size();
+		OutScale.Z = Row2.Size();
+
+		// Scale 제거하여 순수 회전 행렬 추출
+		if (OutScale.X > KINDA_SMALL_NUMBER) { Row0 = Row0 / OutScale.X; }
+		if (OutScale.Y > KINDA_SMALL_NUMBER) { Row1 = Row1 / OutScale.Y; }
+		if (OutScale.Z > KINDA_SMALL_NUMBER) { Row2 = Row2 / OutScale.Z; }
+
+		// 회전 행렬을 Quaternion으로 변환 (간단한 Shepperd 방법)
+		float trace = Row0.X + Row1.Y + Row2.Z;
+
+		if (trace > 0.0f)
+		{
+			float s = std::sqrt(trace + 1.0f) * 2.0f;
+			OutRotation.W = 0.25f * s;
+			OutRotation.X = (Row2.Y - Row1.Z) / s;
+			OutRotation.Y = (Row0.Z - Row2.X) / s;
+			OutRotation.Z = (Row1.X - Row0.Y) / s;
+		}
+		else if (Row0.X > Row1.Y && Row0.X > Row2.Z)
+		{
+			float s = std::sqrt(1.0f + Row0.X - Row1.Y - Row2.Z) * 2.0f;
+			OutRotation.W = (Row2.Y - Row1.Z) / s;
+			OutRotation.X = 0.25f * s;
+			OutRotation.Y = (Row0.Y + Row1.X) / s;
+			OutRotation.Z = (Row0.Z + Row2.X) / s;
+		}
+		else if (Row1.Y > Row2.Z)
+		{
+			float s = std::sqrt(1.0f + Row1.Y - Row0.X - Row2.Z) * 2.0f;
+			OutRotation.W = (Row0.Z - Row2.X) / s;
+			OutRotation.X = (Row0.Y + Row1.X) / s;
+			OutRotation.Y = 0.25f * s;
+			OutRotation.Z = (Row1.Z + Row2.Y) / s;
+		}
+		else
+		{
+			float s = std::sqrt(1.0f + Row2.Z - Row0.X - Row1.Y) * 2.0f;
+			OutRotation.W = (Row1.X - Row0.Y) / s;
+			OutRotation.X = (Row0.Z + Row2.X) / s;
+			OutRotation.Y = (Row1.Z + Row2.Y) / s;
+			OutRotation.Z = 0.25f * s;
+		}
+
+		OutRotation.Normalize();
+	}
+
 	// 비교 연산자
 	bool operator==(const FMatrix& Other) const
 	{

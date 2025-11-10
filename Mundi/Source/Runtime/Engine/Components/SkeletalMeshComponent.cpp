@@ -2,6 +2,8 @@
 #include "SkeletalMeshComponent.h"
 #include "MeshBatchElement.h"
 #include "WorldPartitionManager.h"
+#include "Widgets/BoneTransformCalculator.h"
+#include "Renderer.h"
 
 
 IMPLEMENT_CLASS(USkeletalMeshComponent)
@@ -144,6 +146,27 @@ void USkeletalMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMe
 void USkeletalMeshComponent::DuplicateSubObjects()
 {
     Super::DuplicateSubObjects();
+
+    // SkeletalMesh는 에셋이므로 얕은 복사 (참조 공유)
+    // 이미 operator=로 복사됨
+
+    // MaterialSlots는 에셋 참조이므로 그대로 유지
+    // 이미 operator=로 복사됨
+
+    // EditableBones는 값 타입 배열이므로 이미 operator=로 복사됨
+
+    // DynamicMaterialInstances는 독립적인 복사본 필요
+    // PIE나 프리뷰에서 Material Instance를 수정할 수 있으므로 깊은 복사
+    TArray<UMaterialInstanceDynamic*> OldDynamicMaterials = DynamicMaterialInstances;
+    DynamicMaterialInstances.clear();
+    for (UMaterialInstanceDynamic* OldInstance : OldDynamicMaterials)
+    {
+        if (OldInstance)
+        {
+            UMaterialInstanceDynamic* NewInstance = static_cast<UMaterialInstanceDynamic*>(OldInstance->Duplicate());
+            DynamicMaterialInstances.push_back(NewInstance);
+        }
+    }
 }
 
 void USkeletalMeshComponent::OnSerialized()
@@ -169,21 +192,21 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& FilePath)
         SkeletalMesh->AddUsingComponents(this);
 
         const TArray<FGroupInfo>& GroupInfos = SkeletalMesh->GetMeshGroupInfo();
-        
+
         MaterialSlots.resize(GroupInfos.Num());
-        
+
         for (int i = 0; i < GroupInfos.Num(); ++i)
         {
-            SetMaterialByName(i, GroupInfos[i].InitialMaterialName);            
+            SetMaterialByName(i, GroupInfos[i].InitialMaterialName);
         }
-        
+
+        // FBoneInfo에서 EditableBones 초기화
+        LoadBonesFromAsset();
     }
     else
     {
         SkeletalMesh = nullptr;
     }
-
-    
 }
 
 void USkeletalMeshComponent::SetMaterial(uint32 InElementIndex, UMaterialInterface* InNewMaterial)
@@ -431,4 +454,167 @@ void USkeletalMeshComponent::CleareDynamicMaterials()
     // (이 배열이 MID 포인터를 가리키고 있었을 수 있으므로
     //  delete 이후에 비워야 안전합니다.)
     MaterialSlots.Empty();
+}
+
+void USkeletalMeshComponent::LoadBonesFromAsset()
+{
+    EditableBones.Empty();
+
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshAsset())
+        return;
+
+    FSkeletalMesh* MeshAsset = SkeletalMesh->GetSkeletalMeshAsset();
+    const TArray<FBoneInfo>& BoneInfos = MeshAsset->Bones;
+
+    // FBoneInfo -> FBone 변환
+    for (int32 i = 0; i < BoneInfos.size(); ++i)
+    {
+        FBone Bone = FBone::FromBoneInfo(i, BoneInfos);
+        EditableBones.push_back(Bone);
+    }
+}
+
+FBone* USkeletalMeshComponent::GetBone(int32 Index)
+{
+    if (Index >= 0 && Index < EditableBones.size())
+        return &EditableBones[Index];
+    return nullptr;
+}
+
+FTransform USkeletalMeshComponent::GetBoneWorldTransform(int32 BoneIndex) const
+{
+    return FBoneTransformCalculator::GetBoneWorldTransform(this, BoneIndex);
+}
+
+void USkeletalMeshComponent::RenderDebugVolume(URenderer* Renderer) const
+{
+    if (EditableBones.empty() || !Renderer)
+        return;
+
+    UWorld* World = GetWorld();
+    if (!World || !World->IsEmbedded())
+        return;
+
+    TArray<FVector> StartPoints;
+    TArray<FVector> EndPoints;
+    TArray<FVector4> Colors;
+
+    RenderBonePyramids(StartPoints, EndPoints, Colors);
+    RenderJointSpheres(StartPoints, EndPoints, Colors);
+
+    Renderer->AddLines(StartPoints, EndPoints, Colors);
+}
+
+void USkeletalMeshComponent::RenderBonePyramids(
+    TArray<FVector>& OutStartPoints,
+    TArray<FVector>& OutEndPoints,
+    TArray<FVector4>& OutColors) const
+{
+    const float BoneThickness = 0.8f;
+    const FVector4 WhiteColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+    const FVector4 GreenColor = FVector4(0.0f, 1.0f, 0.0f, 1.0f);
+    const FVector4 YellowColor = FVector4(1.0f, 1.0f, 0.0f, 1.0f);
+
+    for (int32 i = 0; i < GetBoneCount(); ++i)
+    {
+        const FBone& Bone = EditableBones[i];
+        if (Bone.ParentIndex < 0)
+            continue;
+
+        FVector ParentPos = GetBoneWorldTransform(Bone.ParentIndex).Translation;
+        FVector ChildPos = GetBoneWorldTransform(i).Translation;
+        FVector BoneDir = (ChildPos - ParentPos);
+        float BoneLength = BoneDir.Size();
+
+        if (BoneLength < 0.001f)
+            continue;
+
+        BoneDir = BoneDir / BoneLength;
+
+        // 피라미드 기저면 (단순하게 라인만)
+        FVector Right, Up;
+        if (std::abs(BoneDir.Z) < 0.9f)
+        {
+            Up = FVector::Cross(FVector(0, 0, 1), BoneDir).GetNormalized() * BoneThickness;
+            Right = FVector::Cross(BoneDir, Up).GetNormalized() * BoneThickness;
+        }
+        else
+        {
+            Right = FVector::Cross(FVector(1, 0, 0), BoneDir).GetNormalized() * BoneThickness;
+            Up = FVector::Cross(BoneDir, Right).GetNormalized() * BoneThickness;
+        }
+
+        FVector Base[4] = {
+            ParentPos + Right + Up,
+            ParentPos - Right + Up,
+            ParentPos - Right - Up,
+            ParentPos + Right - Up
+        };
+
+        FVector4 LineColor = WhiteColor;
+        if (SelectedBoneIndex == i)
+            LineColor = GreenColor;
+        else if (SelectedBoneIndex == Bone.ParentIndex)
+            LineColor = YellowColor;
+
+        // 피라미드 엣지
+        for (int32 j = 0; j < 4; ++j)
+        {
+            OutStartPoints.push_back(Base[j]);
+            OutEndPoints.push_back(ChildPos);
+            OutColors.push_back(LineColor);
+
+            OutStartPoints.push_back(Base[j]);
+            OutEndPoints.push_back(Base[(j + 1) % 4]);
+            OutColors.push_back(LineColor);
+        }
+    }
+}
+
+void USkeletalMeshComponent::RenderJointSpheres(
+    TArray<FVector>& OutStartPoints,
+    TArray<FVector>& OutEndPoints,
+    TArray<FVector4>& OutColors) const
+{
+    const float SphereRadius = 1.5f;
+    const int32 NumSegments = 8;
+    const FVector4 WhiteColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
+    const FVector4 GreenColor = FVector4(0.0f, 1.0f, 0.0f, 1.0f);
+
+    for (int32 i = 0; i < GetBoneCount(); ++i)
+    {
+        FVector JointPos = GetBoneWorldTransform(i).Translation;
+        FVector4 Color = (i == SelectedBoneIndex) ? GreenColor : WhiteColor;
+
+        // 3개의 원 (XY, YZ, ZX 평면)
+        for (int32 axis = 0; axis < 3; ++axis)
+        {
+            for (int32 seg = 0; seg < NumSegments; ++seg)
+            {
+                float angle1 = (seg * 2.0f * PI) / NumSegments;
+                float angle2 = ((seg + 1) * 2.0f * PI) / NumSegments;
+
+                FVector p1, p2;
+                if (axis == 0) // XY plane
+                {
+                    p1 = JointPos + FVector(std::cos(angle1), std::sin(angle1), 0) * SphereRadius;
+                    p2 = JointPos + FVector(std::cos(angle2), std::sin(angle2), 0) * SphereRadius;
+                }
+                else if (axis == 1) // YZ plane
+                {
+                    p1 = JointPos + FVector(0, std::cos(angle1), std::sin(angle1)) * SphereRadius;
+                    p2 = JointPos + FVector(0, std::cos(angle2), std::sin(angle2)) * SphereRadius;
+                }
+                else // ZX plane
+                {
+                    p1 = JointPos + FVector(std::sin(angle1), 0, std::cos(angle1)) * SphereRadius;
+                    p2 = JointPos + FVector(std::sin(angle2), 0, std::cos(angle2)) * SphereRadius;
+                }
+
+                OutStartPoints.push_back(p1);
+                OutEndPoints.push_back(p2);
+                OutColors.push_back(Color);
+            }
+        }
+    }
 }

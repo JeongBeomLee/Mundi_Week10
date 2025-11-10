@@ -2,6 +2,7 @@
 #include "BoneTransformCalculator.h"
 #include "SkeletalMeshComponent.h"
 #include "SkeletalMeshTypes.h"
+#include "SkeletalMesh.h"
 
 FTransform FBoneTransformCalculator::GetBoneWorldTransform(const USkeletalMeshComponent* Component, int32 BoneIndex)
 {
@@ -25,7 +26,7 @@ FTransform FBoneTransformCalculator::GetBoneWorldTransform(const USkeletalMeshCo
 	{
 		const FBone& Bone = Component->EditableBones[BonePath[i]];
 		FTransform LocalTransform(Bone.LocalPosition, Bone.LocalRotation, Bone.LocalScale);
-		WorldTransform = WorldTransform.GetWorldTransform(LocalTransform);  // 부모.GetWorldTransform(자식)
+		WorldTransform = WorldTransform.GetWorldTransform(LocalTransform);
 	}
 
 	return WorldTransform;
@@ -50,14 +51,10 @@ void FBoneTransformCalculator::SetBoneWorldTransform(USkeletalMeshComponent* Com
 		// 부모의 World Transform 계산
 		FTransform ParentWorldTransform = GetBoneWorldTransform(Component, Bone.ParentIndex);
 
-		// World → Local 변환 (수동 계산)
-		// Local = ParentWorld^-1 * World
-
-		// Rotation: Local = ParentRot^-1 * WorldRot
+		// World → Local 변환
 		FQuat ParentRotInv = ParentWorldTransform.Rotation.Conjugate();
 		Bone.LocalRotation = ParentRotInv * WorldTransform.Rotation;
 
-		// Translation: Local = ParentRot^-1 * (World - Parent) / ParentScale
 		FVector WorldPosRelative = WorldTransform.Translation - ParentWorldTransform.Translation;
 		FVector LocalPos = ParentRotInv.RotateVector(WorldPosRelative);
 		Bone.LocalPosition = FVector(
@@ -66,7 +63,6 @@ void FBoneTransformCalculator::SetBoneWorldTransform(USkeletalMeshComponent* Com
 			LocalPos.Z / ParentWorldTransform.Scale3D.Z
 		);
 
-		// Scale: Local = World / Parent (component-wise)
 		Bone.LocalScale = FVector(
 			WorldTransform.Scale3D.X / ParentWorldTransform.Scale3D.X,
 			WorldTransform.Scale3D.Y / ParentWorldTransform.Scale3D.Y,
@@ -74,8 +70,6 @@ void FBoneTransformCalculator::SetBoneWorldTransform(USkeletalMeshComponent* Com
 		);
 	}
 
-	// Euler angle도 업데이트 (UI 표시용)
+	// Euler angle도 업데이트
 	Bone.LocalRotationEuler = Bone.LocalRotation.ToEulerZYXDeg();
-
-	// NOTE: bHasUnsavedChanges는 호출자가 설정 (이 유틸리티는 상태 관리 안 함)
 }

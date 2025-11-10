@@ -55,23 +55,17 @@ void UComponentDetailRenderer::RenderCustomUIImpl(USkeletalMeshComponent* Compon
 	ImGui::Text("[Skeletal Mesh Editor]");
 	ImGui::Spacing();
 
-	// Bone 정보 표시
-	int32 BoneCount = Component->GetBoneCount();
-	ImGui::Text("Total Bones: %d", BoneCount);
-
-	if (Component->GetSelectedBoneIndex() >= 0)
+	// Bone 정보 표시 (asset에서 직접 가져오기)
+	USkeletalMesh* SkeletalMesh = Component->GetSkeletalMesh();
+	if (SkeletalMesh && SkeletalMesh->GetSkeletalMeshAsset())
 	{
-		FBone* SelectedBone = Component->GetBone(Component->GetSelectedBoneIndex());
-		if (SelectedBone)
-		{
-			ImGui::Text("Selected: %s (Index: %d)",
-				SelectedBone->Name.c_str(),
-				Component->GetSelectedBoneIndex());
-		}
+		FSkeletalMesh* MeshAsset = SkeletalMesh->GetSkeletalMeshAsset();
+		int32 BoneCount = static_cast<int32>(MeshAsset->Bones.size());
+		ImGui::Text("Total Bones: %d", BoneCount);
 	}
 	else
 	{
-		ImGui::TextDisabled("No bone selected");
+		ImGui::TextDisabled("No skeletal mesh loaded");
 	}
 
 	ImGui::Spacing();

@@ -1,5 +1,8 @@
 #pragma once
 #include "SkinnedMeshComponent.h"
+#include "SkeletalMeshTypes.h"
+
+class URenderer;
 
 class USkeletalMeshComponent : public USkinnedMeshComponent
 {
@@ -33,17 +36,40 @@ public:
     void EnsureSkinningReady(D3D11RHI* InDevice);
 
     void UpdateVertexBuffer(D3D11RHI* InDevice);
-protected:    
-    void UpdateBoneMatrices();
 
+    // ===== Editor UI 인터페이스 =====
+    int32 GetBoneCount() const { return static_cast<int32>(EditableBones.size()); }
+    FBone* GetBone(int32 Index);
+    FTransform GetBoneWorldTransform(int32 BoneIndex) const;
+    int32 GetSelectedBoneIndex() const { return SelectedBoneIndex; }
+    void SetSelectedBoneIndex(int32 Index) { SelectedBoneIndex = Index; }
+
+    // 편집 가능한 Bone 배열 (FBoneInfo에서 초기화)
+    TArray<FBone> EditableBones;
+
+    // 시각화
+    void RenderDebugVolume(URenderer* Renderer) const;
+
+protected:
+    void UpdateBoneMatrices();
     void UpdateSkinningMatrices() override;
-    
     void CleareDynamicMaterials();
+    void LoadBonesFromAsset();
+
+    void RenderBonePyramids(
+        TArray<FVector>& OutStartPoints,
+        TArray<FVector>& OutEndPoints,
+        TArray<FVector4>& OutColors) const;
+
+    void RenderJointSpheres(
+        TArray<FVector>& OutStartPoints,
+        TArray<FVector>& OutEndPoints,
+        TArray<FVector4>& OutColors) const;
 
 protected:
 
     // 부모 뼈 기준의 자식 배치, 부모 기준 상대적 로컬 변환
-    // fbx에서 불러오거나 애니메이션에서 가져온다    
+    // fbx에서 불러오거나 애니메이션에서 가져온다
     TArray<FMatrix> BoneSpaceTransforms = {};
 
     // 애니메이션이 없을 때 Bind Pose, 존재하면 새로 계산해야함
@@ -53,5 +79,5 @@ protected:
     // 제거 예정 -> 제거하지 말고 원래대로 스키닝된 정점 저장하고 버퍼 업뎃할 때 사용합시다.
     TArray<FNormalVertex> AnimatedVertices = {};
 
-    
+    int32 SelectedBoneIndex = -1;
 };

@@ -255,13 +255,12 @@ void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Compo
 		PreviewActor = EditorWorld->SpawnActor<AEmptyActor>();
 		PreviewActor->SetActorLocation(FVector(0, 0, 0));
 
-		// SkeletalMeshComponent 추가
-		PreviewMeshComponent = PreviewActor->CreateDefaultSubobject<USkeletalMeshComponent>("PreviewMesh");
+		// TargetComponent를 Duplicate (DuplicateSubObjects에서 SkeletalMesh, EditableBones, Materials 모두 복사)
+		PreviewMeshComponent = static_cast<USkeletalMeshComponent*>(Component->Duplicate());
 
-		// TargetComponent의 Bone 데이터 복사 (초기 로드)
-		PreviewMeshComponent->EditableBones = Component->EditableBones;
-		PreviewMeshComponent->SetSelectedBoneIndex(Component->GetSelectedBoneIndex());
-
+		// Duplicate된 컴포넌트를 PreviewActor에 연결
+		PreviewMeshComponent->SetOwner(PreviewActor);
+		PreviewActor->AddOwnedComponent(PreviewMeshComponent);
 		PreviewActor->SetRootComponent(PreviewMeshComponent);
 
 		// 컴포넌트 등록 (World 전달)
@@ -287,11 +286,7 @@ void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Compo
 
 void USkeletalMeshEditorWidget::LoadBonesFromAsset()
 {
-	if (!TargetComponent)
-		return;
-
-	// Component의 EditableBones를 사용 (이미 더미 데이터 로드됨)
-	// Editor에서 EditableBones를 수정하면 Component 렌더링에 즉시 반영됨
+	// Component가 SkeletalMesh 로드 시 자동으로 EditableBones를 초기화함
 }
 
 void USkeletalMeshEditorWidget::Update()
