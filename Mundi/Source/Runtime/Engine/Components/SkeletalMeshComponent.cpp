@@ -571,6 +571,12 @@ void USkeletalMeshComponent::UpdateSkinningMatrices()
         {
             SkinningInvTransMatrix[i] = SkinningMatrix[i].InverseAffine().Transpose();
         }
+        // UE_LOG("**************************");
+        // UE_LOG("%f %f %f", SkinningMatrix[i].VRows[0].X, SkinningMatrix[i].VRows[0].Y, SkinningMatrix[i].VRows[0].Z, SkinningMatrix[i].VRows[0].W);
+        // UE_LOG("%f %f %f", SkinningMatrix[i].VRows[1].X, SkinningMatrix[i].VRows[1].Y, SkinningMatrix[i].VRows[1].Z, SkinningMatrix[i].VRows[1].W);
+        // UE_LOG("%f %f %f", SkinningMatrix[i].VRows[2].X, SkinningMatrix[i].VRows[2].Y, SkinningMatrix[i].VRows[2].Z, SkinningMatrix[i].VRows[2].W);
+        // UE_LOG("%f %f %f", SkinningMatrix[i].VRows[3].X, SkinningMatrix[i].VRows[3].Y, SkinningMatrix[i].VRows[3].Z, SkinningMatrix[i].VRows[3].W);
+        // UE_LOG("-------------------------");
     }
 }
 

@@ -83,6 +83,8 @@
 #include "D3D11RHI.h"
 #include "World.h"
 #include "ConstantBufferType.h"
+#include "LogManager.h"
+
 // d3dtk
 #include "DirectXTK/SimpleMath.h"
 
