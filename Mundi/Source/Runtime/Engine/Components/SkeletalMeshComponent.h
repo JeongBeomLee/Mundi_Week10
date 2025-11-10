@@ -21,10 +21,26 @@ public:
 
     void SetSkeletalMesh(const FString& FilePath) override;
 
+    USkeletalMesh* GetSkeletalMesh() const  { return SkeletalMesh; }
+
+    void SetMaterial(uint32 InElementIndex, UMaterialInterface* InNewMaterial) override;
+
+    const TArray<UMaterialInterface*> GetMaterialSlots() const { return MaterialSlots; }
+    UMaterialInterface* GetMaterial(uint32 InSectionIndex) const override;
+
+    UMaterialInstanceDynamic* CreateAndSetMaterialInstanceDynamic(uint32 ElementIndex);
+
+    void EnsureSkinningReady(D3D11RHI* InDevice);
+
     void UpdateVertexBuffer(D3D11RHI* InDevice);
 protected:    
     void UpdateBoneMatrices();
+
     void UpdateSkinningMatrices() override;
+    
+    void CleareDynamicMaterials();
+
+protected:
 
     // 부모 뼈 기준의 자식 배치, 부모 기준 상대적 로컬 변환
     // fbx에서 불러오거나 애니메이션에서 가져온다    
@@ -36,4 +52,6 @@ protected:
 
     // 제거 예정 -> 제거하지 말고 원래대로 스키닝된 정점 저장하고 버퍼 업뎃할 때 사용합시다.
     TArray<FNormalVertex> AnimatedVertices = {};
+
+    
 };

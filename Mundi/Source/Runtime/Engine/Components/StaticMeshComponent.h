@@ -51,6 +51,6 @@ protected:
 
 protected:
 	UStaticMesh* StaticMesh = nullptr;
-	TArray<UMaterialInterface*> MaterialSlots;
-	TArray<UMaterialInstanceDynamic*> DynamicMaterialInstances;
+	TArray<UMaterialInterface*> MaterialSlots = {};
+	TArray<UMaterialInstanceDynamic*> DynamicMaterialInstances = {};
 };

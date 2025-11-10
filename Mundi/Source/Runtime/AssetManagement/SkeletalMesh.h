@@ -1,6 +1,8 @@
 ﻿#pragma once
 #include "ResourceBase.h"
 
+class USkeletalMeshComponent;
+
 class USkeletalMesh : public UResourceBase
 {
 public:
@@ -32,13 +34,13 @@ public:
     
     FAABB GetLocalBound() const {return LocalBound; }
     
-    // bool EraseUsingComponets(USkeletalMeshComponent* InSkeletalMeshComponent);
-    // bool AddUsingComponents(USkeletalMeshComponent* InSkeletalMeshComponent);
+    bool EraseUsingComponets(USkeletalMeshComponent* InSkeletalMeshComponent);
+    bool AddUsingComponents(USkeletalMeshComponent* InSkeletalMeshComponent);
 
-    // TArray<USkeletalMeshComponent*>& GetUsingComponents()
-    // {
-    //     return UsingComponents;
-    // }
+    TArray<USkeletalMeshComponent*>& GetUsingComponents()
+    {
+        return UsingComponents;
+    }
 
     const FString& GetCacheFilePath() const { return CacheFilePath; }
 
@@ -71,5 +73,5 @@ private:
     // 로컬 AABB. (스태틱메시 액터 전체 경계 계산에 사용. SkeletalMeshAsset 로드할 때마다 갱신)
     FAABB LocalBound;
     
-    //TArray<USkeletalMeshComponent*> UsingComponents; // 유저에 의해 Material이 안 바뀐 이 Mesh를 사용 중인 Component들(render state sorting 위함)
+    TArray<USkeletalMeshComponent*> UsingComponents; // 유저에 의해 Material이 안 바뀐 이 Mesh를 사용 중인 Component들(render state sorting 위함)
 };

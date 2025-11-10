@@ -1,11 +1,14 @@
 #include "pch.h"
 #include "SkeletalMeshComponent.h"
 #include "MeshBatchElement.h"
+#include "WorldPartitionManager.h"
+
 
 IMPLEMENT_CLASS(USkeletalMeshComponent)
 BEGIN_PROPERTIES(USkeletalMeshComponent)
     MARK_AS_COMPONENT("스켈레탈 메시 컴포넌트", "스켈레탈 메시")
     ADD_PROPERTY_SKELETALMESH(USkeletalMesh*, SkeletalMesh, "Skeletal Mesh", true)
+    ADD_PROPERTY_ARRAY(EPropertyType::Material, MaterialSlots, "Materials", true)
 END_PROPERTIES(USkeletalMeshComponent)
 
 USkeletalMeshComponent::USkeletalMeshComponent()
@@ -14,6 +17,12 @@ USkeletalMeshComponent::USkeletalMeshComponent()
 
 USkeletalMeshComponent::~USkeletalMeshComponent()
 {
+    if (SkeletalMesh)
+    {
+        SkeletalMesh->EraseUsingComponets(this);
+    }
+
+    CleareDynamicMaterials();
 }
 
 void USkeletalMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
@@ -37,7 +46,7 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
 
 void USkeletalMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
 {
-    Super::CollectMeshBatches(OutMeshBatchElements, View);
+    Super::CollectMeshBatches(OutMeshBatchElements, View); 
 
     if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshAsset())
     {
@@ -144,7 +153,147 @@ void USkeletalMeshComponent::OnSerialized()
 
 void USkeletalMeshComponent::SetSkeletalMesh(const FString& FilePath)
 {
-    Super::SetSkeletalMesh(FilePath);  
+    Super::SetSkeletalMesh(FilePath);
+
+    CleareDynamicMaterials();
+
+    // 사용중인 메시 해제
+    if (SkeletalMesh != nullptr)
+    {
+        SkeletalMesh->EraseUsingComponets(this);
+    }
+
+    SkeletalMesh = UResourceManager::GetInstance().Load<USkeletalMesh>(FilePath);
+    if (SkeletalMesh && SkeletalMesh->GetSkeletalMeshAsset())
+    {
+        SkeletalMesh->AddUsingComponents(this);
+
+        const TArray<FGroupInfo>& GroupInfos = SkeletalMesh->GetMeshGroupInfo();
+        
+        MaterialSlots.resize(GroupInfos.Num());
+        
+        for (int i = 0; i < GroupInfos.Num(); ++i)
+        {
+            SetMaterialByName(i, GroupInfos[i].InitialMaterialName);            
+        }
+        
+    }
+    else
+    {
+        SkeletalMesh = nullptr;
+    }
+
+    
+}
+
+void USkeletalMeshComponent::SetMaterial(uint32 InElementIndex, UMaterialInterface* InNewMaterial)
+{
+    Super::SetMaterial(InElementIndex, InNewMaterial);
+    
+    if (InElementIndex >= static_cast<uint32>(MaterialSlots.Num()))
+    {
+        UE_LOG("out of range InMaterialSlotIndex: %d", InElementIndex);
+        return;
+    }
+
+    if (UMaterial* OriginMaterial = Cast<UMaterial>(InNewMaterial))
+    {
+        TArray<FShaderMacro> Macros = { FShaderMacro{ "LIGHTING_MODEL_PHONG", "1" } };
+        OriginMaterial->SetShaderMacros(Macros);
+    }
+
+    // 1. 현재 슬롯에 할당된 머티리얼을 가져옵니다.
+    UMaterialInterface* OldMaterial = MaterialSlots[InElementIndex];
+
+    // 2. 교체될 새 머티리얼이 현재 머티리얼과 동일하면 아무것도 하지 않습니다.
+    if (OldMaterial == InNewMaterial)
+    {
+        return;
+    }
+
+    // 3. 기존 머티리얼이 이 컴포넌트가 소유한 MID인지 확인합니다.
+    if (OldMaterial != nullptr)
+    {
+        UMaterialInstanceDynamic* OldMID = Cast<UMaterialInstanceDynamic>(OldMaterial);
+        if (OldMID)
+        {
+            // 4. 소유권 리스트(DynamicMaterialInstances)에서 이 MID를 찾아 제거합니다.
+            // TArray::Remove()는 첫 번째로 발견된 항목만 제거합니다.
+            int32 RemovedCount = DynamicMaterialInstances.Remove(OldMID);
+
+            if (RemovedCount > 0)
+            {
+                // 5. 소유권 리스트에서 제거된 것이 확인되면, 메모리에서 삭제합니다.
+                delete OldMID;
+            }
+            else
+            {
+                // 경고: MaterialSlots에는 MID가 있었으나, 소유권 리스트에 없는 경우입니다.
+                // 이는 DuplicateSubObjects 등이 잘못 구현되었을 때 발생할 수 있습니다.
+                UE_LOG("Warning: SetMaterial is replacing a MID that was not tracked by DynamicMaterialInstances.");
+                // 이 경우 delete를 호출하면 다른 객체가 소유한 메모리를 해제할 수 있으므로
+                // delete를 호출하지 않는 것이 더 안전할 수 있습니다. (혹은 delete 호출 후 크래시로 버그를 잡습니다.)
+                // 여기서는 삭제를 시도합니다.
+                delete OldMID;
+            }
+        }
+    }
+
+    // 6. 새 머티리얼을 슬롯에 할당합니다.
+    MaterialSlots[InElementIndex] = InNewMaterial;
+}
+
+UMaterialInterface* USkeletalMeshComponent::GetMaterial(uint32 InSectionIndex) const
+{
+    if (MaterialSlots.size() <= InSectionIndex)
+    {
+        return nullptr;
+    }
+
+    UMaterialInterface* FoundMaterial = MaterialSlots[InSectionIndex];
+
+    if (!FoundMaterial)
+    {
+        UE_LOG("GetMaterial: Failed to find material Section %d", InSectionIndex);
+        return nullptr;
+    }
+
+    return FoundMaterial;
+}
+
+UMaterialInstanceDynamic* USkeletalMeshComponent::CreateAndSetMaterialInstanceDynamic(uint32 ElementIndex)
+{
+    UMaterialInterface* CurrentMaterial = GetMaterial(ElementIndex);
+    if (!CurrentMaterial)
+    {
+        return nullptr;
+    }
+
+    // 이미 MID인 경우, 그대로 반환
+    if (UMaterialInstanceDynamic* ExistingMID = Cast<UMaterialInstanceDynamic>(CurrentMaterial))
+    {
+        return ExistingMID;
+    }
+
+    // 현재 머티리얼(UMaterial 또는 다른 MID가 아닌 UMaterialInterface)을 부모로 하는 새로운 MID를 생성
+    UMaterialInstanceDynamic* NewMID = UMaterialInstanceDynamic::Create(CurrentMaterial);
+    if (NewMID)
+    {
+        DynamicMaterialInstances.Add(NewMID); // 소멸자에서 해제하기 위해 추적
+        SetMaterial(ElementIndex, NewMID);    // 슬롯에 새로 만든 MID 설정
+        NewMID->SetFilePath("(Instance) " + CurrentMaterial->GetFilePath());
+        return NewMID;
+    }
+
+    return nullptr;
+}
+
+void USkeletalMeshComponent::EnsureSkinningReady(D3D11RHI* InDevice)
+{
+    UpdateBoneMatrices();
+    UpdateSkinningMatrices();
+    PerformCPUSkinning(AnimatedVertices);
+    UpdateVertexBuffer(InDevice);
 }
 
 void USkeletalMeshComponent::UpdateVertexBuffer(D3D11RHI* InDevice)
@@ -267,4 +416,19 @@ void USkeletalMeshComponent::UpdateSkinningMatrices()
             SkinningInvTransMatrix[i] = SkinningMatrix[i].InverseAffine().Transpose();
         }
     }
+}
+
+void USkeletalMeshComponent::CleareDynamicMaterials()
+{
+    // 1. 생성된 동적 머티리얼 인스턴스 해제
+    for (UMaterialInstanceDynamic* MID : DynamicMaterialInstances)
+    {
+        delete MID;
+    }
+    DynamicMaterialInstances.Empty();
+
+    // 2. 머티리얼 슬롯 배열도 비웁니다.
+    // (이 배열이 MID 포인터를 가리키고 있었을 수 있으므로
+    //  delete 이후에 비워야 안전합니다.)
+    MaterialSlots.Empty();
 }

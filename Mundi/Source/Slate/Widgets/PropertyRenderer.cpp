@@ -299,9 +299,9 @@ void UPropertyRenderer::CacheResources()
 	}
 
 	// 5. 스켈레탈 메시
-	if (CachedSkeletalMeshItems.IsEmpty() && CachedSkeletalMeshItems.IsEmpty())
+	if (CachedSkeletalMeshPaths.IsEmpty() && CachedSkeletalMeshItems.IsEmpty())
 	{
-		CachedSkeletalMeshPaths = ResMgr.GetAllFilePaths<UStaticMesh>();
+		CachedSkeletalMeshPaths = ResMgr.GetAllFilePaths<USkeletalMesh>();
 		for (const FString& path : CachedSkeletalMeshPaths)
 		{
 			CachedSkeletalMeshItems.push_back(path.c_str());
@@ -712,6 +712,11 @@ bool UPropertyRenderer::RenderSingleMaterialSlot(const char* Label, UMaterialInt
 						// 모두 업데이트한다고 가정합니다.
 						MID = StaticMeshComp->CreateAndSetMaterialInstanceDynamic(MaterialIndex);
 						CurrentMaterial = MID; // 로컬 변수 업데이트
+					}
+					else if (USkeletalMeshComponent* SkeletalMeshComp = Cast<USkeletalMeshComponent>(OwningObject))
+					{
+						MID = SkeletalMeshComp->CreateAndSetMaterialInstanceDynamic(MaterialIndex);
+						CurrentMaterial = MID;
 					}
 					else
 					{

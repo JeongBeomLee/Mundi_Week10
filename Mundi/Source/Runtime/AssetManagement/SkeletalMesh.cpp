@@ -66,6 +66,23 @@ void USkeletalMesh::SetVertexType(EVertexLayoutType InVertexLayoutType)
     }
 }
 
+bool USkeletalMesh::EraseUsingComponets(USkeletalMeshComponent* InSkeletalMeshComponent)
+{
+    auto It = std::find(UsingComponents.begin(), UsingComponents.end(), InSkeletalMeshComponent);
+    if (It != UsingComponents.end())
+    {
+        UsingComponents.erase(It);
+        return true;
+    }
+    return false;
+}
+
+bool USkeletalMesh::AddUsingComponents(USkeletalMeshComponent* InSkeletalMeshComponent)
+{
+    UsingComponents.Add(InSkeletalMeshComponent);
+    return true;
+}
+
 void USkeletalMesh::CreateVertexBuffer(FMeshData* InMeshData, ID3D11Device* InDevice, EVertexLayoutType InVertexType)
 {
     HRESULT hr = D3D11RHI::CreateVertexBufferImpl<FVertexDynamic>(

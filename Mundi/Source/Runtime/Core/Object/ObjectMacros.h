@@ -144,7 +144,7 @@ public:
 						"CategoryName must be a string literal!"); \
 		FProperty Prop; \
 		Prop.Name = #VarName; \
-		Prop.Type = EPropertyType::StaticMesh; \
+		Prop.Type = EPropertyType::SkeletalMesh; \
 		Prop.Offset = offsetof(ThisClass_t, VarName); \
 		Prop.Category = CategoryName; \
 		Prop.bIsEditAnywhere = bEditAnywhere; \

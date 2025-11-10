@@ -1,7 +1,10 @@
 ﻿#include "pch.h"
 #include "SkinnedMeshComponent.h"
 
+#include "SkeletalMeshComponent.h"
+
 IMPLEMENT_CLASS(USkinnedMeshComponent)
+
 BEGIN_PROPERTIES(USkinnedMeshComponent)
     MARK_AS_COMPONENT("스킨 메시 컴포넌트", "스킨 메시")
 END_PROPERTIES(USkinnedMeshComponent)
@@ -54,18 +57,11 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& FilePath)
         UE_LOG("[USkinnedMeshComponent/SetskeletalMesh] FilePath is empty");
         return;
     }
+}
 
-    if (!SkeletalMesh)
-    {
-        UE_LOG("[USkinnedMeshComponent/SetskeletalMesh] SkeletalMesh is null");
-        return;
-    }
-    
-    if (SkeletalMesh->GetFilePath() != FilePath)
-    {
-        SkeletalMesh->SetFilePath(FilePath);
-        bChangedSkeletalMesh = true;
-    }    
+void USkinnedMeshComponent::SetMaterial(uint32 InElementIndex, UMaterialInterface* InNewMaterial)
+{
+    Super::SetMaterial(InElementIndex, InNewMaterial);
 }
 
 void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVertices)
@@ -97,7 +93,7 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
     for (int i = 0; i < VertexCount; i++)
     {
         const FSkinnedVertex& SourceVertex = MeshAsset->SkinnedVertices[i];
-        // 기존 구조체의 배열 재활용
+        //FNormalVertex& AnimatedVertex = AnimatedVertices[i];
         FNormalVertex& AnimatedVertex = MeshAsset->Vertices[i];
         AnimatedVertex.pos = {};
         AnimatedVertex.normal = {};

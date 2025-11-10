@@ -169,6 +169,35 @@ void FFBXManager::Clear()
  */
 FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName)
 {
+    auto RegisterMaterialInfos = [](const TArray<FMaterialInfo>& Infos)
+    {
+        UResourceManager& ResourceManager = UResourceManager::GetInstance();
+        UMaterial* DefaultMaterial = ResourceManager.GetDefaultMaterial();
+        UShader* DefaultShader = DefaultMaterial ? DefaultMaterial->GetShader() : nullptr;
+        const TArray<FShaderMacro>* DefaultMacros = DefaultMaterial ? &DefaultMaterial->GetShaderMacros() : nullptr;
+
+        for (const FMaterialInfo& Info : Infos)
+        {
+            if (Info.MaterialName.empty() || ResourceManager.Get<UMaterial>(Info.MaterialName))
+            {
+                continue;
+            }
+
+            UMaterial* Material = NewObject<UMaterial>();
+            Material->SetMaterialInfo(Info);
+            if (DefaultMacros)
+            {
+                Material->SetShaderMacros(*DefaultMacros);
+            }
+            if (DefaultShader)
+            {
+                Material->SetShader(DefaultShader);
+            }
+
+            ResourceManager.Add<UMaterial>(Info.MaterialName, Material);
+        }
+    };
+    
     FString NormalizedPathStr = NormalizePath(PathFileName);
 
     // 1. 메모리 캐시 확인: 이미 로드된 에셋이 있으면 즉시 반환
@@ -236,6 +265,9 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
             FWindowsBinReader MatReader(MatBinPathFileName);
             if (!MatReader.IsOpen()) throw std::runtime_error("Failed to open mat bin");
             Serialization::ReadArray<FMaterialInfo>(MatReader, MaterialInfos);
+
+            RegisterMaterialInfos(MaterialInfos);
+            
             MatReader.Close();
 
             SkeletalMeshData->CacheFilePath = BinPathFileName;
@@ -362,6 +394,8 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
         {
             LoadMaterials(Mesh, &MaterialInfos);
         }
+
+        RegisterMaterialInfos(MaterialInfos);
 
         UE_LOG("FBXManager: Successfully loaded skeletal mesh");
         UE_LOG("  Vertices: %zu", SkeletalMeshData->Vertices.size());

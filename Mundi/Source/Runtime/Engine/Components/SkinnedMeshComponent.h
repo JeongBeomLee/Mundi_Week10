@@ -31,7 +31,8 @@ public:
     void OnSerialized() override;    
 
     virtual void SetSkeletalMesh(const FString& FilePath);
-    USkeletalMesh* GetSkeletalMesh() const { return SkeletalMesh; }
+
+    void SetMaterial(uint32 InElementIndex, UMaterialInterface* InNewMaterial) override;    
 
 protected:    
     virtual void UpdateSkinningMatrices() {};
@@ -40,7 +41,9 @@ protected:
     void PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVertices);
 
 protected:
-    USkeletalMesh* SkeletalMesh = nullptr;    
+    USkeletalMesh* SkeletalMesh = nullptr;
+    TArray<UMaterialInterface*> MaterialSlots;
+    TArray<UMaterialInstanceDynamic*> DynamicMaterialInstances;
 
     // Skinning Matrix
     // 현재 애니메이션이 없어서 Inverse Bind Pose * Bind Pose
