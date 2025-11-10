@@ -136,46 +136,157 @@ void USkeletalMeshComponent::RenderDebugVolume(URenderer* Renderer) const
 	if (EditableBones.empty() || !Renderer)
 		return;
 
-	// Bone skeleton을 line으로 시각화
-	// NOTE: Renderer->BeginLineBatch()는 SceneRenderer에서 자동 호출됨
+	// 메인 뷰포트(Editor/Game)에서는 본을 표시하지 않음, Embedded 뷰포트(에디터 창)에서만 표시
+	UWorld* World = GetWorld();
+	if (!World || !World->IsEmbedded())
+		return;
 
-	// 1. Parent → Child 연결선 렌더링
+	// 라인 데이터 준비 (NOTE: Renderer->BeginLineBatch()는 SceneRenderer에서 자동 호출됨)
+	TArray<FVector> StartPoints;
+	TArray<FVector> EndPoints;
+	TArray<FVector4> Colors;
+
+	// 1. 본 피라미드 렌더링 (Unreal Engine 색상 규칙)
+	RenderBonePyramids(StartPoints, EndPoints, Colors);
+
+	// 2. 관절 구체 렌더링 (회전 반영)
+	RenderJointSpheres(StartPoints, EndPoints, Colors);
+
+	// 렌더러에 라인 일괄 추가
+	Renderer->AddLines(StartPoints, EndPoints, Colors);
+}
+
+void USkeletalMeshComponent::RenderBonePyramids(
+	TArray<FVector>& OutStartPoints,
+	TArray<FVector>& OutEndPoints,
+	TArray<FVector4>& OutColors) const
+{
+	const float BoneThickness = 0.8f;  // 피라미드 기저면 두께
+	const FVector4 WhiteColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);   // 흰색 (기본)
+	const FVector4 GreenColor = FVector4(0.0f, 1.0f, 0.0f, 1.0f);   // 초록색 (선택된 조인트 → 자식)
+	const FVector4 YellowColor = FVector4(1.0f, 1.0f, 0.0f, 1.0f);  // 노란색 (부모 → 선택된 조인트)
+
 	for (int32 i = 0; i < GetBoneCount(); ++i)
 	{
 		const FBone& Bone = EditableBones[i];
 		if (Bone.ParentIndex < 0)
-			continue;  // Root bone은 line 없음
+			continue;  // Root bone은 피라미드 없음
 
-		// Parent → Child 연결선
 		FVector ParentPos = GetBoneWorldTransform(Bone.ParentIndex).Translation;
 		FVector ChildPos = GetBoneWorldTransform(i).Translation;
+		FVector BoneDir = (ChildPos - ParentPos);
+		float BoneLength = BoneDir.Size();
 
-		// 선택된 bone은 빨간색, 나머지는 노란색
-		FVector4 Color = (i == SelectedBoneIndex || Bone.ParentIndex == SelectedBoneIndex)
-			? FVector4(1.0f, 0.0f, 0.0f, 1.0f)  // Red
-			: FVector4(1.0f, 1.0f, 0.0f, 1.0f);  // Yellow
+		if (BoneLength < 0.001f)
+			continue;  // 길이가 0이면 스킵
 
-		Renderer->AddLine(ParentPos, ChildPos, Color);
+		BoneDir = BoneDir / BoneLength;  // 정규화
+
+		// Unreal Engine 색상 규칙
+		FVector4 Color = WhiteColor;  // 기본: 흰색
+		if (i == SelectedBoneIndex)
+		{
+			// 부모 → 선택된 조인트: 노란색
+			Color = YellowColor;
+		}
+		else if (Bone.ParentIndex == SelectedBoneIndex)
+		{
+			// 선택된 조인트 → 자식: 초록색
+			Color = GreenColor;
+		}
+
+		// 피라미드 기저면을 위한 직교 벡터 생성
+		FVector Up = (FMath::Abs(BoneDir.Z) < 0.99f) ? FVector(0, 0, 1) : FVector(1, 0, 0);
+		FVector Right = FVector::Cross(BoneDir, Up).GetNormalized();
+		Up = FVector::Cross(Right, BoneDir).GetNormalized();
+
+		// 피라미드 기저면 꼭짓점 (부모 위치에서 사각형)
+		FVector BaseVertices[4];
+		for (int32 seg = 0; seg < 4; ++seg)
+		{
+			float Angle = seg * 90.0f * (PI / 180.0f);
+			FVector Offset = (Right * cos(Angle) + Up * sin(Angle)) * BoneThickness;
+			BaseVertices[seg] = ParentPos + Offset;
+		}
+
+		// 피라미드 그리기 (기저면 → 자식)
+		for (int32 seg = 0; seg < 4; ++seg)
+		{
+			int32 NextSeg = (seg + 1) % 4;
+
+			// 측면 모서리
+			OutStartPoints.push_back(BaseVertices[seg]);
+			OutEndPoints.push_back(ChildPos);
+			OutColors.push_back(Color);
+
+			// 기저면 모서리
+			OutStartPoints.push_back(BaseVertices[seg]);
+			OutEndPoints.push_back(BaseVertices[NextSeg]);
+			OutColors.push_back(Color);
+		}
+
+		// 중심선 (Parent → Child) - 더 얇은 색상
+		FVector4 CenterLineColor = Color * 0.5f;
+		CenterLineColor.W = 1.0f;
+		OutStartPoints.push_back(ParentPos);
+		OutEndPoints.push_back(ChildPos);
+		OutColors.push_back(CenterLineColor);
 	}
+}
 
-	// 2. 각 bone의 local axis 렌더링 (rotation 시각화)
-	const float AxisLength = 5.0f;  // Axis 길이
+void USkeletalMeshComponent::RenderJointSpheres(
+	TArray<FVector>& OutStartPoints,
+	TArray<FVector>& OutEndPoints,
+	TArray<FVector4>& OutColors) const
+{
+	const float JointRadius = 1.0f;      // 관절 구체 반지름
+	const int32 CircleSegments = 8;      // 구체 세그먼트 수
+	const FVector4 WhiteColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);  // 흰색 (기본)
+	const FVector4 GreenColor = FVector4(0.0f, 1.0f, 0.0f, 1.0f);  // 초록색 (선택됨)
+
 	for (int32 i = 0; i < GetBoneCount(); ++i)
 	{
 		FTransform BoneWorldTransform = GetBoneWorldTransform(i);
 		FVector BonePos = BoneWorldTransform.Translation;
 		FQuat BoneRot = BoneWorldTransform.Rotation;
 
-		// X축 (빨간색)
-		FVector XAxis = BoneRot.RotateVector(FVector(AxisLength, 0, 0));
-		Renderer->AddLine(BonePos, BonePos + XAxis, FVector4(1.0f, 0.0f, 0.0f, 1.0f));
+		// 선택된 bone은 초록색, 나머지는 흰색
+		FVector4 Color = (i == SelectedBoneIndex) ? GreenColor : WhiteColor;
 
-		// Y축 (초록색)
-		FVector YAxis = BoneRot.RotateVector(FVector(0, AxisLength, 0));
-		Renderer->AddLine(BonePos, BonePos + YAxis, FVector4(0.0f, 1.0f, 0.0f, 1.0f));
+		// 3개의 직교하는 원 (XY, XZ, YZ 평면), 본의 회전 반영
+		for (int32 seg = 0; seg < CircleSegments; ++seg)
+		{
+			float Angle1 = seg * (360.0f / CircleSegments) * (PI / 180.0f);
+			float Angle2 = (seg + 1) * (360.0f / CircleSegments) * (PI / 180.0f);
 
-		// Z축 (파란색)
-		FVector ZAxis = BoneRot.RotateVector(FVector(0, 0, AxisLength));
-		Renderer->AddLine(BonePos, BonePos + ZAxis, FVector4(0.0f, 0.0f, 1.0f, 1.0f));
+			// 로컬 공간에서 원 정점 생성 후 회전 적용
+			// XY 평면 원 (로컬 Z축 기준)
+			FVector LocalP1_XY = FVector(cos(Angle1) * JointRadius, sin(Angle1) * JointRadius, 0);
+			FVector LocalP2_XY = FVector(cos(Angle2) * JointRadius, sin(Angle2) * JointRadius, 0);
+			FVector P1_XY = BonePos + BoneRot.RotateVector(LocalP1_XY);
+			FVector P2_XY = BonePos + BoneRot.RotateVector(LocalP2_XY);
+			OutStartPoints.push_back(P1_XY);
+			OutEndPoints.push_back(P2_XY);
+			OutColors.push_back(Color);
+
+			// XZ 평면 원 (로컬 Y축 기준)
+			FVector LocalP1_XZ = FVector(cos(Angle1) * JointRadius, 0, sin(Angle1) * JointRadius);
+			FVector LocalP2_XZ = FVector(cos(Angle2) * JointRadius, 0, sin(Angle2) * JointRadius);
+			FVector P1_XZ = BonePos + BoneRot.RotateVector(LocalP1_XZ);
+			FVector P2_XZ = BonePos + BoneRot.RotateVector(LocalP2_XZ);
+			OutStartPoints.push_back(P1_XZ);
+			OutEndPoints.push_back(P2_XZ);
+			OutColors.push_back(Color);
+
+			// YZ 평면 원 (로컬 X축 기준)
+			FVector LocalP1_YZ = FVector(0, cos(Angle1) * JointRadius, sin(Angle1) * JointRadius);
+			FVector LocalP2_YZ = FVector(0, cos(Angle2) * JointRadius, sin(Angle2) * JointRadius);
+			FVector P1_YZ = BonePos + BoneRot.RotateVector(LocalP1_YZ);
+			FVector P2_YZ = BonePos + BoneRot.RotateVector(LocalP2_YZ);
+			OutStartPoints.push_back(P1_YZ);
+			OutEndPoints.push_back(P2_YZ);
+			OutColors.push_back(Color);
+		}
 	}
 }
+
