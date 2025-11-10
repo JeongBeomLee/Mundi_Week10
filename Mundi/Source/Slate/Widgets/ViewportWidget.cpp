@@ -166,6 +166,20 @@ void UViewportWidget::RenderWidget()
 			}
 		}
 
+		// 뷰포트 밖에서 마우스를 떼면 드래그 강제 종료
+		if (!bIsHovered && BoneGizmo && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+		{
+			if (BoneGizmo->GetbIsDragging())
+			{
+				// 드래그 종료 처리 (false, true로 호출하여 Released 이벤트 전달)
+				BoneGizmo->ProcessGizmoInteractionImGui(
+					ViewportClient->GetCamera(),
+					EmbeddedViewport,
+					0, 0, false, true
+				);
+			}
+		}
+
 		// Gizmo 입력 처리 (우클릭 드래그 중이 아닐 때만)
 		if (!bIsRightMouseDown && BoneGizmo && bIsHovered && PreviewComponent && SelectedBoneIndexPtr)
 		{
@@ -192,8 +206,31 @@ void UViewportWidget::RenderWidget()
 
 			if (bIsDragging && *SelectedBoneIndexPtr >= 0)
 			{
-				// 드래그 중 매 프레임 Gizmo Transform을 본에 적용 (실시간 피드백)
-				FTransform NewWorldTransform = BoneGizmo->GetActorTransform();
+				// 현재 본의 World Transform 가져오기
+				FTransform CurrentBoneWorldTransform = FBoneTransformCalculator::GetBoneWorldTransform(PreviewComponent, *SelectedBoneIndexPtr);
+				FTransform NewWorldTransform = CurrentBoneWorldTransform;
+
+				// Gizmo 모드에 따라 변경된 컴포넌트만 업데이트
+				FTransform GizmoWorldTransform = BoneGizmo->GetActorTransform();
+
+				EGizmoMode CurrentMode = BoneGizmo->GetMode();
+				if (CurrentMode == EGizmoMode::Translate)
+				{
+					// Translate 모드: 위치만 변경
+					NewWorldTransform.Translation = GizmoWorldTransform.Translation;
+				}
+				else if (CurrentMode == EGizmoMode::Rotate)
+				{
+					// Rotate 모드: 회전만 변경
+					NewWorldTransform.Rotation = GizmoWorldTransform.Rotation;
+				}
+				else if (CurrentMode == EGizmoMode::Scale)
+				{
+					// Scale 모드: 스케일만 변경
+					NewWorldTransform.Scale3D = GizmoWorldTransform.Scale3D;
+				}
+
+				// 변경된 Transform 적용
 				FBoneTransformCalculator::SetBoneWorldTransform(PreviewComponent, *SelectedBoneIndexPtr, NewWorldTransform);
 			}
 		}
@@ -436,20 +473,13 @@ void UViewportWidget::UpdateGizmoForSelectedBone()
 	// 선택된 본의 World Transform 계산
 	FTransform BoneWorldTransform = FBoneTransformCalculator::GetBoneWorldTransform(PreviewComponent, *SelectedBoneIndexPtr);
 
-	// Gizmo를 본 위치로 이동
+	// Gizmo를 본 위치/회전으로 이동
 	BoneGizmo->SetActorLocation(BoneWorldTransform.Translation);
+	BoneGizmo->SetActorRotation(BoneWorldTransform.Rotation);
 
-	// Gizmo Space에 따라 회전 설정
-	if (*GizmoSpacePtr == EGizmoSpace::Local || *GizmoModePtr == EGizmoMode::Scale)
-	{
-		// Local 모드 또는 Scale 모드: 본의 회전을 Gizmo에 적용
-		BoneGizmo->SetActorRotation(BoneWorldTransform.Rotation);
-	}
-	else // World 모드
-	{
-		// World 모드: 월드 축에 정렬 (항등 회전)
-		BoneGizmo->SetActorRotation(FQuat::Identity());
-	}
+	// NOTE: Gizmo의 시각적 표시(Local/World 축)는 GizmoSpace에 따라 달라지지만,
+	// Gizmo Actor 자체의 Transform은 항상 본의 Transform을 따라야 함.
+	// 그래야 드래그 시작 시 올바른 회전에서 시작할 수 있음.
 
 	BoneGizmo->SetbRender(true);
 }
