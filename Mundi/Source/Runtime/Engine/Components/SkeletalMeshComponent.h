@@ -37,6 +37,8 @@ public:
 
     void UpdateVertexBuffer(D3D11RHI* InDevice);
 
+    FAABB GetWorldAABB() const;
+
     // ===== Editor UI 인터페이스 =====
     int32 GetBoneCount() const { return static_cast<int32>(EditableBones.size()); }
     FBone* GetBone(int32 Index);
