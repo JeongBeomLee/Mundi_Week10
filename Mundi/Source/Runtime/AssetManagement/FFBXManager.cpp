@@ -358,9 +358,12 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
             ParseMeshGeometry(Mesh, SkeletalMeshData, VertexToControlPointMap);
         }
         ParseSkinWeights(MainMeshForSkinning, SkeletalMeshData, VertexToControlPointMap);
-        for (FbxMesh* Mesh : AllMeshes)
+
+        // Material은 Scene 레벨에만 정의되므로 한 번만 로드
+        // (각 Node는 Scene Material의 참조만 보유)
+        if (!AllMeshes.IsEmpty())
         {
-            LoadMaterials(Mesh, &MaterialInfos);
+            LoadMaterials(AllMeshes[0], &MaterialInfos);
         }
 
         UE_LOG("FBXManager: Successfully loaded skeletal mesh");
@@ -572,10 +575,22 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
             if (UVElement)
             {
                 int UVIndex = 0;
-                if (UVElement->GetReferenceMode() == FbxGeometryElement::eDirect)
-                    UVIndex = ControlPointIndex;
-                else if (UVElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
-                    UVIndex = UVElement->GetIndexArray().GetAt(ControlPointIndex);
+                int VertexId = PolyIndex * 3 + VertInPoly;
+
+                if (UVElement->GetMappingMode() == FbxGeometryElement::eByPolygonVertex)
+                {
+                    if (UVElement->GetReferenceMode() == FbxGeometryElement::eDirect)
+                        UVIndex = VertexId;
+                    else if (UVElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
+                        UVIndex = UVElement->GetIndexArray().GetAt(VertexId);
+                }
+                else if (UVElement->GetMappingMode() == FbxGeometryElement::eByControlPoint)
+                {
+                    if (UVElement->GetReferenceMode() == FbxGeometryElement::eDirect)
+                        UVIndex = ControlPointIndex;
+                    else if (UVElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
+                        UVIndex = UVElement->GetIndexArray().GetAt(ControlPointIndex);
+                }
 
                 FbxVector2 UV = UVElement->GetDirectArray().GetAt(UVIndex);
                 Vertex.tex = FVector2D(
@@ -592,10 +607,22 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
             if (TangentElement)
             {
                 int TangentIndex = 0;
-                if (TangentElement->GetReferenceMode() == FbxGeometryElement::eDirect)
-                    TangentIndex = ControlPointIndex;
-                else if (TangentElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
-                    TangentIndex = TangentElement->GetIndexArray().GetAt(ControlPointIndex);
+                int VertexId = PolyIndex * 3 + VertInPoly;
+
+                if (TangentElement->GetMappingMode() == FbxGeometryElement::eByPolygonVertex)
+                {
+                    if (TangentElement->GetReferenceMode() == FbxGeometryElement::eDirect)
+                        TangentIndex = VertexId;
+                    else if (TangentElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
+                        TangentIndex = TangentElement->GetIndexArray().GetAt(VertexId);
+                }
+                else if (TangentElement->GetMappingMode() == FbxGeometryElement::eByControlPoint)
+                {
+                    if (TangentElement->GetReferenceMode() == FbxGeometryElement::eDirect)
+                        TangentIndex = ControlPointIndex;
+                    else if (TangentElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
+                        TangentIndex = TangentElement->GetIndexArray().GetAt(ControlPointIndex);
+                }
 
                 FbxVector4 Tangent = TangentElement->GetDirectArray().GetAt(TangentIndex);
                 Vertex.Tangent = FVector4(
@@ -1005,7 +1032,7 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode, TArray<FMaterialInfo>* Out
         return;
     }
 
-    // [수정] 씬의 모든 머티리얼을 항상 로드하여 누락을 방지합니다.
+    // 씬의 모든 머티리얼을 로드
     int SceneMaterialCount = Scene->GetMaterialCount();
     if (SceneMaterialCount == 0)
     {
@@ -1338,7 +1365,13 @@ FStaticMesh* FFBXManager::LoadFBXStaticMeshAsset(const FString& PathFileName)
         for (FbxMesh* Mesh : AllMeshes)
         {
             ParseMeshGeometry(Mesh, &TempSkelData, VertexToControlPointMap);
-            LoadMaterials(Mesh, &MaterialInfos);
+        }
+
+        // Material은 Scene 레벨에만 정의되므로 한 번만 로드
+        // (각 Node는 Scene Material의 참조만 보유)
+        if (!AllMeshes.IsEmpty())
+        {
+            LoadMaterials(AllMeshes[0], &MaterialInfos);
         }
 
         // 임시 데이터에서 최종 StaticMesh로 복사
