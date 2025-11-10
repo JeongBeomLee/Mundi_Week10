@@ -238,6 +238,9 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
             Serialization::ReadArray<FMaterialInfo>(MatReader, MaterialInfos);
             MatReader.Close();
 
+            // 캐시에서 로드한 MaterialInfos로 UMaterial 객체 생성 및 등록
+            RegisterMaterialsFromInfos(MaterialInfos);
+
             SkeletalMeshData->CacheFilePath = BinPathFileName;
             bLoadedFromCache = true;
             UE_LOG("Successfully loaded skeletal mesh from cache");
@@ -358,13 +361,7 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
             ParseMeshGeometry(Mesh, SkeletalMeshData, VertexToControlPointMap);
         }
         ParseSkinWeights(MainMeshForSkinning, SkeletalMeshData, VertexToControlPointMap);
-
-        // Material은 Scene 레벨에만 정의되므로 한 번만 로드
-        // (각 Node는 Scene Material의 참조만 보유)
-        if (!AllMeshes.IsEmpty())
-        {
-            LoadMaterials(AllMeshes[0], &MaterialInfos);
-        }
+        LoadMaterials(AllMeshes[0], &MaterialInfos);
 
         UE_LOG("FBXManager: Successfully loaded skeletal mesh");
         UE_LOG("  Vertices: %zu", SkeletalMeshData->Vertices.size());
@@ -487,7 +484,7 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
     FbxGeometryElementUV* UVElement = FbxMeshNode->GetElementUV();
     FbxGeometryElementTangent* TangentElement = FbxMeshNode->GetElementTangent();
     FbxGeometryElementMaterial* MaterialElement = FbxMeshNode->GetElementMaterial();
-
+    
     // Vertex 중복 제거를 위한 자료구조
     TArray<uint32> Indices;
     TMap<FNormalVertex, uint32> VertexMap;
@@ -1016,7 +1013,7 @@ void FFBXManager::ParseSkinWeights(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshD
 /*
  * LoadMaterials()
  *
- * FBX Mesh에서 Material 정보를 파싱하고 UMaterial 객체를 생성하여 UResourceManager에 등록합니다.
+ * FBX Mesh에서 Material 정보를 파싱하고 UMaterial 객체 생성 및 등록
  *
  * @param FbxMeshNode FBX 메시 노드
  */
@@ -1043,6 +1040,10 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode, TArray<FMaterialInfo>* Out
     UE_LOG("FBXManager: Processing %d materials from scene.", SceneMaterialCount);
 
     UMaterial* DefaultMaterial = UResourceManager::GetInstance().GetDefaultMaterial();
+
+    //----------------------------------------------------------------
+    //@TODO Default Shader 수정 필요 -- GPU SKINNING 변환 시 --
+    //----------------------------------------------------------------
     UShader* DefaultShader = DefaultMaterial ? DefaultMaterial->GetShader() : nullptr;
 
     for (int i = 0; i < SceneMaterialCount; ++i)
@@ -1153,12 +1154,37 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode, TArray<FMaterialInfo>* Out
         {
             OutMaterialInfos->push_back(MaterialInfo);
         }
+    }
 
-        // 이미 로드된 Material인지 확인 (UMaterial 생성만 스킵)
+    // MaterialInfo가 있으면 UMaterial 객체 생성 및 등록
+    if (OutMaterialInfos)
+    {
+        RegisterMaterialsFromInfos(*OutMaterialInfos);
+    }
+}
+
+/**
+ * RegisterMaterialsFromInfos()
+ *
+ * MaterialInfo 배열로부터 UMaterial 객체를 생성하고 ResourceManager에 등록합니다.
+ * 캐시에서 MaterialInfo만 로드한 경우 UMaterial 객체가 없으므로 이 함수로 생성합니다.
+ *
+ * @param InMaterialInfos Material 정보 배열
+ */
+void FFBXManager::RegisterMaterialsFromInfos(const TArray<FMaterialInfo>& InMaterialInfos)
+{
+    UMaterial* DefaultMaterial = UResourceManager::GetInstance().GetDefaultMaterial();
+    UShader* DefaultShader = DefaultMaterial ? DefaultMaterial->GetShader() : nullptr;
+
+    for (const FMaterialInfo& MaterialInfo : InMaterialInfos)
+    {
+        FString MaterialName = MaterialInfo.MaterialName;
+
+        // 이미 로드된 Material인지 확인 (중복 생성 방지)
         if (UResourceManager::GetInstance().Get<UMaterial>(MaterialName))
             continue;
 
-        UE_LOG("FBXManager: Creating material: '%s'", MaterialName.c_str());
+        UE_LOG("FBXManager: Registering material from cache: '%s'", MaterialName.c_str());
 
         // UMaterial 생성 및 등록
         UMaterial* Material = NewObject<UMaterial>();
@@ -1254,6 +1280,9 @@ FStaticMesh* FFBXManager::LoadFBXStaticMeshAsset(const FString& PathFileName)
             if (!MatReader.IsOpen()) throw std::runtime_error("Failed to open mat bin");
             Serialization::ReadArray<FMaterialInfo>(MatReader, MaterialInfos);
             MatReader.Close();
+
+            // 캐시에서 로드한 MaterialInfos로 UMaterial 객체 생성 및 등록
+            RegisterMaterialsFromInfos(MaterialInfos);
 
             StaticMeshData->CacheFilePath = BinPathFileName;
             bLoadedFromCache = true;
@@ -1366,13 +1395,7 @@ FStaticMesh* FFBXManager::LoadFBXStaticMeshAsset(const FString& PathFileName)
         {
             ParseMeshGeometry(Mesh, &TempSkelData, VertexToControlPointMap);
         }
-
-        // Material은 Scene 레벨에만 정의되므로 한 번만 로드
-        // (각 Node는 Scene Material의 참조만 보유)
-        if (!AllMeshes.IsEmpty())
-        {
-            LoadMaterials(AllMeshes[0], &MaterialInfos);
-        }
+        LoadMaterials(AllMeshes[0], &MaterialInfos);
 
         // 임시 데이터에서 최종 StaticMesh로 복사
         StaticMeshData->Vertices = TempSkelData.Vertices;
