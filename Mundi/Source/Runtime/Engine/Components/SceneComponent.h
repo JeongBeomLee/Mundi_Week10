@@ -80,7 +80,7 @@ public:
     USceneComponent* GetAttachParent() const { return AttachParent; }
     const TArray<USceneComponent*>& GetAttachChildren() const { return AttachChildren; }
     UBillboardComponent* GetSpriteComponent() const { return SpriteComponent; }
-    UWorld* GetWorld();
+    UWorld* GetWorld() const;
 
     // ───── 복사 관련 ────────────────────────────
     void DuplicateSubObjects() override;

@@ -399,7 +399,7 @@ void USceneComponent::OnTransformUpdated()
     }
 }
 
-UWorld* USceneComponent::GetWorld()
+UWorld* USceneComponent::GetWorld() const
 {
     return Owner ? Owner->GetWorld() : nullptr;
 }

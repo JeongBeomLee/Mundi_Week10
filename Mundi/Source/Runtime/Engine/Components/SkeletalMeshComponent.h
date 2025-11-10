@@ -73,6 +73,31 @@ private:
 
 	// ===== Viewport 렌더링 (다형성) =====
 
-	/** @brief Bone skeleton을 line으로 시각화 */
+	/** @brief Bone skeleton을 line으로 시각화 (Unreal Engine 스타일) */
 	virtual void RenderDebugVolume(class URenderer* Renderer) const override;
+
+	// ===== 디버그 렌더링 헬퍼 메서드 =====
+
+	/**
+	 * @brief 본 피라미드 렌더링 (Parent → Child, Unreal Engine 색상 규칙)
+	 * 색상 규칙:
+	 * - 선택된 조인트 → 자식: 초록색
+	 * - 부모 → 선택된 조인트: 노란색
+	 * - 나머지: 흰색
+	 */
+	void RenderBonePyramids(
+		TArray<FVector>& OutStartPoints,
+		TArray<FVector>& OutEndPoints,
+		TArray<FVector4>& OutColors) const;
+
+	/**
+	 * @brief 관절 구체 렌더링 (본 회전이 반영된 와이어프레임 구체)
+	 * 색상 규칙:
+	 * - 선택된 조인트: 초록색
+	 * - 나머지: 흰색
+	 */
+	void RenderJointSpheres(
+		TArray<FVector>& OutStartPoints,
+		TArray<FVector>& OutEndPoints,
+		TArray<FVector4>& OutColors) const;
 };
