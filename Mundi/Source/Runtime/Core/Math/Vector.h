@@ -1394,6 +1394,12 @@ inline FVector4 TransformDirection(const FVector4& V, const FMatrix& M)
 	return Result;
 }
 
+inline FVector4 TransformDirection(const FVector& V, const FMatrix& M)
+{
+	const FVector4 Result = FVector4(V.X, V.Y, V.Z, 0.0f) * M;
+	return Result;
+}
+
 // ─────────────────────────────
 // FQuat::FromRotationMatrix 구현 (FMatrix 정의 이후)
 // ─────────────────────────────

@@ -108,6 +108,9 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
         AnimatedVertex.normal = {};
         AnimatedVertex.Tangent = {};
 
+        // Tangent의 W는 Bitangent의 방향 요소이므로 원본 보존
+        float TangentW = SourceVertex.BaseVertex.Tangent.W;
+
         if (testflag)
         {
             WRITE_LOG_FILE(LogType::Debug, L"before")
@@ -127,12 +130,11 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
                 continue;;
             }
 
-            FVector Pos = SourceVertex.BaseVertex.pos * SkinningMatrix[BoneIndex];
-            FVector4 Normal4 = FVector4(SourceVertex.BaseVertex.normal, 0.0f);
-            Normal4 = TransformDirection(Normal4, SkinningInvTransMatrix[BoneIndex]);
-            FVector Normal = FVector(Normal4.X, Normal4.Y, Normal4.Z);
-            // FVector4 Tangent = TransformDirection(SourceVertex.BaseVertex.Tangent, SkinningMatrix[BoneIndex]);
-            FVector4 Tangent = SourceVertex.BaseVertex.Tangent * SkinningMatrix[BoneIndex];
+            FVector Pos = SourceVertex.BaseVertex.pos * SkinningMatrix[BoneIndex];            
+            FVector4 Normal4 = TransformDirection(SourceVertex.BaseVertex.normal, SkinningInvTransMatrix[BoneIndex]);
+            // Normal4 = TransformDirection(Normal4, SkinningInvTransMatrix[BoneIndex]);
+            FVector Normal = FVector(Normal4.X, Normal4.Y, Normal4.Z);            
+            FVector4 Tangent = TransformDirection(SourceVertex.BaseVertex.Tangent, SkinningInvTransMatrix[BoneIndex]);
             
             AnimatedVertex.pos += BoneWeight * Pos;
             AnimatedVertex.normal += BoneWeight * Normal;
@@ -141,6 +143,8 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
 
         AnimatedVertex.normal.Normalize();
         AnimatedVertex.Tangent.Normalize();
+        // 원본 탄젠트 w 복원
+        AnimatedVertex.Tangent.W = TangentW;
         AnimatedVertex.color = SourceVertex.BaseVertex.color;
         AnimatedVertex.tex = SourceVertex.BaseVertex.tex;
 
