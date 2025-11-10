@@ -53,7 +53,7 @@ public:
 protected:
     void UpdateBoneMatrices();
     void UpdateSkinningMatrices() override;
-    void CleareDynamicMaterials();
+    void ClearDynamicMaterials();
     void LoadBonesFromAsset();
 
     void RenderBonePyramids(

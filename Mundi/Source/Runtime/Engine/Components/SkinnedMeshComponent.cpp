@@ -4,13 +4,14 @@
 
 IMPLEMENT_CLASS(USkinnedMeshComponent)
 
+// USkinnedMeshComponent는 Scene에 배치되지 않기 때문에 UI에 노출하지 않음
 BEGIN_PROPERTIES(USkinnedMeshComponent)
-    MARK_AS_COMPONENT("스킨 메시 컴포넌트", "스킨 메시")
+    //MARK_AS_COMPONENT("스킨 메시 컴포넌트", "스킨 메시")
 END_PROPERTIES(USkinnedMeshComponent)
 
 USkinnedMeshComponent::USkinnedMeshComponent()
 {
-    
+        
 }
 
 USkinnedMeshComponent::~USkinnedMeshComponent()

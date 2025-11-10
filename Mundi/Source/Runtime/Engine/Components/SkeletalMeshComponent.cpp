@@ -24,12 +24,100 @@ USkeletalMeshComponent::~USkeletalMeshComponent()
         SkeletalMesh->EraseUsingComponets(this);
     }
 
-    CleareDynamicMaterials();
+    ClearDynamicMaterials();
 }
 
 void USkeletalMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 {
     Super::Serialize(bInIsLoading, InOutHandle);
+
+    const FString MaterialSlotsKey = "MaterialSlots";
+
+	if (bInIsLoading) // --- 로드 ---
+	{
+		// 1. 로드 전 기존 동적 인스턴스 모두 정리
+		ClearDynamicMaterials();
+
+		JSON SlotsArrayJson;
+		if (FJsonSerializer::ReadArray(InOutHandle, MaterialSlotsKey, SlotsArrayJson, JSON::Make(JSON::Class::Array), false))
+		{
+			MaterialSlots.resize(SlotsArrayJson.size());
+
+			for (int i = 0; i < SlotsArrayJson.size(); ++i)
+			{
+				JSON& SlotJson = SlotsArrayJson.at(i);
+				if (SlotJson.IsNull())
+				{
+					MaterialSlots[i] = nullptr;
+					continue;
+				}
+
+				// 2. JSON에서 클래스 이름 읽기
+				FString ClassName;
+				FJsonSerializer::ReadString(SlotJson, "Type", ClassName, "None", false);
+
+				UMaterialInterface* LoadedMaterial = nullptr;
+
+				// 3. 클래스 이름에 따라 분기
+				if (ClassName == UMaterialInstanceDynamic::StaticClass()->Name)
+				{
+					// UMID는 인스턴스이므로, 'new'로 생성합니다.
+					// (참고: 리플렉션 팩토리가 있다면 FReflectionFactory::CreateObject(ClassName) 사용)
+					UMaterialInstanceDynamic* NewMID = new UMaterialInstanceDynamic();
+
+					// 4. 생성된 빈 객체에 Serialize(true)를 호출하여 데이터를 채웁니다.
+					NewMID->Serialize(true, SlotJson); // (const_cast)
+
+					// 5. 소유권 추적 배열에 추가합니다.
+					DynamicMaterialInstances.Add(NewMID);
+					LoadedMaterial = NewMID;
+				}
+				else // if(ClassName == UMaterial::StaticClass()->Name)
+				{
+					// UMaterial은 리소스이므로, AssetPath로 리소스 매니저에서 로드합니다.
+					FString AssetPath;
+					FJsonSerializer::ReadString(SlotJson, "AssetPath", AssetPath, "", false);
+					if (!AssetPath.empty())
+					{
+						LoadedMaterial = UResourceManager::GetInstance().Load<UMaterial>(AssetPath);
+					}
+					else
+					{
+						LoadedMaterial = nullptr;
+					}
+
+					// UMaterial::Serialize(true)는 호출할 필요가 없습니다 (혹은 호출해도 됨).
+					// 리소스 로드가 주 목적이기 때문입니다.
+				}
+
+				MaterialSlots[i] = LoadedMaterial;
+			}
+		}
+	}
+	else // --- 저장 ---
+	{
+		JSON SlotsArrayJson = JSON::Make(JSON::Class::Array);
+		for (UMaterialInterface* Mtl : MaterialSlots)
+		{
+			JSON SlotJson = JSON::Make(JSON::Class::Object);
+
+			if (Mtl == nullptr)
+			{
+				SlotJson["Type"] = "None"; // null 슬롯 표시
+			}
+			else
+			{
+				// 1. 클래스 이름 저장 (로드 시 팩토리 구분을 위함)
+				SlotJson["Type"] = Mtl->GetClass()->Name;
+
+				// 2. 객체 스스로 데이터를 저장하도록 위임
+				Mtl->Serialize(false, SlotJson);
+			}
+
+			SlotsArrayJson.append(SlotJson);
+		}
+		InOutHandle[MaterialSlotsKey] = SlotsArrayJson;
+	}
 }
 
 void USkeletalMeshComponent::TickComponent(float DeltaTime)
@@ -178,7 +266,7 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& FilePath)
 {
     Super::SetSkeletalMesh(FilePath);
 
-    CleareDynamicMaterials();
+    ClearDynamicMaterials();
 
     // 사용중인 메시 해제
     if (SkeletalMesh != nullptr)
@@ -441,7 +529,7 @@ void USkeletalMeshComponent::UpdateSkinningMatrices()
     }
 }
 
-void USkeletalMeshComponent::CleareDynamicMaterials()
+void USkeletalMeshComponent::ClearDynamicMaterials()
 {
     // 1. 생성된 동적 머티리얼 인스턴스 해제
     for (UMaterialInstanceDynamic* MID : DynamicMaterialInstances)
