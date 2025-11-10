@@ -137,6 +137,7 @@ UWorld* UEditorEngine::GetDefaultWorld()
 
 UWorld* UEditorEngine::GetPIEWorld() const
 {
+	// TODO: FWorldContext::WorldType를 제거하고 World->GetWorldType() 사용 고려
     for (const auto& Context : WorldContexts)
     {
         if (Context.WorldType == EWorldType::Game)

@@ -128,7 +128,11 @@ private:
 	/** @brief FXAA 등 화면에서 최종 이미지 품질을 위해 적용되는 효과를 적용하는 패스입니다. */
 	void ApplyScreenEffectsPass();
 
+	/** @brief Scene 텍스처를 BackBuffer로 합성합니다 (메인 뷰포트용). */
 	void CompositeToBackBuffer();
+
+	/** @brief Scene 텍스처를 지정된 RenderTarget으로 합성합니다 (오프스크린 렌더링용). */
+	void CompositeToRenderTarget(ID3D11RenderTargetView* TargetRTV, uint32 Width, uint32 Height);
 
 	/** @brief 프레임 렌더링의 마무리 작업을 수행합니다. (예: 로그 출력) */
 	void FinalizeFrame();

@@ -79,6 +79,9 @@ public:
     void CloseActorBlueprintEditor();
     bool IsActorBlueprintEditorOpen() const;
 
+    // 뷰포트 접근자 (디버깅용)
+    SViewportWindow* GetMainViewport() const { return MainViewport; }
+
 private:
     FRect Rect; // 이전엔 SWindow로부터 상속받던 영역 정보
 

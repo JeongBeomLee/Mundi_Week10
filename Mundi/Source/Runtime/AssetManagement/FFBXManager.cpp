@@ -270,6 +270,9 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
             
             MatReader.Close();
 
+            // 캐시에서 로드한 MaterialInfos로 UMaterial 객체 생성 및 등록
+            RegisterMaterialsFromInfos(MaterialInfos);
+
             SkeletalMeshData->CacheFilePath = BinPathFileName;
             bLoadedFromCache = true;
             UE_LOG("Successfully loaded skeletal mesh from cache");
@@ -390,10 +393,7 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
             ParseMeshGeometry(Mesh, SkeletalMeshData, VertexToControlPointMap);
         }
         ParseSkinWeights(MainMeshForSkinning, SkeletalMeshData, VertexToControlPointMap);
-        for (FbxMesh* Mesh : AllMeshes)
-        {
-            LoadMaterials(Mesh, &MaterialInfos);
-        }
+        LoadMaterials(AllMeshes[0], &MaterialInfos);
 
         RegisterMaterialInfos(MaterialInfos);
 
@@ -518,7 +518,7 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
     FbxGeometryElementUV* UVElement = FbxMeshNode->GetElementUV();
     FbxGeometryElementTangent* TangentElement = FbxMeshNode->GetElementTangent();
     FbxGeometryElementMaterial* MaterialElement = FbxMeshNode->GetElementMaterial();
-
+    
     // Vertex 중복 제거를 위한 자료구조
     TArray<uint32> Indices;
     TMap<FNormalVertex, uint32> VertexMap;
@@ -606,10 +606,22 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
             if (UVElement)
             {
                 int UVIndex = 0;
-                if (UVElement->GetReferenceMode() == FbxGeometryElement::eDirect)
-                    UVIndex = ControlPointIndex;
-                else if (UVElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
-                    UVIndex = UVElement->GetIndexArray().GetAt(ControlPointIndex);
+                int VertexId = PolyIndex * 3 + VertInPoly;
+
+                if (UVElement->GetMappingMode() == FbxGeometryElement::eByPolygonVertex)
+                {
+                    if (UVElement->GetReferenceMode() == FbxGeometryElement::eDirect)
+                        UVIndex = VertexId;
+                    else if (UVElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
+                        UVIndex = UVElement->GetIndexArray().GetAt(VertexId);
+                }
+                else if (UVElement->GetMappingMode() == FbxGeometryElement::eByControlPoint)
+                {
+                    if (UVElement->GetReferenceMode() == FbxGeometryElement::eDirect)
+                        UVIndex = ControlPointIndex;
+                    else if (UVElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
+                        UVIndex = UVElement->GetIndexArray().GetAt(ControlPointIndex);
+                }
 
                 FbxVector2 UV = UVElement->GetDirectArray().GetAt(UVIndex);
                 Vertex.tex = FVector2D(
@@ -626,10 +638,22 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
             if (TangentElement)
             {
                 int TangentIndex = 0;
-                if (TangentElement->GetReferenceMode() == FbxGeometryElement::eDirect)
-                    TangentIndex = ControlPointIndex;
-                else if (TangentElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
-                    TangentIndex = TangentElement->GetIndexArray().GetAt(ControlPointIndex);
+                int VertexId = PolyIndex * 3 + VertInPoly;
+
+                if (TangentElement->GetMappingMode() == FbxGeometryElement::eByPolygonVertex)
+                {
+                    if (TangentElement->GetReferenceMode() == FbxGeometryElement::eDirect)
+                        TangentIndex = VertexId;
+                    else if (TangentElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
+                        TangentIndex = TangentElement->GetIndexArray().GetAt(VertexId);
+                }
+                else if (TangentElement->GetMappingMode() == FbxGeometryElement::eByControlPoint)
+                {
+                    if (TangentElement->GetReferenceMode() == FbxGeometryElement::eDirect)
+                        TangentIndex = ControlPointIndex;
+                    else if (TangentElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
+                        TangentIndex = TangentElement->GetIndexArray().GetAt(ControlPointIndex);
+                }
 
                 FbxVector4 Tangent = TangentElement->GetDirectArray().GetAt(TangentIndex);
                 Vertex.Tangent = FVector4(
@@ -1023,7 +1047,7 @@ void FFBXManager::ParseSkinWeights(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshD
 /*
  * LoadMaterials()
  *
- * FBX Mesh에서 Material 정보를 파싱하고 UMaterial 객체를 생성하여 UResourceManager에 등록합니다.
+ * FBX Mesh에서 Material 정보를 파싱하고 UMaterial 객체 생성 및 등록
  *
  * @param FbxMeshNode FBX 메시 노드
  */
@@ -1039,7 +1063,7 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode, TArray<FMaterialInfo>* Out
         return;
     }
 
-    // [수정] 씬의 모든 머티리얼을 항상 로드하여 누락을 방지합니다.
+    // 씬의 모든 머티리얼을 로드
     int SceneMaterialCount = Scene->GetMaterialCount();
     if (SceneMaterialCount == 0)
     {
@@ -1050,6 +1074,10 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode, TArray<FMaterialInfo>* Out
     UE_LOG("FBXManager: Processing %d materials from scene.", SceneMaterialCount);
 
     UMaterial* DefaultMaterial = UResourceManager::GetInstance().GetDefaultMaterial();
+
+    //----------------------------------------------------------------
+    //@TODO Default Shader 수정 필요 -- GPU SKINNING 변환 시 --
+    //----------------------------------------------------------------
     UShader* DefaultShader = DefaultMaterial ? DefaultMaterial->GetShader() : nullptr;
 
     for (int i = 0; i < SceneMaterialCount; ++i)
@@ -1160,12 +1188,37 @@ void FFBXManager::LoadMaterials(FbxMesh* FbxMeshNode, TArray<FMaterialInfo>* Out
         {
             OutMaterialInfos->push_back(MaterialInfo);
         }
+    }
 
-        // 이미 로드된 Material인지 확인 (UMaterial 생성만 스킵)
+    // MaterialInfo가 있으면 UMaterial 객체 생성 및 등록
+    if (OutMaterialInfos)
+    {
+        RegisterMaterialsFromInfos(*OutMaterialInfos);
+    }
+}
+
+/**
+ * RegisterMaterialsFromInfos()
+ *
+ * MaterialInfo 배열로부터 UMaterial 객체를 생성하고 ResourceManager에 등록합니다.
+ * 캐시에서 MaterialInfo만 로드한 경우 UMaterial 객체가 없으므로 이 함수로 생성합니다.
+ *
+ * @param InMaterialInfos Material 정보 배열
+ */
+void FFBXManager::RegisterMaterialsFromInfos(const TArray<FMaterialInfo>& InMaterialInfos)
+{
+    UMaterial* DefaultMaterial = UResourceManager::GetInstance().GetDefaultMaterial();
+    UShader* DefaultShader = DefaultMaterial ? DefaultMaterial->GetShader() : nullptr;
+
+    for (const FMaterialInfo& MaterialInfo : InMaterialInfos)
+    {
+        FString MaterialName = MaterialInfo.MaterialName;
+
+        // 이미 로드된 Material인지 확인 (중복 생성 방지)
         if (UResourceManager::GetInstance().Get<UMaterial>(MaterialName))
             continue;
 
-        UE_LOG("FBXManager: Creating material: '%s'", MaterialName.c_str());
+        UE_LOG("FBXManager: Registering material from cache: '%s'", MaterialName.c_str());
 
         // UMaterial 생성 및 등록
         UMaterial* Material = NewObject<UMaterial>();
@@ -1261,6 +1314,9 @@ FStaticMesh* FFBXManager::LoadFBXStaticMeshAsset(const FString& PathFileName)
             if (!MatReader.IsOpen()) throw std::runtime_error("Failed to open mat bin");
             Serialization::ReadArray<FMaterialInfo>(MatReader, MaterialInfos);
             MatReader.Close();
+
+            // 캐시에서 로드한 MaterialInfos로 UMaterial 객체 생성 및 등록
+            RegisterMaterialsFromInfos(MaterialInfos);
 
             StaticMeshData->CacheFilePath = BinPathFileName;
             bLoadedFromCache = true;
@@ -1372,8 +1428,8 @@ FStaticMesh* FFBXManager::LoadFBXStaticMeshAsset(const FString& PathFileName)
         for (FbxMesh* Mesh : AllMeshes)
         {
             ParseMeshGeometry(Mesh, &TempSkelData, VertexToControlPointMap);
-            LoadMaterials(Mesh, &MaterialInfos);
         }
+        LoadMaterials(AllMeshes[0], &MaterialInfos);
 
         // 임시 데이터에서 최종 StaticMesh로 복사
         StaticMeshData->Vertices = TempSkelData.Vertices;

@@ -9,6 +9,7 @@
 #include "SelectionManager.h"
 #include "WorldPartitionManager.h"
 #include "PropertyRenderer.h"
+#include "ComponentDetailRenderer.h"
 #include "USlateManager.h"
 
 #include "Actor.h"
@@ -677,6 +678,9 @@ void UTargetActorTransformWidget::RenderSelectedComponentDetails(UActorComponent
 		ImGui::Text("[Reflected Properties]");
 		UPropertyRenderer::RenderAllPropertiesWithInheritance(SelectedComponent);
 	}
+
+	// 컴포넌트별 커스텀 UI 렌더링 (Shadow maps, Skeletal mesh editor, etc.)
+	UComponentDetailRenderer::RenderCustomUI(SelectedComponent);
 
 	// SpotLightComponent인 경우 ShadowMap 표시
 	if (USpotLightComponent* SpotLight = Cast<USpotLightComponent>(SelectedComponent))
