@@ -333,7 +333,7 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
         FbxAxisSystem SceneAxisSystem = Scene->GetGlobalSettings().GetAxisSystem();
         FbxAxisSystem OurAxisSystem(
             FbxAxisSystem::eZAxis,
-            FbxAxisSystem::eParityOdd,
+            FbxAxisSystem::eParityEven,
             FbxAxisSystem::eLeftHanded);
 
         if (SceneAxisSystem != OurAxisSystem)
@@ -1400,7 +1400,10 @@ FStaticMesh* FFBXManager::LoadFBXStaticMeshAsset(const FString& PathFileName)
 
         // 5. Scene을 DirectX 왼손 좌표계로 변환 (Z-up → Y-up, 오른손 → 왼손)
         FbxAxisSystem SceneAxisSystem = Scene->GetGlobalSettings().GetAxisSystem();
-        FbxAxisSystem TargetAxisSystem(FbxAxisSystem::eZAxis, FbxAxisSystem::eParityOdd, FbxAxisSystem::eLeftHanded);
+        FbxAxisSystem TargetAxisSystem(
+            FbxAxisSystem::eZAxis,
+            FbxAxisSystem::eParityEven,
+            FbxAxisSystem::eLeftHanded);
         if (SceneAxisSystem != TargetAxisSystem)
         {
             TargetAxisSystem.DeepConvertScene(Scene);
