@@ -605,7 +605,7 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
                 }
 
                 FbxVector4 Normal = NormalElement->GetDirectArray().GetAt(NormalIndex);
-                Normal = GlobalTransform.Inverse().Transpose().MultR(Normal);
+                Normal = GlobalTransform.Inverse().Transpose().MultT(Normal);
 
                 Vertex.normal = FVector(
                     static_cast<float>(Normal[0]),
@@ -672,7 +672,7 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
                 }
 
                 FbxVector4 Tangent = TangentElement->GetDirectArray().GetAt(TangentIndex);
-                Tangent = GlobalTransform.Inverse().Transpose().MultR(Tangent);
+                Tangent = GlobalTransform.Inverse().Transpose().MultT(Tangent);
                 Vertex.Tangent = FVector4(
                     static_cast<float>(Tangent[0]),
                     static_cast<float>(Tangent[1]),
