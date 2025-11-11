@@ -361,7 +361,9 @@ void USkeletalMeshEditorWidget::Update()
 	}
 
 	// ViewportWidget이 Transform을 수정했을 수 있으므로, 다시 본에 쓰기 (Transform → 본 동기화)
-	if (PreviewMeshComponent && SelectedBoneIndex >= 0 && SelectedBoneIndex < PreviewMeshComponent->EditableBones.size())
+	// 단, 기즈모 드래그 중일 때만 역동기화 (Transform Widget 편집 시 Euler 캐시 보존)
+	bool bIsGizmoDragging = BoneGizmo && BoneGizmo->GetbIsDragging();
+	if (bIsGizmoDragging && PreviewMeshComponent && SelectedBoneIndex >= 0 && SelectedBoneIndex < PreviewMeshComponent->EditableBones.size())
 	{
 		FBoneTransformCalculator::SetBoneWorldTransform(PreviewMeshComponent, SelectedBoneIndex, CurrentBoneTransform);
 	}
