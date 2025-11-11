@@ -14,6 +14,9 @@ public:
     void Load(const FString& InFilePath, ID3D11Device* InDevice, EVertexLayoutType InVertexType = EVertexLayoutType::PositionColorTexturNormal);
     void Load(FMeshData* InData, ID3D11Device* InDevice, EVertexLayoutType InVertexType = EVertexLayoutType::PositionColorTexturNormal);
 
+    // 리소스 유효성 검사 (SkeletalMeshAsset이 있어야 유효)
+    bool IsValidResource() const override { return SkeletalMeshAsset != nullptr; }
+
     ID3D11Buffer* GetVertexBuffer() const { return VertexBuffer; }
     ID3D11Buffer* GetIndexBuffer() const { return IndexBuffer; }
     uint32 GetVertexCount() const { return VertexCount; }

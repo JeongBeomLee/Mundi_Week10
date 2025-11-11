@@ -402,6 +402,18 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
         UE_LOG("  Indices: %zu", SkeletalMeshData->Indices.size());
         UE_LOG("  Bones: %zu", SkeletalMeshData->Bones.size());
 
+        // 본이 없으면 스켈레탈 메시가 아님
+        if (SkeletalMeshData->Bones.empty())
+        {
+            UE_LOG("FBXManager: ERROR - No bones found in FBX. This is a static mesh, not a skeletal mesh.");
+            UE_LOG("FBXManager: Use LoadFBXStaticMeshAsset() instead for file: %s", NormalizedPathStr.c_str());
+
+            Scene->Destroy();
+            SdkManager->Destroy();
+            delete SkeletalMeshData;
+            return nullptr;
+        }
+
         // 9. FBX SDK 리소스 정리
         Scene->Destroy();
         SdkManager->Destroy();

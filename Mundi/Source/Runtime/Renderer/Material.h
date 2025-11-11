@@ -35,10 +35,10 @@ class UMaterial : public UMaterialInterface
 	DECLARE_CLASS(UMaterial, UMaterialInterface)
 public:
 	UMaterial();
+	~UMaterial() override = default;
 	void Load(const FString& InFilePath, ID3D11Device* InDevice);
 
 protected:
-	~UMaterial() override = default;
 
 public:
 	void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;

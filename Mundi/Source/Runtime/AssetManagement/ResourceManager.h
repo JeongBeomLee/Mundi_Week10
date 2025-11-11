@@ -195,6 +195,15 @@ inline T* UResourceManager::Load(const FString& InFilePath, Args && ...InArgs)
 	{
 		T* Resource = NewObject<T>();
 		Resource->Load(NormalizedPath, Device, std::forward<Args>(InArgs)...);
+
+		// 로드 후 리소스가 유효한지 검사
+		// 유효하지 않으면 등록하지 않고 nullptr 반환
+		// (객체는 삭제하지 않음 - TObjectIterator 크래시 방지)
+		if (!Resource->IsValidResource())
+		{
+			return nullptr;
+		}
+
 		Resource->SetFilePath(NormalizedPath);
 		Resources[typeIndex][NormalizedPath] = Resource;
 		return Resource;
@@ -269,7 +278,7 @@ TArray<T*> UResourceManager::GetAll()
 
 	for (auto& Pair : Resources[TypeIndex])
 	{
-		if (Pair.second)
+		if (Pair.second && Pair.second->IsValidResource())
 		{
 			Result.push_back(static_cast<T*>(Pair.second));
 		}
@@ -290,7 +299,7 @@ TArray<FString> UResourceManager::GetAllFilePaths()
 
 	for (auto& Pair : Resources[TypeIndex])
 	{
-		if (Pair.second)
+		if (Pair.second && Pair.second->IsValidResource())
 		{
 			const FString& Path = Pair.second->GetFilePath();
 			if (!Path.empty())

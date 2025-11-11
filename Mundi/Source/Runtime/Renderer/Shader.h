@@ -41,7 +41,8 @@ class UShader : public UResourceBase
 {
 public:
 	DECLARE_CLASS(UShader, UResourceBase)
-
+	virtual ~UShader() override;
+	
 	static FString GenerateShaderKey(const TArray<FShaderMacro>& InMacros);
 
 	void Load(const FString& ShaderPath, ID3D11Device* InDevice, const TArray<FShaderMacro>& InMacros = TArray<FShaderMacro>());
@@ -59,7 +60,6 @@ public:
 	//const TArray<FShaderMacro>& GetMacros() const { return Macros; }
 	
 protected:
-	virtual ~UShader();
 
 private:
 	TMap<FString, FShaderVariant> ShaderVariantMap;
