@@ -25,8 +25,8 @@ void UViewportWidget::Initialize()
 
 void UViewportWidget::Update()
 {
-	// Gizmo 업데이트 (선택된 본 위치로 이동)
-	UpdateGizmoForSelectedBone();
+	// NOTE: UpdateGizmoForSelectedBone()은 EditorWorld->Tick() 이후에 호출되어야 함
+	// SkeletalMeshEditorWidget::Update()에서 직접 호출
 }
 
 void UViewportWidget::RenderWidget()
@@ -206,32 +206,15 @@ void UViewportWidget::RenderWidget()
 
 			if (bIsDragging && *SelectedBoneIndexPtr >= 0)
 			{
-				// 현재 본의 World Transform 가져오기
-				FTransform CurrentBoneWorldTransform = FBoneTransformCalculator::GetBoneWorldTransform(PreviewComponent, *SelectedBoneIndexPtr);
-				FTransform NewWorldTransform = CurrentBoneWorldTransform;
-
-				// Gizmo 모드에 따라 변경된 컴포넌트만 업데이트
+				// Gizmo의 Transform을 본에 직접 적용
+				// NOTE: Gizmo는 이미 올바른 World Transform을 가지고 있으므로 재변환 필요 없음
 				FTransform GizmoWorldTransform = BoneGizmo->GetActorTransform();
 
-				EGizmoMode CurrentMode = BoneGizmo->GetMode();
-				if (CurrentMode == EGizmoMode::Translate)
-				{
-					// Translate 모드: 위치만 변경
-					NewWorldTransform.Translation = GizmoWorldTransform.Translation;
-				}
-				else if (CurrentMode == EGizmoMode::Rotate)
-				{
-					// Rotate 모드: 회전만 변경
-					NewWorldTransform.Rotation = GizmoWorldTransform.Rotation;
-				}
-				else if (CurrentMode == EGizmoMode::Scale)
-				{
-					// Scale 모드: 스케일만 변경
-					NewWorldTransform.Scale3D = GizmoWorldTransform.Scale3D;
-				}
-
 				// 변경된 Transform 적용
-				FBoneTransformCalculator::SetBoneWorldTransform(PreviewComponent, *SelectedBoneIndexPtr, NewWorldTransform);
+				FBoneTransformCalculator::SetBoneWorldTransform(PreviewComponent, *SelectedBoneIndexPtr, GizmoWorldTransform);
+
+				// Dirty flag 설정 (CPU 스키닝은 Tick에서, GPU 업데이트는 렌더링 시 수행)
+				PreviewComponent->MarkSkeletalMeshDirty();
 			}
 		}
 	}

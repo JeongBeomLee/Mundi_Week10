@@ -127,11 +127,12 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
     // 애니메이션은 실시간으로 변하니까 애니 존재 시 if문 제거
     if (bChangedSkeletalMesh)
     {
+        // CPU 스키닝만 수행 (GPU 버퍼 업데이트는 렌더링 시 EnsureSkinningReady에서 수행)
         UpdateBoneMatrices();
         UpdateSkinningMatrices();
         PerformCPUSkinning(AnimatedVertices);
         bChangedSkeletalMesh = false;
-    }    
+    }
 }
 
 void USkeletalMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
@@ -291,6 +292,39 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& FilePath)
         // FBoneInfo에서 EditableBones 초기화
         LoadBonesFromAsset();
         bSkinningDirty = true;
+    }
+    else
+    {
+        SkeletalMesh = nullptr;
+    }
+}
+
+void USkeletalMeshComponent::SetSkeletalMesh(USkeletalMesh* InSkeletalMesh)
+{
+    ClearDynamicMaterials();
+
+    // 사용중인 메시 해제
+    if (SkeletalMesh != nullptr)
+    {
+        SkeletalMesh->EraseUsingComponets(this);
+    }
+
+    SkeletalMesh = InSkeletalMesh;
+    if (SkeletalMesh && SkeletalMesh->GetSkeletalMeshAsset())
+    {
+        SkeletalMesh->AddUsingComponents(this);
+
+        const TArray<FGroupInfo>& GroupInfos = SkeletalMesh->GetMeshGroupInfo();
+
+        MaterialSlots.resize(GroupInfos.Num());
+
+        for (int i = 0; i < GroupInfos.Num(); ++i)
+        {
+            SetMaterialByName(i, GroupInfos[i].InitialMaterialName);
+        }
+
+        // FBoneInfo에서 EditableBones 초기화
+        LoadBonesFromAsset();
     }
     else
     {
@@ -522,28 +556,34 @@ void USkeletalMeshComponent::UpdateBoneMatrices()
         return;
     }
 
-    // 지금은 애니메이션이 없어서 BindPose 그대로 사용
+    // BoneSpaceTransforms가 초기화되지 않았으면 Asset에서 로드
+    if (BoneSpaceTransforms.IsEmpty())
+    {
+        BoneSpaceTransforms.SetNum(BoneCount);
+        for (int i = 0; i < BoneCount; i++)
+        {
+            BoneSpaceTransforms[i] = MeshAsset->Bones[i].BindPoseLocalTransform;
+        }
+    }
+
+    // BoneSpaceTransforms (Parent-Relative Local) -> ComponentSpaceTransforms (Component Space) 변환
+    // 공식: GlobalTransform = LocalTransform * ParentGlobalTransform
     ComponentSpaceTransforms.SetNum(BoneCount);
     for (int i = 0; i < BoneCount; i++)
     {
-        // 애니메이션 없으니까 바인드 포즈 사용        
-        ComponentSpaceTransforms[i] = MeshAsset->Bones[i].InverseBindPoseMatrix.InverseAffine();
+        FMatrix BoneLocal = BoneSpaceTransforms[i];
+        int32 ParentIndex = MeshAsset->Bones[i].ParentIndex;
+        if (ParentIndex == -1)
+        {
+            // Root bone: Local = Component Space
+            ComponentSpaceTransforms[i] = BoneLocal;
+        }
+        else
+        {
+            // Child bone: 부모 누적
+            ComponentSpaceTransforms[i] = BoneLocal * ComponentSpaceTransforms[ParentIndex];
+        }
     }
-
-    // TODO 애니메이션 구현 후 사용 BoneSpaceTransforms채워서 사용
-    // for (int i = 0; i < BoneCount; i++)
-    // {
-    //     FMatrix BoneLocal = BoneSpaceTransforms[i];
-    //     int32 ParentIndex = MeshAsset->Bones[i].ParentIndex;
-    //     if (ParentIndex == -1)
-    //     {
-    //         ComponentSpaceTransforms[i] = BoneLocal;
-    //     }
-    //     else
-    //     {
-    //         ComponentSpaceTransforms[i] = BoneLocal * ComponentSpaceTransforms[ParentIndex];
-    //     }
-    // }
 }
 
 void USkeletalMeshComponent::UpdateSkinningMatrices()
@@ -572,6 +612,10 @@ void USkeletalMeshComponent::UpdateSkinningMatrices()
     for (int i = 0; i < BoneCount; i++)
     {
         SkinningMatrix[i] = MeshAsset->Bones[i].InverseBindPoseMatrix * ComponentSpaceTransforms[i];
+
+        // Normal 변환용 Inverse Transpose 계산
+        // Orthogonal matrix의 경우: (M^-1)^T = M
+        // Non-orthogonal의 경우: (M^-1)^T를 계산
         if (SkinningMatrix[i].IsOrtho())
         {
             SkinningInvTransMatrix[i] = SkinningMatrix[i];
@@ -600,7 +644,8 @@ void USkeletalMeshComponent::ClearDynamicMaterials()
 
 void USkeletalMeshComponent::LoadBonesFromAsset()
 {
-    EditableBones.Empty();
+    EditableBones.Empty();  // TODO: 제거 예정
+    BoneSpaceTransforms.Empty();
 
     if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshAsset())
         return;
@@ -608,7 +653,14 @@ void USkeletalMeshComponent::LoadBonesFromAsset()
     FSkeletalMesh* MeshAsset = SkeletalMesh->GetSkeletalMeshAsset();
     const TArray<FBoneInfo>& BoneInfos = MeshAsset->Bones;
 
-    // FBoneInfo -> FBone 변환
+    // BoneSpaceTransforms 초기화 (Local Transform)
+    BoneSpaceTransforms.SetNum(BoneInfos.Num());
+    for (int32 i = 0; i < BoneInfos.Num(); ++i)
+    {
+        BoneSpaceTransforms[i] = BoneInfos[i].BindPoseLocalTransform;
+    }
+
+    // FBoneInfo -> FBone 변환 (TODO: 제거 예정)
     for (int32 i = 0; i < BoneInfos.size(); ++i)
     {
         FBone Bone = FBone::FromBoneInfo(i, BoneInfos);
@@ -625,7 +677,68 @@ FBone* USkeletalMeshComponent::GetBone(int32 Index)
 
 FTransform USkeletalMeshComponent::GetBoneWorldTransform(int32 BoneIndex) const
 {
-    return FBoneTransformCalculator::GetBoneWorldTransform(this, BoneIndex);
+    if (BoneIndex < 0 || BoneIndex >= ComponentSpaceTransforms.Num())
+        return FTransform();
+
+    // ComponentSpaceTransforms (Component Space Matrix) → FTransform 변환
+    FVector Translation, Scale;
+    FQuat Rotation;
+    ComponentSpaceTransforms[BoneIndex].Decompose(Scale, Rotation, Translation);
+
+    return FTransform(Translation, Rotation, Scale);
+}
+
+void USkeletalMeshComponent::SetBoneWorldTransform(int32 BoneIndex, const FTransform& WorldTransform)
+{
+    FSkeletalMesh* MeshAsset = SkeletalMesh ? SkeletalMesh->GetSkeletalMeshAsset() : nullptr;
+    if (!MeshAsset || BoneIndex < 0 || BoneIndex >= MeshAsset->Bones.Num())
+        return;
+
+    const FBoneInfo& BoneInfo = MeshAsset->Bones[BoneIndex];
+
+    // World Transform → Local Transform (Parent-Relative) 변환
+    if (BoneInfo.ParentIndex < 0)
+    {
+        // Root bone: World = Local
+        BoneSpaceTransforms[BoneIndex] = WorldTransform.ToMatrix();
+    }
+    else
+    {
+        // Child bone: World → Local 변환
+        // Local = World * Parent^-1
+        FTransform ParentWorldTransform = GetBoneWorldTransform(BoneInfo.ParentIndex);
+        FMatrix ParentInverse = ParentWorldTransform.ToMatrix().InverseAffine();
+        BoneSpaceTransforms[BoneIndex] = WorldTransform.ToMatrix() * ParentInverse;
+    }
+}
+
+FTransform USkeletalMeshComponent::GetBoneLocalTransform(int32 BoneIndex) const
+{
+    if (BoneIndex < 0 || BoneIndex >= BoneSpaceTransforms.Num())
+        return FTransform();
+
+    // BoneSpaceTransforms (Local Matrix) → FTransform 변환
+    FVector Translation, Scale;
+    FQuat Rotation;
+    BoneSpaceTransforms[BoneIndex].Decompose(Scale, Rotation, Translation);
+
+    return FTransform(Translation, Rotation, Scale);
+}
+
+void USkeletalMeshComponent::SetBoneLocalTransform(int32 BoneIndex, const FTransform& LocalTransform)
+{
+    FSkeletalMesh* MeshAsset = SkeletalMesh ? SkeletalMesh->GetSkeletalMeshAsset() : nullptr;
+    if (!MeshAsset || BoneIndex < 0 || BoneIndex >= MeshAsset->Bones.Num())
+        return;
+
+    // FTransform → Matrix로 저장
+    BoneSpaceTransforms[BoneIndex] = LocalTransform.ToMatrix();
+}
+
+void USkeletalMeshComponent::RevertToBindPose()
+{
+    LoadBonesFromAsset();
+    MarkSkeletalMeshDirty();
 }
 
 void USkeletalMeshComponent::RenderDebugVolume(URenderer* Renderer) const
