@@ -16,7 +16,8 @@
 #include "SkeletalMeshComponent.h"
 #include "SkeletalMesh.h"
 #include "UIManager.h"
-#include "Windows/SSkeletalMeshEditorWindow.h"
+#include "../Windows/SSkeletalMeshEditorWindow.h"
+#include "../Widgets/SkeletalMeshEditorWidget.h"
 
 // 정적 멤버 변수 초기화
 TArray<FString> UPropertyRenderer::CachedStaticMeshPaths;
@@ -987,7 +988,9 @@ bool UPropertyRenderer::RenderSkeletalMeshProperty(const FProperty& Prop, void* 
 		ImGui::SameLine();
 
 		// Edit 버튼 (헬퍼 함수 호출)
-		RenderSkeletalMeshEditorButton(*MeshPtr, Prop.Name);
+		// Instance는 USkeletalMeshComponent이므로 캐스팅하여 전달
+		USkeletalMeshComponent* SourceComponent = static_cast<USkeletalMeshComponent*>(Instance);
+		RenderSkeletalMeshEditorButton(*MeshPtr, SourceComponent, Prop.Name);
 
 		ImGui::Unindent();
 	}
@@ -1354,7 +1357,7 @@ bool UPropertyRenderer::RenderEnumProperty(const FProperty& Prop, void* Instance
 }
 
 // ===== Skeletal Mesh Editor 버튼 렌더링 헬퍼 함수 =====
-void UPropertyRenderer::RenderSkeletalMeshEditorButton(USkeletalMesh* SkeletalMesh, const char* UniqueID)
+void UPropertyRenderer::RenderSkeletalMeshEditorButton(USkeletalMesh* SkeletalMesh, USkeletalMeshComponent* SourceComponent, const char* UniqueID)
 {
 	if (!SkeletalMesh)
 		return;
@@ -1373,9 +1376,15 @@ void UPropertyRenderer::RenderSkeletalMeshEditorButton(USkeletalMesh* SkeletalMe
 			UUIManager::GetInstance().RegisterUIWindow(SkeletalMeshEditorWindow);
 		}
 
-		// SetTargetSkeletalMesh 호출
+		// Skeletal Mesh 설정 (Mesh 자체 편집 - Bone hierarchy, BindPose 등)
 		SSkeletalMeshEditorWindow* Editor = static_cast<SSkeletalMeshEditorWindow*>(SkeletalMeshEditorWindow);
 		Editor->SetTargetSkeletalMesh(SkeletalMesh);
+
+		// 미리보기용 Material 적용 (Component-level 데이터, 편집과는 별개)
+		if (SourceComponent)
+		{
+			Editor->GetEditorWidget()->ApplyPreviewMaterialsFromComponent(SourceComponent);
+		}
 
 		// 윈도우 표시
 		Editor->SetWindowState(EUIWindowState::Visible);

@@ -42,6 +42,15 @@ public:
 	/** @brief 리소스 정리 (UWidget에는 없지만 필요) */
 	void Shutdown();
 
+	/** @brief PreviewMeshComponent 접근자 (material 복사 등을 위해) */
+	USkeletalMeshComponent* GetPreviewComponent() const { return PreviewMeshComponent; }
+
+	/**
+	 * @brief 미리보기용 Material을 Source Component로부터 적용
+	 * @note Material은 Component-level 데이터이므로, Mesh 편집과는 별개로 미리보기 컨텍스트로 적용
+	 */
+	void ApplyPreviewMaterialsFromComponent(USkeletalMeshComponent* SourceComponent);
+
 private:
 	// TODO: 향후 구현
 	void HandleViewportInput();

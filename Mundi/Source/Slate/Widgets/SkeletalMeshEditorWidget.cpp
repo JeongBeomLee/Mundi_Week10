@@ -285,6 +285,24 @@ void USkeletalMeshEditorWidget::LoadBonesFromAsset()
 	// Component가 SkeletalMesh 로드 시 자동으로 EditableBones를 초기화함
 }
 
+void USkeletalMeshEditorWidget::ApplyPreviewMaterialsFromComponent(USkeletalMeshComponent* SourceComponent)
+{
+	if (!SourceComponent || !PreviewMeshComponent)
+	{
+		UE_LOG("SkeletalMeshEditorWidget: Cannot apply preview materials - missing component");
+		return;
+	}
+
+	// Source Component의 MaterialSlots를 Preview Component에 복사
+	const TArray<UMaterialInterface*>& SourceMaterials = SourceComponent->GetMaterialSlots();
+	for (size_t i = 0; i < SourceMaterials.size(); ++i)
+	{
+		PreviewMeshComponent->SetMaterial(static_cast<uint32>(i), SourceMaterials[i]);
+	}
+
+	UE_LOG("SkeletalMeshEditorWidget: Applied %d preview materials from source component", SourceMaterials.size());
+}
+
 void USkeletalMeshEditorWidget::Update()
 {
 	// 선택 동기화 (PreviewMeshComponent 기준)

@@ -40,7 +40,7 @@ private:
 	static bool RenderSkeletalMeshProperty(const FProperty& Prop, void* Instance);
 
 	static bool RenderTextureSelectionCombo(const char* Label, UTexture* CurrentTexture, UTexture*& OutNewTexture);
-	static void RenderSkeletalMeshEditorButton(USkeletalMesh* SkeletalMesh, const char* UniqueID);
+	static void RenderSkeletalMeshEditorButton(USkeletalMesh* SkeletalMesh, USkeletalMeshComponent* SourceComponent, const char* UniqueID);
 
 	// Transform 프로퍼티 렌더링 헬퍼 함수
 	static bool RenderTransformProperty(const FProperty& Prop, void* Instance);

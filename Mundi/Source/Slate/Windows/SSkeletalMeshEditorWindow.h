@@ -33,6 +33,9 @@ public:
 	/** @brief 편집 대상 Skeletal Mesh 설정 (윈도우 열 때) */
 	void SetTargetSkeletalMesh(USkeletalMesh* SkeletalMesh);
 
+	/** @brief EditorWidget 접근자 (material 복사 등을 위해) */
+	USkeletalMeshEditorWidget* GetEditorWidget() const { return EditorWidget; }
+
 private:
 	USkeletalMeshEditorWidget* EditorWidget = nullptr;
 };

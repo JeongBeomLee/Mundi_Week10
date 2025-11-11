@@ -235,25 +235,59 @@ void USkeletalMeshComponent::DuplicateSubObjects()
 {
     Super::DuplicateSubObjects();
 
-    // SkeletalMesh는 에셋이므로 얕은 복사 (참조 공유)
-    // 이미 operator=로 복사됨
+    // 이 함수는 '복사본' (PIE 컴포넌트)에서 실행됩니다.
+    // 현재 'DynamicMaterialInstances'와 'MaterialSlots'는
+    // '원본' (에디터 컴포넌트)의 포인터를 얕은 복사한 상태입니다.
 
-    // MaterialSlots는 에셋 참조이므로 그대로 유지
-    // 이미 operator=로 복사됨
+    // 원본 MID -> 복사본 MID 매핑 테이블
+    TMap<UMaterialInstanceDynamic*, UMaterialInstanceDynamic*> OldToNewMIDMap;
 
-    // EditableBones는 값 타입 배열이므로 이미 operator=로 복사됨
+    // 1. 복사본의 MID 소유권 리스트를 비웁니다. (메모리 해제 아님)
+    //    이 리스트는 새로운 '복사본 MID'들로 다시 채워질 것입니다.
+    DynamicMaterialInstances.Empty();
 
-    // DynamicMaterialInstances는 독립적인 복사본 필요
-    // PIE나 프리뷰에서 Material Instance를 수정할 수 있으므로 깊은 복사
-    TArray<UMaterialInstanceDynamic*> OldDynamicMaterials = DynamicMaterialInstances;
-    DynamicMaterialInstances.clear();
-    for (UMaterialInstanceDynamic* OldInstance : OldDynamicMaterials)
+    // 2. MaterialSlots를 순회하며 MID를 찾습니다.
+    for (int32 i = 0; i < MaterialSlots.Num(); ++i)
     {
-        if (OldInstance)
+        UMaterialInterface* CurrentSlot = MaterialSlots[i];
+        UMaterialInstanceDynamic* OldMID = Cast<UMaterialInstanceDynamic>(CurrentSlot);
+
+        if (OldMID)
         {
-            UMaterialInstanceDynamic* NewInstance = static_cast<UMaterialInstanceDynamic*>(OldInstance->Duplicate());
-            DynamicMaterialInstances.push_back(NewInstance);
+            UMaterialInstanceDynamic* NewMID = nullptr;
+
+            // 이 MID를 이미 복제했는지 확인합니다 (여러 슬롯이 같은 MID를 쓸 경우)
+            if (OldToNewMIDMap.Contains(OldMID))
+            {
+                NewMID = OldToNewMIDMap[OldMID];
+            }
+            else
+            {
+                // 3. MID를 복제합니다.
+                UMaterialInterface* Parent = OldMID->GetParentMaterial();
+                if (!Parent)
+                {
+                    // 부모가 없으면 복제할 수 없으므로 nullptr 처리
+                    MaterialSlots[i] = nullptr;
+                    continue;
+                }
+
+                // 3-1. 새로운 MID (PIE용)를 생성합니다.
+                NewMID = UMaterialInstanceDynamic::Create(Parent);
+
+                // 3-2. 원본(OldMID)의 파라미터를 새 MID로 복사합니다.
+                NewMID->CopyParametersFrom(OldMID);
+
+                // 3-3. 이 컴포넌트(복사본)의 소유권 리스트에 새 MID를 추가합니다.
+                DynamicMaterialInstances.Add(NewMID);
+                OldToNewMIDMap.Add(OldMID, NewMID);
+            }
+
+            // 4. MaterialSlots가 원본(OldMID) 대신 새 복사본(NewMID)을 가리키도록 교체합니다.
+            MaterialSlots[i] = NewMID;
         }
+        // else (원본 UMaterial 애셋인 경우)
+        // 얕은 복사된 포인터(애셋 경로)를 그대로 사용해도 안전합니다.
     }
 }
 
