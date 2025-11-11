@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "SkeletalMeshComponent.h"
 #include "MeshBatchElement.h"
 #include "WorldPartitionManager.h"
@@ -8,9 +8,9 @@
 
 IMPLEMENT_CLASS(USkeletalMeshComponent)
 BEGIN_PROPERTIES(USkeletalMeshComponent)
-    MARK_AS_COMPONENT("스켈레탈 메시 컴포넌트", "스켈레탈 메시")
-    ADD_PROPERTY_SKELETALMESH(USkeletalMesh*, SkeletalMesh, "Skeletal Mesh", true)
-    ADD_PROPERTY_ARRAY(EPropertyType::Material, MaterialSlots, "Materials", true)
+MARK_AS_COMPONENT("스켈레탈 메시 컴포넌트", "스켈레탈 메시")
+ADD_PROPERTY_SKELETALMESH(USkeletalMesh*, SkeletalMesh, "Skeletal Mesh", true)
+ADD_PROPERTY_ARRAY(EPropertyType::Material, MaterialSlots, "Materials", true)
 END_PROPERTIES(USkeletalMeshComponent)
 
 USkeletalMeshComponent::USkeletalMeshComponent()
@@ -33,91 +33,91 @@ void USkeletalMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandl
 
     const FString MaterialSlotsKey = "MaterialSlots";
 
-	if (bInIsLoading) // --- 로드 ---
-	{
-		// 1. 로드 전 기존 동적 인스턴스 모두 정리
-		ClearDynamicMaterials();
+    if (bInIsLoading) // --- 로드 ---
+    {
+        // 1. 로드 전 기존 동적 인스턴스 모두 정리
+        ClearDynamicMaterials();
 
-		JSON SlotsArrayJson;
-		if (FJsonSerializer::ReadArray(InOutHandle, MaterialSlotsKey, SlotsArrayJson, JSON::Make(JSON::Class::Array), false))
-		{
-			MaterialSlots.resize(SlotsArrayJson.size());
+        JSON SlotsArrayJson;
+        if (FJsonSerializer::ReadArray(InOutHandle, MaterialSlotsKey, SlotsArrayJson, JSON::Make(JSON::Class::Array), false))
+        {
+            MaterialSlots.resize(SlotsArrayJson.size());
 
-			for (int i = 0; i < SlotsArrayJson.size(); ++i)
-			{
-				JSON& SlotJson = SlotsArrayJson.at(i);
-				if (SlotJson.IsNull())
-				{
-					MaterialSlots[i] = nullptr;
-					continue;
-				}
+            for (int i = 0; i < SlotsArrayJson.size(); ++i)
+            {
+                JSON& SlotJson = SlotsArrayJson.at(i);
+                if (SlotJson.IsNull())
+                {
+                    MaterialSlots[i] = nullptr;
+                    continue;
+                }
 
-				// 2. JSON에서 클래스 이름 읽기
-				FString ClassName;
-				FJsonSerializer::ReadString(SlotJson, "Type", ClassName, "None", false);
+                // 2. JSON에서 클래스 이름 읽기
+                FString ClassName;
+                FJsonSerializer::ReadString(SlotJson, "Type", ClassName, "None", false);
 
-				UMaterialInterface* LoadedMaterial = nullptr;
+                UMaterialInterface* LoadedMaterial = nullptr;
 
-				// 3. 클래스 이름에 따라 분기
-				if (ClassName == UMaterialInstanceDynamic::StaticClass()->Name)
-				{
-					// UMID는 인스턴스이므로, 'new'로 생성합니다.
-					// (참고: 리플렉션 팩토리가 있다면 FReflectionFactory::CreateObject(ClassName) 사용)
-					UMaterialInstanceDynamic* NewMID = new UMaterialInstanceDynamic();
+                // 3. 클래스 이름에 따라 분기
+                if (ClassName == UMaterialInstanceDynamic::StaticClass()->Name)
+                {
+                    // UMID는 인스턴스이므로, 'new'로 생성합니다.
+                    // (참고: 리플렉션 팩토리가 있다면 FReflectionFactory::CreateObject(ClassName) 사용)
+                    UMaterialInstanceDynamic* NewMID = new UMaterialInstanceDynamic();
 
-					// 4. 생성된 빈 객체에 Serialize(true)를 호출하여 데이터를 채웁니다.
-					NewMID->Serialize(true, SlotJson); // (const_cast)
+                    // 4. 생성된 빈 객체에 Serialize(true)를 호출하여 데이터를 채웁니다.
+                    NewMID->Serialize(true, SlotJson); // (const_cast)
 
-					// 5. 소유권 추적 배열에 추가합니다.
-					DynamicMaterialInstances.Add(NewMID);
-					LoadedMaterial = NewMID;
-				}
-				else // if(ClassName == UMaterial::StaticClass()->Name)
-				{
-					// UMaterial은 리소스이므로, AssetPath로 리소스 매니저에서 로드합니다.
-					FString AssetPath;
-					FJsonSerializer::ReadString(SlotJson, "AssetPath", AssetPath, "", false);
-					if (!AssetPath.empty())
-					{
-						LoadedMaterial = UResourceManager::GetInstance().Load<UMaterial>(AssetPath);
-					}
-					else
-					{
-						LoadedMaterial = nullptr;
-					}
+                    // 5. 소유권 추적 배열에 추가합니다.
+                    DynamicMaterialInstances.Add(NewMID);
+                    LoadedMaterial = NewMID;
+                }
+                else // if(ClassName == UMaterial::StaticClass()->Name)
+                {
+                    // UMaterial은 리소스이므로, AssetPath로 리소스 매니저에서 로드합니다.
+                    FString AssetPath;
+                    FJsonSerializer::ReadString(SlotJson, "AssetPath", AssetPath, "", false);
+                    if (!AssetPath.empty())
+                    {
+                        LoadedMaterial = UResourceManager::GetInstance().Load<UMaterial>(AssetPath);
+                    }
+                    else
+                    {
+                        LoadedMaterial = nullptr;
+                    }
 
-					// UMaterial::Serialize(true)는 호출할 필요가 없습니다 (혹은 호출해도 됨).
-					// 리소스 로드가 주 목적이기 때문입니다.
-				}
+                    // UMaterial::Serialize(true)는 호출할 필요가 없습니다 (혹은 호출해도 됨).
+                    // 리소스 로드가 주 목적이기 때문입니다.
+                }
 
-				MaterialSlots[i] = LoadedMaterial;
-			}
-		}
-	}
-	else // --- 저장 ---
-	{
-		JSON SlotsArrayJson = JSON::Make(JSON::Class::Array);
-		for (UMaterialInterface* Mtl : MaterialSlots)
-		{
-			JSON SlotJson = JSON::Make(JSON::Class::Object);
+                MaterialSlots[i] = LoadedMaterial;
+            }
+        }
+    }
+    else // --- 저장 ---
+    {
+        JSON SlotsArrayJson = JSON::Make(JSON::Class::Array);
+        for (UMaterialInterface* Mtl : MaterialSlots)
+        {
+            JSON SlotJson = JSON::Make(JSON::Class::Object);
 
-			if (Mtl == nullptr)
-			{
-				SlotJson["Type"] = "None"; // null 슬롯 표시
-			}
-			else
-			{
-				// 1. 클래스 이름 저장 (로드 시 팩토리 구분을 위함)
-				SlotJson["Type"] = Mtl->GetClass()->Name;
+            if (Mtl == nullptr)
+            {
+                SlotJson["Type"] = "None"; // null 슬롯 표시
+            }
+            else
+            {
+                // 1. 클래스 이름 저장 (로드 시 팩토리 구분을 위함)
+                SlotJson["Type"] = Mtl->GetClass()->Name;
 
-				// 2. 객체 스스로 데이터를 저장하도록 위임
-				Mtl->Serialize(false, SlotJson);
-			}
+                // 2. 객체 스스로 데이터를 저장하도록 위임
+                Mtl->Serialize(false, SlotJson);
+            }
 
-			SlotsArrayJson.append(SlotJson);
-		}
-		InOutHandle[MaterialSlotsKey] = SlotsArrayJson;
-	}
+            SlotsArrayJson.append(SlotJson);
+        }
+        InOutHandle[MaterialSlotsKey] = SlotsArrayJson;
+    }
 }
 
 void USkeletalMeshComponent::TickComponent(float DeltaTime)
@@ -131,12 +131,12 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
         UpdateSkinningMatrices();
         PerformCPUSkinning(AnimatedVertices);
         bChangedSkeletalMesh = false;
-    }    
+    }
 }
 
 void USkeletalMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
 {
-    Super::CollectMeshBatches(OutMeshBatchElements, View); 
+    Super::CollectMeshBatches(OutMeshBatchElements, View);
 
     if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshAsset())
     {
@@ -145,33 +145,33 @@ void USkeletalMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMe
     }
 
     const TArray<FGroupInfo>& MeshGroupInfos = SkeletalMesh->GetMeshGroupInfo();
-    
+
     auto DetermineMaterialAndShader = [&](uint32 SectionIndex) -> TPair<UMaterialInterface*, UShader*>
-    	{
-    		UMaterialInterface* Material = GetMaterial(SectionIndex);
-    		UShader* Shader = nullptr;
-    
-    		if (Material && Material->GetShader())
-    		{
-    			Shader = Material->GetShader();
-    		}
-    		else
-    		{
-    			UE_LOG("USkeletalMeshComponent: 머티리얼이 없거나 셰이더가 없어서 기본 머티리얼 사용 section %u.", SectionIndex);
-    			Material = UResourceManager::GetInstance().GetDefaultMaterial();
-    			if (Material)
-    			{
-    				Shader = Material->GetShader();
-    			}
-    			if (!Material || !Shader)
-    			{
-    				UE_LOG("USkeletalMeshComponent: 기본 머티리얼이 없습니다.");
-    				return { nullptr, nullptr };
-    			}
-    		}
-    		return { Material, Shader };
-    	};
-    	
+        {
+            UMaterialInterface* Material = GetMaterial(SectionIndex);
+            UShader* Shader = nullptr;
+
+            if (Material && Material->GetShader())
+            {
+                Shader = Material->GetShader();
+            }
+            else
+            {
+                UE_LOG("USkeletalMeshComponent: 머티리얼이 없거나 셰이더가 없어서 기본 머티리얼 사용 section %u.", SectionIndex);
+                Material = UResourceManager::GetInstance().GetDefaultMaterial();
+                if (Material)
+                {
+                    Shader = Material->GetShader();
+                }
+                if (!Material || !Shader)
+                {
+                    UE_LOG("USkeletalMeshComponent: 기본 머티리얼이 없습니다.");
+                    return { nullptr, nullptr };
+                }
+            }
+            return { Material, Shader };
+        };
+
     const bool bHasSections = !MeshGroupInfos.IsEmpty();
     const uint32 NumSectionsToProcess = bHasSections ? static_cast<uint32>(MeshGroupInfos.size()) : 1;
 
@@ -228,7 +228,7 @@ void USkeletalMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMe
 
         OutMeshBatchElements.Add(BatchElement);
     }
-    
+
 }
 
 void USkeletalMeshComponent::DuplicateSubObjects()
@@ -301,7 +301,7 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& FilePath)
 void USkeletalMeshComponent::SetMaterial(uint32 InElementIndex, UMaterialInterface* InNewMaterial)
 {
     Super::SetMaterial(InElementIndex, InNewMaterial);
-    
+
     if (InElementIndex >= static_cast<uint32>(MaterialSlots.Num()))
     {
         UE_LOG("out of range InMaterialSlotIndex: %d", InElementIndex);
@@ -448,13 +448,13 @@ void USkeletalMeshComponent::UpdateVertexBuffer(D3D11RHI* InDevice)
         UE_LOG("[USkeletalMeshComponent/UpdateSkinnedVertices] Map Fail");
         return;
     }
-    
+
     FVertexDynamic* VertexData = static_cast<FVertexDynamic*>(MSR.pData);
-    const int32 VertexCount = AnimatedVertices.Num();    
+    const int32 VertexCount = AnimatedVertices.Num();
     for (int i = 0; i < VertexCount; i++)
     {
         VertexData[i].FillFrom(AnimatedVertices[i]);
-    }    
+    }
 
     DeviceContext->Unmap(VertexBuffer, 0);
 }
@@ -521,28 +521,39 @@ void USkeletalMeshComponent::UpdateBoneMatrices()
         return;
     }
 
-    // 지금은 애니메이션이 없어서 BindPose 그대로 사용
     ComponentSpaceTransforms.SetNum(BoneCount);
-    for (int i = 0; i < BoneCount; i++)
-    {
-        // 애니메이션 없으니까 바인드 포즈 사용        
-        ComponentSpaceTransforms[i] = MeshAsset->Bones[i].InverseBindPoseMatrix.InverseAffine();
-    }
 
-    // TODO 애니메이션 구현 후 사용 BoneSpaceTransforms채워서 사용
-    // for (int i = 0; i < BoneCount; i++)
-    // {
-    //     FMatrix BoneLocal = BoneSpaceTransforms[i];
-    //     int32 ParentIndex = MeshAsset->Bones[i].ParentIndex;
-    //     if (ParentIndex == -1)
-    //     {
-    //         ComponentSpaceTransforms[i] = BoneLocal;
-    //     }
-    //     else
-    //     {
-    //         ComponentSpaceTransforms[i] = BoneLocal * ComponentSpaceTransforms[ParentIndex];
-    //     }
-    // }
+    // EditableBones가 있으면 편집된 본 transform 사용 (Skeletal Mesh Editor)
+    if (!EditableBones.empty() && EditableBones.size() == BoneCount)
+    {
+        // EditableBones의 Local Transform을 Component Space로 변환
+        for (int i = 0; i < BoneCount; i++)
+        {
+            const FBone& Bone = EditableBones[i];
+            FTransform LocalTransform(Bone.LocalPosition, Bone.LocalRotation, Bone.LocalScale);
+            FMatrix BoneLocal = LocalTransform.ToMatrix();
+
+            int32 ParentIndex = Bone.ParentIndex;
+            if (ParentIndex == -1)
+            {
+                // Root bone: Local = Component Space
+                ComponentSpaceTransforms[i] = BoneLocal;
+            }
+            else
+            {
+                // Child bone: Component Space = Local * Parent Component Space
+                ComponentSpaceTransforms[i] = BoneLocal * ComponentSpaceTransforms[ParentIndex];
+            }
+        }
+    }
+    else
+    {
+        // EditableBones가 없으면 BindPose 사용 (기본 동작)
+        for (int i = 0; i < BoneCount; i++)
+        {
+            ComponentSpaceTransforms[i] = MeshAsset->Bones[i].InverseBindPoseMatrix.InverseAffine();
+        }
+    }
 }
 
 void USkeletalMeshComponent::UpdateSkinningMatrices()
@@ -554,7 +565,7 @@ void USkeletalMeshComponent::UpdateSkinningMatrices()
         UE_LOG("[USkeletalMeshComponent/UpdateSkinningMatrices] FSkeletalMesh is null");
         return;
     }
-    
+
     // 본 매트릭스가 없으면 스키닝 안함
     const int32 BoneCount = ComponentSpaceTransforms.Num();
     if (BoneCount == 0)
