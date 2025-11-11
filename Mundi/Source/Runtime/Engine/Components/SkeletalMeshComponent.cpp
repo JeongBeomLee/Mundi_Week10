@@ -290,6 +290,7 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& FilePath)
 
         // FBoneInfo에서 EditableBones 초기화
         LoadBonesFromAsset();
+        bSkinningDirty = true;
     }
     else
     {
@@ -401,10 +402,14 @@ UMaterialInstanceDynamic* USkeletalMeshComponent::CreateAndSetMaterialInstanceDy
 
 void USkeletalMeshComponent::EnsureSkinningReady(D3D11RHI* InDevice)
 {
-    UpdateBoneMatrices();
-    UpdateSkinningMatrices();
-    PerformCPUSkinning(AnimatedVertices);
-    UpdateVertexBuffer(InDevice);
+    if (bSkinningDirty && SkeletalMesh)
+    {
+        UpdateBoneMatrices();
+        UpdateSkinningMatrices();
+        PerformCPUSkinning(AnimatedVertices);
+        UpdateVertexBuffer(InDevice);
+        bSkinningDirty = false;
+    }
 }
 
 void USkeletalMeshComponent::UpdateVertexBuffer(D3D11RHI* InDevice)

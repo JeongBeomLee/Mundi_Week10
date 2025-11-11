@@ -82,4 +82,6 @@ protected:
     TArray<FNormalVertex> AnimatedVertices = {};
 
     int32 SelectedBoneIndex = -1;
+
+    bool bSkinningDirty = true;
 };
