@@ -402,14 +402,21 @@ UMaterialInstanceDynamic* USkeletalMeshComponent::CreateAndSetMaterialInstanceDy
 
 void USkeletalMeshComponent::EnsureSkinningReady(D3D11RHI* InDevice)
 {
-    if (bSkinningDirty && SkeletalMesh)
+    // 스키닝이 일어나지 않음.
+    /*if (bSkinningDirty && SkeletalMesh)
     {
         UpdateBoneMatrices();
         UpdateSkinningMatrices();
         PerformCPUSkinning(AnimatedVertices);
         UpdateVertexBuffer(InDevice);
         bSkinningDirty = false;
-    }
+    }*/
+
+    UpdateBoneMatrices();
+    UpdateSkinningMatrices();
+    PerformCPUSkinning(AnimatedVertices);
+    UpdateVertexBuffer(InDevice);
+    bSkinningDirty = false;
 }
 
 void USkeletalMeshComponent::UpdateVertexBuffer(D3D11RHI* InDevice)
