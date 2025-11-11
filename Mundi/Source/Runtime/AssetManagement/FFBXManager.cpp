@@ -338,7 +338,7 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
 
         if (SceneAxisSystem != OurAxisSystem)
         {
-            OurAxisSystem.ConvertScene(Scene);
+            OurAxisSystem.DeepConvertScene(Scene);
         }
 
         // 5. 단위 변환 (cm로 통일)
@@ -1398,7 +1398,7 @@ FStaticMesh* FFBXManager::LoadFBXStaticMeshAsset(const FString& PathFileName)
         FbxAxisSystem TargetAxisSystem(FbxAxisSystem::eZAxis, FbxAxisSystem::eParityOdd, FbxAxisSystem::eLeftHanded);
         if (SceneAxisSystem != TargetAxisSystem)
         {
-            TargetAxisSystem.ConvertScene(Scene);
+            TargetAxisSystem.DeepConvertScene(Scene);
         }
 
         // [추가] 단위 변환 (cm로 통일)
