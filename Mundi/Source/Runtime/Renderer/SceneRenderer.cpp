@@ -100,10 +100,10 @@ void FSceneRenderer::Render()
 		RenderShadowPass();
 
 		// 2. 라이트 버퍼 업데이트 및 섀도우 맵 바인딩
-		GWorld->GetLightManager()->SetDirtyFlag();
-		GWorld->GetLightManager()->UpdateLightBuffer(RHIDevice);	// 라이트 구조체 버퍼 업데이트, 바인딩
-		GWorld->GetShadowManager()->BindShadowResources(RHIDevice);	// 섀도우 맵 텍스처 바인딩 (t5)
-		GWorld->GetShadowManager()->UpdateShadowFilterBuffer(RHIDevice);	// 섀도우 필터링 설정 업데이트
+		World->GetLightManager()->SetDirtyFlag();
+		World->GetLightManager()->UpdateLightBuffer(RHIDevice);	// 라이트 구조체 버퍼 업데이트, 바인딩
+		World->GetShadowManager()->BindShadowResources(RHIDevice);	// 섀도우 맵 텍스처 바인딩 (t5)
+		World->GetShadowManager()->UpdateShadowFilterBuffer(RHIDevice);	// 섀도우 필터링 설정 업데이트
 
 		PerformTileLightCulling();	// 타일 기반 라이트 컬링 수행
 
@@ -478,8 +478,8 @@ void FSceneRenderer::PerformTileLightCulling()
 	if (bTileCullingEnabled)
 	{
 		// PointLight와 SpotLight 정보 수집
-		TArray<FPointLightInfo>& PointLights = GWorld->GetLightManager()->GetPointLightInfoList();
-		TArray<FSpotLightInfo>& SpotLights = GWorld->GetLightManager()->GetSpotLightInfoList();
+		TArray<FPointLightInfo>& PointLights = World->GetLightManager()->GetPointLightInfoList();
+		TArray<FSpotLightInfo>& SpotLights = World->GetLightManager()->GetSpotLightInfoList();
 
 		// 타일 컬링 수행
 		TileLightCuller->CullLights(
@@ -521,11 +521,11 @@ void FSceneRenderer::PerformTileLightCulling()
 void FSceneRenderer::RenderShadowPass()
 {
 	// Step 0: 쉐도우 맵 리소스 언바인딩 (렌더 타겟으로 사용하기 전에 필수!)
-	GWorld->GetShadowManager()->UnbindShadowResources(RHIDevice);
+	World->GetShadowManager()->UnbindShadowResources(RHIDevice);
 
 	// Step 1: 섀도우 캐스팅 라이트에 인덱스 할당
 	FShadowCastingLights ShadowLights(SceneGlobals.DirectionalLights, SceneLocals.SpotLights, SceneLocals.PointLights);
-	GWorld->GetShadowManager()->AssignShadowMapIndices(RHIDevice, ShadowLights);
+	World->GetShadowManager()->AssignShadowMapIndices(RHIDevice, ShadowLights);
 
 	// Step 2: 섀도우 뎁스 셰이더 로드 및 컴파일
 	UShader* ShadowDepthShader = UResourceManager::GetInstance().Load<UShader>("Shaders/Materials/ShadowDepth.hlsl");
@@ -544,7 +544,7 @@ void FSceneRenderer::RenderShadowPass()
 	}
 
 	// Step 3: 섀도우 필터 타입 가져오기
-	EShadowFilterType FilterType = GWorld->GetShadowManager()->GetShadowConfiguration().FilterType;
+	EShadowFilterType FilterType = World->GetShadowManager()->GetShadowConfiguration().FilterType;
 
 	// Step 4: 렌더 상태 저장 (RAII 패턴)
 	FSavedRenderState SavedState;
@@ -588,7 +588,7 @@ void FSceneRenderer::OverrideShadowShader(TArray<FMeshBatchElement>& MeshBatches
 	ID3D11InputLayout* IL = ShadowShaderVariant->InputLayout;
 
 	// PS는 필터 타입에 따라 선택
-	UShader* PSShader = GWorld->GetShadowManager()->GetShadowPixelShaderForFilterType(FilterType);
+	UShader* PSShader = World->GetShadowManager()->GetShadowPixelShaderForFilterType(FilterType);
 	ID3D11PixelShader* PS = PSShader ? PSShader->GetPixelShader() : nullptr;  // NONE/PCF는 nullptr
 
 	for (FMeshBatchElement& BatchElement : MeshBatches)
@@ -620,7 +620,7 @@ void FSceneRenderer::UpdateViewProjBufferForShadow(const FShadowRenderContext& S
 
 void FSceneRenderer::RenderDirectionalLightShadows(FShaderVariant* ShadowShaderVariant)
 {
-	FShadowManager* ShadowManager = GWorld->GetShadowManager();
+	FShadowManager* ShadowManager = World->GetShadowManager();
 	const FShadowConfiguration& ShadowConfig = ShadowManager->GetShadowConfiguration();
 
 	for (UDirectionalLightComponent* DirLight : SceneGlobals.DirectionalLights)
@@ -708,7 +708,7 @@ void FSceneRenderer::RenderDirectionalLightShadows(FShaderVariant* ShadowShaderV
 
 void FSceneRenderer::RenderSpotLightShadows(FShaderVariant* ShadowShaderVariant)
 {
-	FShadowManager* ShadowManager = GWorld->GetShadowManager();
+	FShadowManager* ShadowManager = World->GetShadowManager();
 	const FShadowConfiguration& ShadowConfig = ShadowManager->GetShadowConfiguration();
 
 	for (USpotLightComponent* SpotLight : SceneLocals.SpotLights)
@@ -736,13 +736,13 @@ void FSceneRenderer::RenderSpotLightShadows(FShaderVariant* ShadowShaderVariant)
 		DrawMeshBatches(ShadowMeshBatches, true, true);
 
 		// 섀도우 맵 렌더 종료
-		GWorld->GetShadowManager()->EndShadowRender(RHIDevice);
+		World->GetShadowManager()->EndShadowRender(RHIDevice);
 	}
 }
 
 void FSceneRenderer::RenderPointLightShadows(FShaderVariant* ShadowShaderVariant)
 {
-	FShadowManager* ShadowManager = GWorld->GetShadowManager();
+	FShadowManager* ShadowManager = World->GetShadowManager();
 	const FShadowConfiguration& ShadowConfig = ShadowManager->GetShadowConfiguration();
 
 	for (UPointLightComponent* PointLight : SceneLocals.PointLights)
@@ -783,7 +783,7 @@ void FSceneRenderer::RenderPointLightShadows(FShaderVariant* ShadowShaderVariant
 			DrawMeshBatches(ShadowMeshBatches, true, true);
 
 			// 섀도우 맵 렌더 종료
-			GWorld->GetShadowManager()->EndShadowRender(RHIDevice);
+			World->GetShadowManager()->EndShadowRender(RHIDevice);
 		}
 	}
 }
@@ -1477,7 +1477,7 @@ void FSceneRenderer::RenderDebugPass()
 	// 그리드 라인 수집
 	for (ULineComponent* LineComponent : Proxies.EditorLines)
 	{
-		if (GWorld->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_Grid))
+		if (World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_Grid))
 		{
 			LineComponent->CollectLineBatches(OwnerRenderer);
 		}
