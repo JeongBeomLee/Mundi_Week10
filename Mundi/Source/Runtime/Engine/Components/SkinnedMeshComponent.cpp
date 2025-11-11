@@ -86,16 +86,6 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
         return;
     }
 
-    FLogManager& Log = FLogManager::GetInstance();
-    if (testflag)
-    {
-        INITIALIZE_LOG(L"CPUSkinningLog")
-    }
-    else
-    {
-        CLOSE_LOG_FILE();
-    }
-
     // 정점 개수만큼 순회
     AnimatedVertices.Empty();
     AnimatedVertices.SetNum(VertexCount);
@@ -109,15 +99,7 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
         AnimatedVertex.Tangent = {};
 
         // Tangent의 W는 Bitangent의 방향 요소이므로 원본 보존
-        float TangentW = SourceVertex.BaseVertex.Tangent.W;
-
-        if (testflag)
-        {
-            WRITE_LOG_FILE(LogType::Debug, L"before")
-            WRITE_LOG_FILE(LogType::Debug, L"normal %f %f %f", SourceVertex.BaseVertex.normal.X, SourceVertex.BaseVertex.normal.Y, SourceVertex.BaseVertex.normal.Z)
-            WRITE_LOG_FILE(LogType::Debug, L"tangent %f %f %f %f", SourceVertex.BaseVertex.Tangent.X, SourceVertex.BaseVertex.Tangent.Y,
-                 SourceVertex.BaseVertex.Tangent.Z, SourceVertex.BaseVertex.Tangent.W)
-        }
+        float TangentW = SourceVertex.BaseVertex.Tangent.W;        
      
         // 총 4개의 가중치
         for (int j = 0; j < 4; j++)
@@ -147,14 +129,6 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
         AnimatedVertex.Tangent.W = TangentW;
         AnimatedVertex.color = SourceVertex.BaseVertex.color;
         AnimatedVertex.tex = SourceVertex.BaseVertex.tex;
-
-        if (testflag)
-        {
-            WRITE_LOG_FILE(LogType::Debug, L"after")
-            WRITE_LOG_FILE(LogType::Debug, L"normal %f %f %f", AnimatedVertex.normal.X, AnimatedVertex.normal.Y, AnimatedVertex.normal.Z)
-            WRITE_LOG_FILE(LogType::Debug, L"tangent %f %f %f %f", AnimatedVertex.Tangent.X, AnimatedVertex.Tangent.Y,
-                 AnimatedVertex.Tangent.Z, AnimatedVertex.Tangent.W)
-        }
     }
     
     testflag = false;    
