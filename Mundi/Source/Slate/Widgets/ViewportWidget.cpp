@@ -4,11 +4,6 @@
 #include "FOffscreenViewport.h"
 #include "FOffscreenViewportClient.h"
 #include "Gizmo/OffscreenGizmoActor.h"
-#include "SkeletalMeshComponent.h"
-#include "World.h"
-#include "Actor.h"
-#include "SelectionManager.h"
-#include "BoneTransformCalculator.h"
 
 IMPLEMENT_CLASS(UViewportWidget)
 
@@ -25,8 +20,31 @@ void UViewportWidget::Initialize()
 
 void UViewportWidget::Update()
 {
-	// Gizmo 업데이트 (선택된 본 위치로 이동)
-	UpdateGizmoForSelectedBone();
+	// Gizmo를 타겟 Transform에 동기화
+	if (BoneGizmo && TargetTransform)
+	{
+		// Gizmo를 타겟 위치로 이동
+		BoneGizmo->SetActorLocation(TargetTransform->Translation);
+
+		// Gizmo 회전은 Space 모드에 따라 설정
+		if (CurrentGizmoSpace == EGizmoSpace::Local || CurrentGizmoMode == EGizmoMode::Scale)
+		{
+			// Local 모드 또는 Scale 모드: 타겟의 회전을 따라감
+			BoneGizmo->SetActorRotation(TargetTransform->Rotation);
+		}
+		else // World 모드
+		{
+			// World 모드: 월드 축에 정렬 (Identity 회전)
+			BoneGizmo->SetActorRotation(FQuat::Identity());
+		}
+
+		BoneGizmo->SetbRender(true);
+	}
+	else if (BoneGizmo)
+	{
+		// 타겟이 없으면 Gizmo 숨김
+		BoneGizmo->SetbRender(false);
+	}
 }
 
 void UViewportWidget::RenderWidget()
@@ -109,60 +127,53 @@ void UViewportWidget::RenderWidget()
 		}
 
 		// Gizmo 모드/공간 전환 키 (에디터가 켜져있으면 항상 작동, 우클릭 중 제외)
-		if (BoneGizmo && !bIsRightMouseDown && GizmoModePtr && GizmoSpacePtr)
+		if (BoneGizmo && !bIsRightMouseDown)
 		{
 			// Tab: World/Local 공간 전환
 			if (ImGui::IsKeyPressed(ImGuiKey_Tab))
 			{
-				*GizmoSpacePtr = (*GizmoSpacePtr == EGizmoSpace::Local) ? EGizmoSpace::World : EGizmoSpace::Local;
-				// Space 변경 시 UpdateGizmoForSelectedBone()에서 회전을 업데이트함
+				CurrentGizmoSpace = (CurrentGizmoSpace == EGizmoSpace::Local) ? EGizmoSpace::World : EGizmoSpace::Local;
 			}
 
-			// 스페이스: 모드 순환 (Translate → Rotate → Scale, Select 제외)
+			// 스페이스: 모드 순환 (Translate → Rotate → Scale)
 			if (ImGui::IsKeyPressed(ImGuiKey_Space))
 			{
-				// Translate(0) → Rotate(1) → Scale(2) 순환
-				if (*GizmoModePtr == EGizmoMode::Translate)
+				static const EGizmoMode CycleModes[] = { EGizmoMode::Translate, EGizmoMode::Rotate, EGizmoMode::Scale };
+				constexpr int NumModes = sizeof(CycleModes) / sizeof(CycleModes[0]);
+
+				// 현재 모드 인덱스 찾기
+				int CurrentIndex = 0;
+				for (int i = 0; i < NumModes; ++i)
 				{
-					*GizmoModePtr = EGizmoMode::Rotate;
+					if (CycleModes[i] == CurrentGizmoMode)
+					{
+						CurrentIndex = i;
+						break;
+					}
 				}
-				else if (*GizmoModePtr == EGizmoMode::Rotate)
+
+				// 다음 모드로 순환
+				CurrentIndex = (CurrentIndex + 1) % NumModes;
+				CurrentGizmoMode = CycleModes[CurrentIndex];
+				BoneGizmo->SetMode(CurrentGizmoMode);
+			}
+
+			// 개별 모드 단축키 (Q/W/E/R)
+			struct { ImGuiKey Key; EGizmoMode Mode; } ModeBindings[] = {
+				{ ImGuiKey_Q, EGizmoMode::Select },
+				{ ImGuiKey_W, EGizmoMode::Translate },
+				{ ImGuiKey_E, EGizmoMode::Rotate },
+				{ ImGuiKey_R, EGizmoMode::Scale }
+			};
+
+			for (const auto& Binding : ModeBindings)
+			{
+				if (ImGui::IsKeyPressed(Binding.Key))
 				{
-					*GizmoModePtr = EGizmoMode::Scale;
+					CurrentGizmoMode = Binding.Mode;
+					BoneGizmo->SetMode(Binding.Mode);
+					break;
 				}
-				else  // Scale 또는 Select인 경우 → Translate로
-				{
-					*GizmoModePtr = EGizmoMode::Translate;
-				}
-				BoneGizmo->SetMode(*GizmoModePtr);
-			}
-
-			// Q: Select 모드
-			if (ImGui::IsKeyPressed(ImGuiKey_Q))
-			{
-				*GizmoModePtr = EGizmoMode::Select;
-				BoneGizmo->SetMode(EGizmoMode::Select);
-			}
-
-			// W: Translate 모드
-			if (ImGui::IsKeyPressed(ImGuiKey_W))
-			{
-				*GizmoModePtr = EGizmoMode::Translate;
-				BoneGizmo->SetMode(EGizmoMode::Translate);
-			}
-
-			// E: Rotate 모드
-			if (ImGui::IsKeyPressed(ImGuiKey_E))
-			{
-				*GizmoModePtr = EGizmoMode::Rotate;
-				BoneGizmo->SetMode(EGizmoMode::Rotate);
-			}
-
-			// R: Scale 모드
-			if (ImGui::IsKeyPressed(ImGuiKey_R))
-			{
-				*GizmoModePtr = EGizmoMode::Scale;
-				BoneGizmo->SetMode(EGizmoMode::Scale);
 			}
 		}
 
@@ -180,8 +191,8 @@ void UViewportWidget::RenderWidget()
 			}
 		}
 
-		// Gizmo 입력 처리 (우클릭 드래그 중이 아닐 때만)
-		if (!bIsRightMouseDown && BoneGizmo && bIsHovered && PreviewComponent && SelectedBoneIndexPtr)
+		// Gizmo 입력 처리 (우클릭 드래그 중이 아닐 때만, 타겟이 있을 때만)
+		if (!bIsRightMouseDown && BoneGizmo && bIsHovered && TargetTransform)
 		{
 			// ImGui 좌표 → Viewport 상대 좌표로 변환
 			ImVec2 MousePos = ImGui::GetMousePos();
@@ -201,54 +212,46 @@ void UViewportWidget::RenderWidget()
 				bLeftMouseReleased
 			);
 
-			// Gizmo 드래그 중 실시간으로 본 Transform 업데이트
+			// Gizmo 드래그 중 실시간으로 타겟 Transform 업데이트
 			bool bIsDragging = BoneGizmo->GetbIsDragging();
 			static bool bWasDragging = false;
 
-			// 드래그 시작 시 본의 원래 회전 저장
-			if (bIsDragging && !bWasDragging && *SelectedBoneIndexPtr >= 0)
+			// 드래그 시작 시 타겟의 원래 회전 저장
+			if (bIsDragging && !bWasDragging && TargetTransform)
 			{
-				FTransform CurrentBoneWorldTransform = FBoneTransformCalculator::GetBoneWorldTransform(PreviewComponent, *SelectedBoneIndexPtr);
-				DragStartBoneRotation = CurrentBoneWorldTransform.Rotation;
+				DragStartRotation = TargetTransform->Rotation;
 			}
 
-			if (bIsDragging && *SelectedBoneIndexPtr >= 0)
+			if (bIsDragging && TargetTransform)
 			{
-				// 현재 본의 World Transform 가져오기
-				FTransform CurrentBoneWorldTransform = FBoneTransformCalculator::GetBoneWorldTransform(PreviewComponent, *SelectedBoneIndexPtr);
-				FTransform NewWorldTransform = CurrentBoneWorldTransform;
+				// Gizmo Transform 가져오기
+				FTransform GizmoTransform = BoneGizmo->GetActorTransform();
 
 				// Gizmo 모드에 따라 변경된 컴포넌트만 업데이트
-				FTransform GizmoWorldTransform = BoneGizmo->GetActorTransform();
-
-				EGizmoMode CurrentMode = BoneGizmo->GetMode();
-				if (CurrentMode == EGizmoMode::Translate)
+				if (CurrentGizmoMode == EGizmoMode::Translate)
 				{
 					// Translate 모드: 위치만 변경
-					NewWorldTransform.Translation = GizmoWorldTransform.Translation;
+					TargetTransform->Translation = GizmoTransform.Translation;
 				}
-				else if (CurrentMode == EGizmoMode::Rotate)
+				else if (CurrentGizmoMode == EGizmoMode::Rotate)
 				{
 					// Rotate 모드: 회전 변경
-					if (GizmoSpacePtr && *GizmoSpacePtr == EGizmoSpace::World)
+					if (CurrentGizmoSpace == EGizmoSpace::World)
 					{
-						// World 모드: Gizmo의 회전을 본의 원래 회전에 곱함
-						NewWorldTransform.Rotation = GizmoWorldTransform.Rotation * DragStartBoneRotation;
+						// World 모드: Gizmo의 회전을 타겟의 원래 회전에 곱함
+						TargetTransform->Rotation = GizmoTransform.Rotation * DragStartRotation;
 					}
 					else
 					{
 						// Local 모드: Gizmo의 절대 회전 사용
-						NewWorldTransform.Rotation = GizmoWorldTransform.Rotation;
+						TargetTransform->Rotation = GizmoTransform.Rotation;
 					}
 				}
-				else if (CurrentMode == EGizmoMode::Scale)
+				else if (CurrentGizmoMode == EGizmoMode::Scale)
 				{
 					// Scale 모드: 스케일만 변경
-					NewWorldTransform.Scale3D = GizmoWorldTransform.Scale3D;
+					TargetTransform->Scale3D = GizmoTransform.Scale3D;
 				}
-
-				// 변경된 Transform 적용
-				FBoneTransformCalculator::SetBoneWorldTransform(PreviewComponent, *SelectedBoneIndexPtr, NewWorldTransform);
 			}
 
 			bWasDragging = bIsDragging;
@@ -298,13 +301,11 @@ void UViewportWidget::LoadToolbarIcons()
 
 void UViewportWidget::RenderViewportToolbar()
 {
-	if (!BoneGizmo || !GizmoModePtr || !GizmoSpacePtr)
+	if (!BoneGizmo)
 		return;
 
 	// 툴바 아이콘 지연 로드 (최초 1회만)
 	LoadToolbarIcons();
-
-	EGizmoMode CurrentMode = BoneGizmo->GetMode();
 	const ImVec2 IconSize(17, 17);  // 메인 뷰포트와 동일한 크기
 
 	// 메인 뷰포트와 동일한 스타일 설정
@@ -316,7 +317,7 @@ void UViewportWidget::RenderViewportToolbar()
 	ImGui::PushStyleColor(ImGuiCol_Button, ToolbarBgColor);
 
 	// Select 버튼
-	bool bIsSelectActive = (CurrentMode == EGizmoMode::Select);
+	bool bIsSelectActive = (CurrentGizmoMode == EGizmoMode::Select);
 	ImVec4 SelectTintColor = bIsSelectActive ? ImVec4(0.3f, 0.6f, 1.0f, 1.0f) : ImVec4(1, 1, 1, 1);
 
 	if (IconSelect && IconSelect->GetShaderResourceView())
@@ -324,7 +325,7 @@ void UViewportWidget::RenderViewportToolbar()
 		if (ImGui::ImageButton("##SelectBtn", (void*)IconSelect->GetShaderResourceView(), IconSize,
 			ImVec2(0, 0), ImVec2(1, 1), ImVec4(0, 0, 0, 0), SelectTintColor))
 		{
-			*GizmoModePtr = EGizmoMode::Select;
+			CurrentGizmoMode = EGizmoMode::Select;
 			BoneGizmo->SetMode(EGizmoMode::Select);
 		}
 	}
@@ -332,7 +333,7 @@ void UViewportWidget::RenderViewportToolbar()
 	{
 		if (ImGui::Button("Select", ImVec2(60, 0)))
 		{
-			*GizmoModePtr = EGizmoMode::Select;
+			CurrentGizmoMode = EGizmoMode::Select;
 			BoneGizmo->SetMode(EGizmoMode::Select);
 		}
 	}
@@ -343,7 +344,7 @@ void UViewportWidget::RenderViewportToolbar()
 	ImGui::SameLine();
 
 	// Translate 버튼
-	bool bIsTranslateActive = (CurrentMode == EGizmoMode::Translate);
+	bool bIsTranslateActive = (CurrentGizmoMode == EGizmoMode::Translate);
 	ImVec4 TranslateTintColor = bIsTranslateActive ? ImVec4(0.3f, 0.6f, 1.0f, 1.0f) : ImVec4(1, 1, 1, 1);
 
 	if (IconMove && IconMove->GetShaderResourceView())
@@ -351,7 +352,7 @@ void UViewportWidget::RenderViewportToolbar()
 		if (ImGui::ImageButton("##TranslateBtn", (void*)IconMove->GetShaderResourceView(), IconSize,
 			ImVec2(0, 0), ImVec2(1, 1), ImVec4(0, 0, 0, 0), TranslateTintColor))
 		{
-			*GizmoModePtr = EGizmoMode::Translate;
+			CurrentGizmoMode = EGizmoMode::Translate;
 			BoneGizmo->SetMode(EGizmoMode::Translate);
 		}
 	}
@@ -359,7 +360,7 @@ void UViewportWidget::RenderViewportToolbar()
 	{
 		if (ImGui::Button("Move", ImVec2(60, 0)))
 		{
-			*GizmoModePtr = EGizmoMode::Translate;
+			CurrentGizmoMode = EGizmoMode::Translate;
 			BoneGizmo->SetMode(EGizmoMode::Translate);
 		}
 	}
@@ -370,7 +371,7 @@ void UViewportWidget::RenderViewportToolbar()
 	ImGui::SameLine();
 
 	// Rotate 버튼
-	bool bIsRotateActive = (CurrentMode == EGizmoMode::Rotate);
+	bool bIsRotateActive = (CurrentGizmoMode == EGizmoMode::Rotate);
 	ImVec4 RotateTintColor = bIsRotateActive ? ImVec4(0.3f, 0.6f, 1.0f, 1.0f) : ImVec4(1, 1, 1, 1);
 
 	if (IconRotate && IconRotate->GetShaderResourceView())
@@ -378,7 +379,7 @@ void UViewportWidget::RenderViewportToolbar()
 		if (ImGui::ImageButton("##RotateBtn", (void*)IconRotate->GetShaderResourceView(), IconSize,
 			ImVec2(0, 0), ImVec2(1, 1), ImVec4(0, 0, 0, 0), RotateTintColor))
 		{
-			*GizmoModePtr = EGizmoMode::Rotate;
+			CurrentGizmoMode = EGizmoMode::Rotate;
 			BoneGizmo->SetMode(EGizmoMode::Rotate);
 		}
 	}
@@ -386,7 +387,7 @@ void UViewportWidget::RenderViewportToolbar()
 	{
 		if (ImGui::Button("Rotate", ImVec2(60, 0)))
 		{
-			*GizmoModePtr = EGizmoMode::Rotate;
+			CurrentGizmoMode = EGizmoMode::Rotate;
 			BoneGizmo->SetMode(EGizmoMode::Rotate);
 		}
 	}
@@ -397,7 +398,7 @@ void UViewportWidget::RenderViewportToolbar()
 	ImGui::SameLine();
 
 	// Scale 버튼
-	bool bIsScaleActive = (CurrentMode == EGizmoMode::Scale);
+	bool bIsScaleActive = (CurrentGizmoMode == EGizmoMode::Scale);
 	ImVec4 ScaleTintColor = bIsScaleActive ? ImVec4(0.3f, 0.6f, 1.0f, 1.0f) : ImVec4(1, 1, 1, 1);
 
 	if (IconScale && IconScale->GetShaderResourceView())
@@ -405,7 +406,7 @@ void UViewportWidget::RenderViewportToolbar()
 		if (ImGui::ImageButton("##ScaleBtn", (void*)IconScale->GetShaderResourceView(), IconSize,
 			ImVec2(0, 0), ImVec2(1, 1), ImVec4(0, 0, 0, 0), ScaleTintColor))
 		{
-			*GizmoModePtr = EGizmoMode::Scale;
+			CurrentGizmoMode = EGizmoMode::Scale;
 			BoneGizmo->SetMode(EGizmoMode::Scale);
 		}
 	}
@@ -413,7 +414,7 @@ void UViewportWidget::RenderViewportToolbar()
 	{
 		if (ImGui::Button("Scale", ImVec2(60, 0)))
 		{
-			*GizmoModePtr = EGizmoMode::Scale;
+			CurrentGizmoMode = EGizmoMode::Scale;
 			BoneGizmo->SetMode(EGizmoMode::Scale);
 		}
 	}
@@ -428,7 +429,7 @@ void UViewportWidget::RenderViewportToolbar()
 	ImGui::SameLine();
 
 	// World/Local 공간 전환 버튼 (아이콘)
-	bool bIsWorldSpace = (*GizmoSpacePtr == EGizmoSpace::World);
+	bool bIsWorldSpace = (CurrentGizmoSpace == EGizmoSpace::World);
 	UTexture* SpaceIcon = bIsWorldSpace ? IconWorldSpace : IconLocalSpace;
 	ImVec4 SpaceTintColor = ImVec4(1, 1, 1, 1);  // 항상 흰색 (선택 상태 구분 없음)
 
@@ -437,8 +438,8 @@ void UViewportWidget::RenderViewportToolbar()
 		if (ImGui::ImageButton("##SpaceBtn", (void*)SpaceIcon->GetShaderResourceView(), IconSize,
 			ImVec2(0, 0), ImVec2(1, 1), ImVec4(0, 0, 0, 0), SpaceTintColor))
 		{
-			*GizmoSpacePtr = bIsWorldSpace ? EGizmoSpace::Local : EGizmoSpace::World;
-			BoneGizmo->SetSpace(*GizmoSpacePtr);
+			CurrentGizmoSpace = bIsWorldSpace ? EGizmoSpace::Local : EGizmoSpace::World;
+			BoneGizmo->SetSpace(CurrentGizmoSpace);
 		}
 	}
 	else
@@ -446,8 +447,8 @@ void UViewportWidget::RenderViewportToolbar()
 		const char* SpaceLabel = bIsWorldSpace ? "World" : "Local";
 		if (ImGui::Button(SpaceLabel, ImVec2(60, 0)))
 		{
-			*GizmoSpacePtr = bIsWorldSpace ? EGizmoSpace::Local : EGizmoSpace::World;
-			BoneGizmo->SetSpace(*GizmoSpacePtr);
+			CurrentGizmoSpace = bIsWorldSpace ? EGizmoSpace::Local : EGizmoSpace::World;
+			BoneGizmo->SetSpace(CurrentGizmoSpace);
 		}
 	}
 
@@ -460,52 +461,4 @@ void UViewportWidget::RenderViewportToolbar()
 	// 스타일 복원
 	ImGui::PopStyleColor();  // Button 배경색
 	ImGui::PopStyleVar(2);   // ItemSpacing, FrameRounding
-}
-
-void UViewportWidget::UpdateGizmoForSelectedBone()
-{
-	if (!BoneGizmo || !PreviewComponent || !EditorWorld || !SelectedBoneIndexPtr || !GizmoModePtr || !GizmoSpacePtr)
-		return;
-
-	USelectionManager* SelectionManager = EditorWorld->GetSelectionManager();
-	if (!SelectionManager)
-		return;
-
-	// 본이 선택되지 않았으면 Gizmo만 숨김 (PreviewActor는 선택 상태 유지하여 디버그 본 표시)
-	if (*SelectedBoneIndexPtr < 0 || *SelectedBoneIndexPtr >= PreviewComponent->EditableBones.size())
-	{
-		BoneGizmo->SetbRender(false);
-		// PreviewActor는 선택 상태로 유지 (RenderDebugVolume 계속 호출되도록)
-		SelectionManager->ClearSelection();
-		if (PreviewActor)
-		{
-			SelectionManager->SelectActor(PreviewActor);
-		}
-		return;
-	}
-
-	// EditorWorld의 SelectionManager에 PreviewComponent 선택
-	// (GizmoActor의 UpdateComponentVisibility가 이를 확인하여 Gizmo를 표시함)
-	SelectionManager->ClearSelection();
-	SelectionManager->SelectComponent(PreviewComponent);
-
-	// 선택된 본의 World Transform 계산
-	FTransform BoneWorldTransform = FBoneTransformCalculator::GetBoneWorldTransform(PreviewComponent, *SelectedBoneIndexPtr);
-
-	// Gizmo를 본 위치로 이동 (위치는 항상 본을 따라감)
-	BoneGizmo->SetActorLocation(BoneWorldTransform.Translation);
-
-	// Gizmo 회전은 Space 모드에 따라 설정
-	if (*GizmoSpacePtr == EGizmoSpace::Local || *GizmoModePtr == EGizmoMode::Scale)
-	{
-		// Local 모드 또는 Scale 모드: 본의 회전을 따라감
-		BoneGizmo->SetActorRotation(BoneWorldTransform.Rotation);
-	}
-	else // World 모드
-	{
-		// World 모드: 월드 축에 정렬 (Identity 회전)
-		BoneGizmo->SetActorRotation(FQuat::Identity());
-	}
-
-	BoneGizmo->SetbRender(true);
 }

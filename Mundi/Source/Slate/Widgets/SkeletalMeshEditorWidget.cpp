@@ -118,6 +118,7 @@ void USkeletalMeshEditorWidget::Initialize()
 	ViewportWidget = NewObject<UViewportWidget>();
 	ViewportWidget->Initialize();
 
+
 	// D3D11Device 가져오기
 	ID3D11Device* Device = GEngine.GetRenderer()->GetRHIDevice()->GetDevice();
 	if (!Device)
@@ -160,8 +161,6 @@ void USkeletalMeshEditorWidget::Initialize()
 	if (BoneGizmo)
 	{
 		BoneGizmo->SetCameraActor(ViewportClient->GetCamera());
-		CurrentGizmoMode = EGizmoMode::Translate;
-		CurrentGizmoSpace = EGizmoSpace::Local;
 	}
 }
 
@@ -294,6 +293,57 @@ void USkeletalMeshEditorWidget::Update()
 		SelectedBoneIndex = PreviewMeshComponent->GetSelectedBoneIndex();
 	}
 
+	// 본 선택에 따라 Transform 계산 및 ViewportWidget에 주입
+	static FTransform CurrentBoneTransform;
+	if (PreviewMeshComponent && SelectedBoneIndex >= 0 && SelectedBoneIndex < PreviewMeshComponent->EditableBones.size())
+	{
+		// Gizmo 드래그 중이 아닐 때만 본에서 읽기 (드래그 중에는 수정된 값 유지)
+		bool bIsGizmoDragging = BoneGizmo && BoneGizmo->GetbIsDragging();
+		if (!bIsGizmoDragging)
+		{
+			CurrentBoneTransform = FBoneTransformCalculator::GetBoneWorldTransform(PreviewMeshComponent, SelectedBoneIndex);
+		}
+
+		// ViewportWidget에 Transform 포인터 주입
+		if (ViewportWidget)
+		{
+			ViewportWidget->SetTargetTransform(&CurrentBoneTransform);
+		}
+
+		// SelectionManager 조작 (본 에디터 특화 로직)
+		if (EditorWorld)
+		{
+			USelectionManager* SelectionManager = EditorWorld->GetSelectionManager();
+			if (SelectionManager)
+			{
+				SelectionManager->ClearSelection();
+				SelectionManager->SelectComponent(PreviewMeshComponent);
+			}
+		}
+	}
+	else
+	{
+		// 본이 선택되지 않았으면 nullptr 주입
+		if (ViewportWidget)
+		{
+			ViewportWidget->SetTargetTransform(nullptr);
+		}
+
+		// SelectionManager 조작 (PreviewActor만 선택 상태로 유지)
+		if (EditorWorld)
+		{
+			USelectionManager* SelectionManager = EditorWorld->GetSelectionManager();
+			if (SelectionManager)
+			{
+				SelectionManager->ClearSelection();
+				if (PreviewActor)
+				{
+					SelectionManager->SelectActor(PreviewActor);
+				}
+			}
+		}
+	}
+
 	// 하위 위젯 업데이트 (SDetailsWindow 패턴)
 	if (HierarchyWidget)
 	{
@@ -310,6 +360,12 @@ void USkeletalMeshEditorWidget::Update()
 		ViewportWidget->Update();
 	}
 
+	// ViewportWidget이 Transform을 수정했을 수 있으므로, 다시 본에 쓰기 (Transform → 본 동기화)
+	if (PreviewMeshComponent && SelectedBoneIndex >= 0 && SelectedBoneIndex < PreviewMeshComponent->EditableBones.size())
+	{
+		FBoneTransformCalculator::SetBoneWorldTransform(PreviewMeshComponent, SelectedBoneIndex, CurrentBoneTransform);
+	}
+
 	// EditorWorld Tick (BoneGizmo 등 Embedded World의 액터들을 업데이트)
 	if (EditorWorld)
 	{
@@ -324,9 +380,6 @@ void USkeletalMeshEditorWidget::Update()
 		float DeltaTime = ImGui::GetIO().DeltaTime;
 		ViewportClient->Tick(DeltaTime);
 	}
-
-	// NOTE: Gizmo 컴포넌트 가시성은 BoneGizmo->Tick()에서 UpdateComponentVisibility() 호출로 자동 업데이트됨
-	// NOTE: Gizmo 업데이트 (선택된 본 위치로 이동)는 ViewportWidget->Update()에서 처리됨
 }
 
 void USkeletalMeshEditorWidget::RenderWidget()
@@ -360,16 +413,10 @@ void USkeletalMeshEditorWidget::RenderWidget()
 	ImGui::BeginChild("ViewportPane", ImVec2(col2Width, 0), true);
 	if (ViewportWidget)
 	{
-		// 데이터 주입
+		// 데이터 주입 (범용 Viewport 관련만)
 		ViewportWidget->SetViewport(EmbeddedViewport);
 		ViewportWidget->SetViewportClient(ViewportClient);
 		ViewportWidget->SetGizmo(BoneGizmo);
-		ViewportWidget->SetPreviewComponent(PreviewMeshComponent);
-		ViewportWidget->SetEditorWorld(EditorWorld);
-		ViewportWidget->SetPreviewActor(PreviewActor);
-		ViewportWidget->SetSelectedBoneIndex(&SelectedBoneIndex);
-		ViewportWidget->SetGizmoMode(&CurrentGizmoMode);
-		ViewportWidget->SetGizmoSpace(&CurrentGizmoSpace);
 		// 렌더링
 		ViewportWidget->RenderWidget();
 	}
@@ -424,9 +471,5 @@ void USkeletalMeshEditorWidget::RevertChanges()
 		SelectedBoneIndex = -1;
 	}
 
-	// Gizmo 위치를 복구된 본 위치로 업데이트 (ViewportWidget을 통해)
-	if (ViewportWidget)
-	{
-		ViewportWidget->UpdateGizmoForSelectedBone();
-	}
+	// NOTE: Gizmo는 다음 Update() 사이클에서 자동으로 nullptr로 동기화됨
 }

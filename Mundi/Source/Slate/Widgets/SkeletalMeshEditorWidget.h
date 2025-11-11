@@ -81,9 +81,8 @@ private:
 	AActor* PreviewActor = nullptr;  // SkeletalMeshComponent를 가진 미리보기 액터
 
 	// Gizmo (Offscreen 전용 - ImGui 입력 사용)
+	// NOTE: ViewportWidget에 전달만 하고, 상태는 ViewportWidget이 관리
 	AOffscreenGizmoActor* BoneGizmo = nullptr;
-	EGizmoMode CurrentGizmoMode = EGizmoMode::Translate;
-	EGizmoSpace CurrentGizmoSpace = EGizmoSpace::Local;
 
 	// === 복합 위젯들 (SDetailsWindow 패턴) ===
 	UBoneHierarchyWidget* HierarchyWidget = nullptr;
