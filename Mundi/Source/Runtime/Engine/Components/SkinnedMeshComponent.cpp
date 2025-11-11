@@ -131,8 +131,9 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
             }
 
             FVector Pos = SourceVertex.BaseVertex.pos * SkinningMatrix[BoneIndex];
-            // Normal과 Tangent은 일반 변환 행렬로 변환 (InverseTranspose 아님)
-            FVector4 Normal4 = TransformDirection(SourceVertex.BaseVertex.normal, SkinningMatrix[BoneIndex]);
+            // Normal은 Inverse Transpose로 변환 (수학적으로 올바른 방법)
+            // Tangent는 일반 변환 (표면에 평행한 벡터)
+            FVector4 Normal4 = TransformDirection(SourceVertex.BaseVertex.normal, SkinningInvTransMatrix[BoneIndex]);
             FVector Normal = FVector(Normal4.X, Normal4.Y, Normal4.Z);
             FVector4 Tangent = TransformDirection(SourceVertex.BaseVertex.Tangent, SkinningMatrix[BoneIndex]);
             

@@ -603,6 +603,10 @@ void USkeletalMeshComponent::UpdateSkinningMatrices()
     for (int i = 0; i < BoneCount; i++)
     {
         SkinningMatrix[i] = MeshAsset->Bones[i].InverseBindPoseMatrix * ComponentSpaceTransforms[i];
+
+        // Normal 변환용 Inverse Transpose 계산
+        // Orthogonal matrix의 경우: (M^-1)^T = M
+        // Non-orthogonal의 경우: (M^-1)^T를 계산
         if (SkinningMatrix[i].IsOrtho())
         {
             SkinningInvTransMatrix[i] = SkinningMatrix[i];
