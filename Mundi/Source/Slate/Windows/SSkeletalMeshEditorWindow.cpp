@@ -2,7 +2,7 @@
 #include "SSkeletalMeshEditorWindow.h"
 #include "ImGui/imgui.h"
 #include "Widgets/SkeletalMeshEditorWidget.h"
-#include "SkeletalMeshComponent.h"
+#include "SkeletalMesh.h"
 
 IMPLEMENT_CLASS(SSkeletalMeshEditorWindow)
 
@@ -39,11 +39,11 @@ void SSkeletalMeshEditorWindow::Initialize()
 	EditorWidget->Initialize();
 }
 
-void SSkeletalMeshEditorWindow::SetTargetComponent(USkeletalMeshComponent* Component)
+void SSkeletalMeshEditorWindow::SetTargetSkeletalMesh(USkeletalMesh* SkeletalMesh)
 {
 	if (EditorWidget)
 	{
-		EditorWidget->SetTargetComponent(Component);
+		EditorWidget->SetTargetSkeletalMesh(SkeletalMesh);
 	}
 }
 

@@ -4,24 +4,19 @@
 #include "SpotLightComponent.h"
 #include "DirectionalLightComponent.h"
 #include "PointLightComponent.h"
-#include "SkeletalMeshComponent.h"
-#include "UIManager.h"
-#include "Windows/SSkeletalMeshEditorWindow.h"
 
 void UComponentDetailRenderer::RenderCustomUI(UActorComponent* Component)
 {
 	if (!Component)
 		return;
 
-	// 런타임 타입 체크 → 컴파일 타임 오버로딩 디스패치
+	// 런타임 타입 체크 → 컴파일 타입 오버로딩 디스패치
 	if (auto* SpotLight = Cast<USpotLightComponent>(Component))
 		RenderCustomUIImpl(SpotLight);
 	else if (auto* DirLight = Cast<UDirectionalLightComponent>(Component))
 		RenderCustomUIImpl(DirLight);
 	else if (auto* PointLight = Cast<UPointLightComponent>(Component))
 		RenderCustomUIImpl(PointLight);
-	else if (auto* SkeletalMesh = Cast<USkeletalMeshComponent>(Component))
-		RenderCustomUIImpl(SkeletalMesh);
 	else
 		RenderCustomUIImpl(Component);  // Fallback
 }
@@ -47,56 +42,6 @@ void UComponentDetailRenderer::RenderCustomUIImpl(UPointLightComponent* Componen
 	// 현재는 비워둠 (나중에 리팩토링 시 구현)
 }
 
-// ===== SkeletalMesh UI (신규) =====
-void UComponentDetailRenderer::RenderCustomUIImpl(USkeletalMeshComponent* Component)
-{
-	ImGui::Spacing();
-	ImGui::Separator();
-	ImGui::Text("[Skeletal Mesh Editor]");
-	ImGui::Spacing();
-
-	// Bone 정보 표시 (asset에서 직접 가져오기)
-	USkeletalMesh* SkeletalMesh = Component->GetSkeletalMesh();
-	if (SkeletalMesh && SkeletalMesh->GetSkeletalMeshAsset())
-	{
-		FSkeletalMesh* MeshAsset = SkeletalMesh->GetSkeletalMeshAsset();
-		int32 BoneCount = static_cast<int32>(MeshAsset->Bones.size());
-		ImGui::Text("Total Bones: %d", BoneCount);
-	}
-	else
-	{
-		ImGui::TextDisabled("No skeletal mesh loaded");
-	}
-
-	ImGui::Spacing();
-
-	// Editor 열기 버튼
-	if (ImGui::Button("Open Skeletal Mesh Editor", ImVec2(200, 30)))
-	{
-		// UUIManager를 통해 창 찾기 또는 생성 (UCameraBlendEditorWindow 패턴)
-		UUIWindow* SkeletalMeshEditorWindow = UUIManager::GetInstance().FindUIWindow("Skeletal Mesh Editor");
-		if (!SkeletalMeshEditorWindow)
-		{
-			// 윈도우가 없으면 생성 후 등록
-			SkeletalMeshEditorWindow = new SSkeletalMeshEditorWindow();
-			SkeletalMeshEditorWindow->Initialize();
-			UUIManager::GetInstance().RegisterUIWindow(SkeletalMeshEditorWindow);
-		}
-
-		// SetTargetComponent 호출 (다운캐스트 필요)
-		SSkeletalMeshEditorWindow* Editor = static_cast<SSkeletalMeshEditorWindow*>(SkeletalMeshEditorWindow);
-		Editor->SetTargetComponent(Component);
-
-		// 윈도우 표시
-		Editor->SetWindowState(EUIWindowState::Visible);
-
-		UE_LOG("SkeletalMeshEditor: Window opened for component %p", Component);
-	}
-
-	ImGui::SameLine();
-	ImGui::TextDisabled("(?)");
-	if (ImGui::IsItemHovered())
-	{
-		ImGui::SetTooltip("Bone hierarchy editor and transform manipulation");
-	}
-}
+// ===== SkeletalMesh UI =====
+// NOTE: Skeletal Mesh Editor는 Property Reflection을 통해 자동으로 노출됨
+// (PropertyRenderer::RenderSkeletalMeshProperty에서 처리)

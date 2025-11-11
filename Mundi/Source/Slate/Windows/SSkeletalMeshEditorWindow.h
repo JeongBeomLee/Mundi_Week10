@@ -2,7 +2,7 @@
 #include "UIWindow.h"
 
 class USkeletalMeshEditorWidget;
-class USkeletalMeshComponent;
+class USkeletalMesh;
 
 /**
  * @brief Skeletal Mesh Editor 창 (독립 팝업 윈도우)
@@ -30,8 +30,8 @@ public:
 	virtual void RenderContent() override;
 	virtual bool OnWindowClose() override;
 
-	/** @brief 편집 대상 컴포넌트 설정 (윈도우 열 때) */
-	void SetTargetComponent(USkeletalMeshComponent* Component);
+	/** @brief 편집 대상 Skeletal Mesh 설정 (윈도우 열 때) */
+	void SetTargetSkeletalMesh(USkeletalMesh* SkeletalMesh);
 
 private:
 	USkeletalMeshEditorWidget* EditorWidget = nullptr;

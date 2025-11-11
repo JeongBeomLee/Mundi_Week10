@@ -1,8 +1,8 @@
 ﻿#include "pch.h"
 #include "SkeletalMeshEditorWidget.h"
 #include "ImGui/imgui.h"
-#include "SkeletalMeshComponent.h"
 #include "SkeletalMesh.h"
+#include "SkeletalMeshComponent.h"
 #include "SceneComponent.h"
 #include "Enums.h"
 #include "FOffscreenViewport.h"
@@ -223,16 +223,16 @@ void USkeletalMeshEditorWidget::Shutdown()
 	}
 }
 
-void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Component)
+void USkeletalMeshEditorWidget::SetTargetSkeletalMesh(USkeletalMesh* SkeletalMesh)
 {
-	// 같은 컴포넌트면 재사용 (불필요한 액터 재생성 방지)
-	if (TargetComponent == Component && PreviewActor)
+	// 같은 Skeletal Mesh면 재사용 (불필요한 액터 재생성 방지)
+	if (TargetSkeletalMesh == SkeletalMesh && PreviewActor)
 	{
 		return;
 	}
 
-	TargetComponent = Component;
-	SelectedBoneIndex = Component ? Component->GetSelectedBoneIndex() : -1;
+	TargetSkeletalMesh = SkeletalMesh;
+	SelectedBoneIndex = -1;
 
 	if (!EditorWorld)
 	{
@@ -240,7 +240,7 @@ void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Compo
 		return;
 	}
 
-	// 기존 PreviewActor 제거 (다른 컴포넌트로 전환 시)
+	// 기존 PreviewActor 제거 (다른 Skeletal Mesh로 전환 시)
 	if (PreviewActor)
 	{
 		EditorWorld->DestroyActor(PreviewActor);
@@ -249,19 +249,21 @@ void USkeletalMeshEditorWidget::SetTargetComponent(USkeletalMeshComponent* Compo
 	}
 
 	// 새로운 미리보기 액터 생성
-	if (Component && !Component->EditableBones.empty())
+	if (SkeletalMesh && SkeletalMesh->IsValidResource())
 	{
 		// EmptyActor 생성 (SkeletalMeshComponent 컨테이너)
 		PreviewActor = EditorWorld->SpawnActor<AEmptyActor>();
 		PreviewActor->SetActorLocation(FVector(0, 0, 0));
 
-		// TargetComponent를 Duplicate (DuplicateSubObjects에서 SkeletalMesh, EditableBones, Materials 모두 복사)
-		PreviewMeshComponent = static_cast<USkeletalMeshComponent*>(Component->Duplicate());
-
-		// Duplicate된 컴포넌트를 PreviewActor에 연결
+		// SkeletalMeshComponent 생성
+		PreviewMeshComponent = NewObject<USkeletalMeshComponent>();
 		PreviewMeshComponent->SetOwner(PreviewActor);
 		PreviewActor->AddOwnedComponent(PreviewMeshComponent);
 		PreviewActor->SetRootComponent(PreviewMeshComponent);
+
+		// Skeletal Mesh 설정 (리소스 경로로)
+		const FString& AssetPath = SkeletalMesh->GetAssetPathFileName();
+		PreviewMeshComponent->SetSkeletalMesh(AssetPath);
 
 		// 컴포넌트 등록 (World 전달)
 		PreviewMeshComponent->RegisterComponent(EditorWorld);
@@ -334,9 +336,9 @@ void USkeletalMeshEditorWidget::Update()
 
 void USkeletalMeshEditorWidget::RenderWidget()
 {
-	if (!TargetComponent)
+	if (!TargetSkeletalMesh)
 	{
-		ImGui::TextColored(ImVec4(1, 0, 0, 1), "No skeletal mesh component selected!");
+		ImGui::TextColored(ImVec4(1, 0, 0, 1), "No skeletal mesh selected!");
 		return;
 	}
 
@@ -409,15 +411,23 @@ void USkeletalMeshEditorWidget::PerformBonePicking(float MouseX, float MouseY)
 
 void USkeletalMeshEditorWidget::RevertChanges()
 {
-	if (!TargetComponent || !PreviewMeshComponent)
+	if (!TargetSkeletalMesh || !PreviewMeshComponent)
 	{
-		UE_LOG("SkeletalMeshEditorWidget: Cannot revert - missing component");
+		UE_LOG("SkeletalMeshEditorWidget: Cannot revert - missing skeletal mesh or component");
 		return;
 	}
 
-	// TargetComponent → PreviewMeshComponent 복사 (되돌리기)
-	PreviewMeshComponent->EditableBones = TargetComponent->EditableBones;
-	PreviewMeshComponent->SetSelectedBoneIndex(TargetComponent->GetSelectedBoneIndex());
+	// TargetSkeletalMesh의 Bones에서 EditableBones를 다시 로드 (되돌리기)
+	if (FSkeletalMesh* SkeletalMeshAsset = TargetSkeletalMesh->GetSkeletalMeshAsset())
+	{
+		PreviewMeshComponent->EditableBones.clear();
+		for (int32 i = 0; i < static_cast<int32>(SkeletalMeshAsset->Bones.size()); ++i)
+		{
+			PreviewMeshComponent->EditableBones.push_back(FBone::FromBoneInfo(i, SkeletalMeshAsset->Bones));
+		}
+		PreviewMeshComponent->SetSelectedBoneIndex(-1);
+		SelectedBoneIndex = -1;
+	}
 
 	// Gizmo 위치를 복구된 본 위치로 업데이트 (ViewportWidget을 통해)
 	if (ViewportWidget)

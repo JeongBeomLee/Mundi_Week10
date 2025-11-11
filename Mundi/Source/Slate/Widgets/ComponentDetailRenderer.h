@@ -25,7 +25,6 @@ private:
 	static void RenderCustomUIImpl(class USpotLightComponent* Component);
 	static void RenderCustomUIImpl(class UDirectionalLightComponent* Component);
 	static void RenderCustomUIImpl(class UPointLightComponent* Component);
-	static void RenderCustomUIImpl(class USkeletalMeshComponent* Component);
 
 	// Fallback (매칭 안 되는 타입은 아무것도 안 함)
 	static void RenderCustomUIImpl(UActorComponent* Component) {}

@@ -14,6 +14,9 @@
 #include "LightComponentBase.h"
 #include "DirectionalLightComponent.h"
 #include "SkeletalMeshComponent.h"
+#include "SkeletalMesh.h"
+#include "UIManager.h"
+#include "Windows/SSkeletalMeshEditorWindow.h"
 
 // 정적 멤버 변수 초기화
 TArray<FString> UPropertyRenderer::CachedStaticMeshPaths;
@@ -969,6 +972,26 @@ bool UPropertyRenderer::RenderSkeletalMeshProperty(const FProperty& Prop, void* 
 		ImGui::EndTooltip();
 	}
 
+	// Skeletal Mesh가 선택되어 있으면 추가 정보 및 편집 버튼 표시 (Material 패턴 참고)
+	if (*MeshPtr && (*MeshPtr)->IsValidResource())
+	{
+		ImGui::Indent();
+
+		// Bone 정보 표시
+		if (FSkeletalMesh* MeshAsset = (*MeshPtr)->GetSkeletalMeshAsset())
+		{
+			int32 BoneCount = static_cast<int32>(MeshAsset->Bones.size());
+			ImGui::Text("Bones: %d", BoneCount);
+		}
+
+		ImGui::SameLine();
+
+		// Edit 버튼 (헬퍼 함수 호출)
+		RenderSkeletalMeshEditorButton(*MeshPtr, Prop.Name);
+
+		ImGui::Unindent();
+	}
+
 	return false;
 }
 
@@ -1328,4 +1351,40 @@ bool UPropertyRenderer::RenderEnumProperty(const FProperty& Prop, void* Instance
 	}
 
 	return bChanged;
+}
+
+// ===== Skeletal Mesh Editor 버튼 렌더링 헬퍼 함수 =====
+void UPropertyRenderer::RenderSkeletalMeshEditorButton(USkeletalMesh* SkeletalMesh, const char* UniqueID)
+{
+	if (!SkeletalMesh)
+		return;
+
+	// Edit 버튼 (복잡한 편집이므로 별도 창 열기)
+	FString ButtonLabel = "Edit Skeletal Mesh##" + FString(UniqueID);
+	if (ImGui::Button(ButtonLabel.c_str(), ImVec2(150, 0)))
+	{
+		// UUIManager를 통해 창 찾기 또는 생성
+		UUIWindow* SkeletalMeshEditorWindow = UUIManager::GetInstance().FindUIWindow("Skeletal Mesh Editor");
+		if (!SkeletalMeshEditorWindow)
+		{
+			// 윈도우가 없으면 생성 후 등록
+			SkeletalMeshEditorWindow = new SSkeletalMeshEditorWindow();
+			SkeletalMeshEditorWindow->Initialize();
+			UUIManager::GetInstance().RegisterUIWindow(SkeletalMeshEditorWindow);
+		}
+
+		// SetTargetSkeletalMesh 호출
+		SSkeletalMeshEditorWindow* Editor = static_cast<SSkeletalMeshEditorWindow*>(SkeletalMeshEditorWindow);
+		Editor->SetTargetSkeletalMesh(SkeletalMesh);
+
+		// 윈도우 표시
+		Editor->SetWindowState(EUIWindowState::Visible);
+
+		UE_LOG("PropertyRenderer: Skeletal Mesh Editor opened for %s", SkeletalMesh->GetFilePath().c_str());
+	}
+
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Open bone hierarchy editor and transform manipulation");
+	}
 }

@@ -2,6 +2,7 @@
 #include "Widgets/Widget.h"
 #include "Enums.h"
 
+class USkeletalMesh;
 class USkeletalMeshComponent;
 class FOffscreenViewport;
 class FOffscreenViewportClient;
@@ -27,15 +28,15 @@ public:
 
 	USkeletalMeshEditorWidget();
 
-	/** @brief 편집 대상 컴포넌트 설정 */
-	void SetTargetComponent(USkeletalMeshComponent* Component);
+	/** @brief 편집 대상 Skeletal Mesh 설정 */
+	void SetTargetSkeletalMesh(USkeletalMesh* SkeletalMesh);
 
 	// UWidget 인터페이스
 	virtual void Initialize() override;
 	virtual void Update() override;
 	virtual void RenderWidget() override;
 
-	/** @brief 편집 내용을 원본으로 되돌림 (TargetComponent → PreviewMeshComponent) */
+	/** @brief 편집 내용을 원본으로 되돌림 (TargetSkeletalMesh → PreviewMeshComponent) */
 	void RevertChanges();
 
 	/** @brief 리소스 정리 (UWidget에는 없지만 필요) */
@@ -46,12 +47,12 @@ private:
 	void HandleViewportInput();
 	void PerformBonePicking(float MouseX, float MouseY);
 
-	/** @brief FBX Asset에서 Bone 데이터 로드 (TargetComponent의 SkeletalMesh에서) */
+	/** @brief FBX Asset에서 Bone 데이터 로드 (TargetSkeletalMesh에서) */
 	void LoadBonesFromAsset();
 
 	// 상태
-	USkeletalMeshComponent* TargetComponent = nullptr;  // 원본 컴포넌트 (메인 에디터)
-	USkeletalMeshComponent* PreviewMeshComponent = nullptr;  // 편집 대상 (EditorWorld)
+	USkeletalMesh* TargetSkeletalMesh = nullptr;  // 원본 Skeletal Mesh (편집 대상)
+	USkeletalMeshComponent* PreviewMeshComponent = nullptr;  // 미리보기 컴포넌트 (EditorWorld)
 	int32 SelectedBoneIndex = -1;
 
 	// Viewport 관련
