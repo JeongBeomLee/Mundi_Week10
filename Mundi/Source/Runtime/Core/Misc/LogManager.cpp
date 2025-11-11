@@ -28,6 +28,7 @@ void FLogManager::Initialize(const std::wstring& LogFileName)
 
 void FLogManager::WriteLog(LogType LogType, const wchar_t* Format, ...)
 {
+    std::lock_guard<std::mutex> Lock(FileMutex);
     if (!LogFile.is_open())
     {
         return;
@@ -39,15 +40,11 @@ void FLogManager::WriteLog(LogType LogType, const wchar_t* Format, ...)
     _vsnwprintf_s(MessageBuffer, _countof(MessageBuffer), _TRUNCATE, Format, Arguments);
     va_end(Arguments);
 
-    {
-        std::lock_guard<std::mutex> Lock(FileMutex);
-        LogFile << GetTypeLabel(LogType) << L": " << MessageBuffer << std::endl;
-    }
+    LogFile << GetTypeLabel(LogType) << L": " << MessageBuffer << std::endl;
 }
 
 void FLogManager::CloseCurrentFile()
 {
-    std::lock_guard<std::mutex> Lock(FileMutex);
     if (LogFile.is_open())
     {
         LogFile.close();
@@ -56,7 +53,6 @@ void FLogManager::CloseCurrentFile()
 
 FLogManager::~FLogManager()
 {
-    std::lock_guard<std::mutex> Lock(FileMutex);
     if (LogFile.is_open())
     {
         LogFile.close();

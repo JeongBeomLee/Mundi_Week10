@@ -915,16 +915,13 @@ void FSceneRenderer::RenderOpaquePass(EViewModeIndex InRenderViewMode)
 	}
 
 	SkeletalMeshElements.Empty();
+	for (UMeshComponent* MeshComponenent : SkeletalProxies)
 	{
-		PROFILE_SCOPE("CPUSKinning")
-		for (UMeshComponent* MeshComponenent : SkeletalProxies)
+		if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(MeshComponenent))
 		{
-			if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(MeshComponenent))
-			{
-				SkeletalMeshComponent->EnsureSkinningReady(RHIDevice);
-			}
-			MeshComponenent->CollectMeshBatches(SkeletalMeshElements, View);
+			SkeletalMeshComponent->EnsureSkinningReady(RHIDevice);
 		}
+		MeshComponenent->CollectMeshBatches(SkeletalMeshElements, View);
 	}
 
 	// --- UMeshComponent 셰이더 오버라이드 ---
