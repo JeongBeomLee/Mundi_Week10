@@ -293,11 +293,44 @@ void USkeletalMeshEditorWidget::ApplyPreviewMaterialsFromComponent(USkeletalMesh
 		return;
 	}
 
-	// Source Component의 MaterialSlots를 Preview Component에 복사
+	// CRITICAL: PreviewComponent가 독립적인 MID 복사본을 소유하도록 수정
+	// SourceComponent의 MID 포인터를 직접 사용하면 dangling pointer 발생!
+
 	const TArray<UMaterialInterface*>& SourceMaterials = SourceComponent->GetMaterialSlots();
 	for (size_t i = 0; i < SourceMaterials.size(); ++i)
 	{
-		PreviewMeshComponent->SetMaterial(static_cast<uint32>(i), SourceMaterials[i]);
+		UMaterialInterface* SourceMat = SourceMaterials[i];
+		if (!SourceMat)
+		{
+			PreviewMeshComponent->SetMaterial(static_cast<uint32>(i), nullptr);
+			continue;
+		}
+
+		// MID인 경우: 독립적인 복사본 생성 (PreviewComponent가 소유)
+		if (UMaterialInstanceDynamic* SourceMID = Cast<UMaterialInstanceDynamic>(SourceMat))
+		{
+			UMaterialInterface* ParentMat = SourceMID->GetParentMaterial();
+			if (!ParentMat)
+			{
+				UE_LOG("SkeletalMeshEditorWidget: Source MID at slot %d has no parent, skipping", i);
+				PreviewMeshComponent->SetMaterial(static_cast<uint32>(i), nullptr);
+				continue;
+			}
+
+			// 새로운 MID 생성 (PreviewComponent 전용)
+			UMaterialInstanceDynamic* PreviewMID = UMaterialInstanceDynamic::Create(ParentMat);
+			if (PreviewMID)
+			{
+				// Source MID의 파라미터를 Preview MID로 복사
+				PreviewMID->CopyParametersFrom(SourceMID);
+				PreviewMeshComponent->SetMaterial(static_cast<uint32>(i), PreviewMID);
+			}
+		}
+		else
+		{
+			// 일반 Material (에셋)인 경우: 참조 공유 OK (에셋은 삭제되지 않음)
+			PreviewMeshComponent->SetMaterial(static_cast<uint32>(i), SourceMat);
+		}
 	}
 
 	UE_LOG("SkeletalMeshEditorWidget: Applied %d preview materials from source component", SourceMaterials.size());
