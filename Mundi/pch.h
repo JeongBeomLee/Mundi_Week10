@@ -66,6 +66,7 @@
 #include <DirectXMath.h>
 #include <DirectXColors.h>
 #include <cassert>
+#include <ppl.h>
 
 // Core Project Headers
 #include "VertexData.h"
@@ -83,7 +84,8 @@
 #include "D3D11RHI.h"
 #include "World.h"
 #include "ConstantBufferType.h"
-#include "LogManager.h"
+#include "TimeProfiler.h"
+
 
 // d3dtk
 #include "DirectXTK/SimpleMath.h"
@@ -110,6 +112,7 @@
 #include "UIManager.h"
 #include "ResourceManager.h"
 #include "SoundManager.h"
+#include "LogManager.h"
 
 #include "JsonSerializer.h"
 

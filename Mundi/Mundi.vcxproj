@@ -370,6 +370,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClCompile Include="Source\Runtime\AssetManagement\FFBXManager.cpp" />
     <ClCompile Include="Source\Runtime\AssetManagement\SkeletalMesh.cpp" />
     <ClCompile Include="Source\Runtime\AssetManagement\Sound.cpp" />
+    <ClCompile Include="Source\Runtime\Core\Misc\TimeProfiler.cpp" />
     <ClCompile Include="Source\Runtime\Core\Misc\LogManager.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Audio\SoundManager.cpp" />
     <ClCompile Include="Source\Runtime\Core\Math\UCurveFloat.cpp" />
@@ -801,6 +802,7 @@ if %ERRORLEVEL% LEQ 7 exit 0</Command>
     <ClInclude Include="Source\Runtime\Core\Math\UCurveFloat.h" />
     <ClInclude Include="Source\Runtime\Core\Math\UPerlinNoiseFloat.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\Delegate.h" />
+    <ClInclude Include="Source\Runtime\Core\Misc\TimeProfiler.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\LogManager.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\PathUtils.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\SkeletalMeshTypes.h" />

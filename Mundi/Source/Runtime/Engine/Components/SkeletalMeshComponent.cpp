@@ -291,6 +291,7 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& FilePath)
 
         // FBoneInfo에서 EditableBones 초기화
         LoadBonesFromAsset();
+        bSkinningDirty = true;
     }
     else
     {
@@ -435,10 +436,15 @@ UMaterialInstanceDynamic* USkeletalMeshComponent::CreateAndSetMaterialInstanceDy
 
 void USkeletalMeshComponent::EnsureSkinningReady(D3D11RHI* InDevice)
 {
-    UpdateBoneMatrices();
-    UpdateSkinningMatrices();
-    PerformCPUSkinning(AnimatedVertices);
-    UpdateVertexBuffer(InDevice);
+    // scene에 배치되고 처음 한 번만 skinning 갱신
+    if (bSkinningDirty && SkeletalMesh)
+    {
+        UpdateBoneMatrices();
+        UpdateSkinningMatrices();
+        PerformCPUSkinning(AnimatedVertices);
+        UpdateVertexBuffer(InDevice);
+        bSkinningDirty = false;
+    }
 }
 
 void USkeletalMeshComponent::UpdateVertexBuffer(D3D11RHI* InDevice)
@@ -485,7 +491,7 @@ void USkeletalMeshComponent::UpdateVertexBuffer(D3D11RHI* InDevice)
         VertexData[i].FillFrom(AnimatedVertices[i]);
     }    
 
-    DeviceContext->Unmap(VertexBuffer, 0);
+    DeviceContext->Unmap(VertexBuffer, 0);    
 }
 
 FAABB USkeletalMeshComponent::GetWorldAABB() const
@@ -600,6 +606,9 @@ void USkeletalMeshComponent::UpdateSkinningMatrices()
 
     SkinningMatrix.SetNum(BoneCount);
     SkinningInvTransMatrix.SetNum(BoneCount);
+    /*
+     * 여기에 parallel_for 적용해도 성능 이득이 거의 없음
+     */    
     for (int i = 0; i < BoneCount; i++)
     {
         SkinningMatrix[i] = MeshAsset->Bones[i].InverseBindPoseMatrix * ComponentSpaceTransforms[i];
@@ -615,12 +624,6 @@ void USkeletalMeshComponent::UpdateSkinningMatrices()
         {
             SkinningInvTransMatrix[i] = SkinningMatrix[i].InverseAffine().Transpose();
         }
-        // UE_LOG("**************************");
-        // UE_LOG("%f %f %f", SkinningMatrix[i].VRows[0].X, SkinningMatrix[i].VRows[0].Y, SkinningMatrix[i].VRows[0].Z, SkinningMatrix[i].VRows[0].W);
-        // UE_LOG("%f %f %f", SkinningMatrix[i].VRows[1].X, SkinningMatrix[i].VRows[1].Y, SkinningMatrix[i].VRows[1].Z, SkinningMatrix[i].VRows[1].W);
-        // UE_LOG("%f %f %f", SkinningMatrix[i].VRows[2].X, SkinningMatrix[i].VRows[2].Y, SkinningMatrix[i].VRows[2].Z, SkinningMatrix[i].VRows[2].W);
-        // UE_LOG("%f %f %f", SkinningMatrix[i].VRows[3].X, SkinningMatrix[i].VRows[3].Y, SkinningMatrix[i].VRows[3].Z, SkinningMatrix[i].VRows[3].W);
-        // UE_LOG("-------------------------");
     }
 }
 
