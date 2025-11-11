@@ -266,8 +266,8 @@ void URenderer::EndLineBatch(const FMatrix& ModelMatrix)
 				RHIDevice->GetDeviceContext()->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
 				RHIDevice->GetDeviceContext()->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
 				RHIDevice->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-				// Overlay 스텐실(=1) 영역은 그리지 않도록 스텐실 테스트 설정
-				RHIDevice->OMSetDepthStencilState_StencilRejectOverlay();
+				// 라인은 depth test만 수행, depth write는 하지 않음 (의미론적으로 라인은 표면이 아님)
+				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqualReadOnly);
 				RHIDevice->GetDeviceContext()->DrawIndexed(DynamicLineMesh->GetCurrentIndexCount(), 0, 0);
 				// 상태 복구
 				RHIDevice->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -315,8 +315,8 @@ void URenderer::EndLineBatch(const FMatrix& ModelMatrix)
 				RHIDevice->GetDeviceContext()->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
 				RHIDevice->GetDeviceContext()->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
 				RHIDevice->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-				// Overlay 스텐실(=1) 영역은 그리지 않도록 스텐실 테스트 설정
-				RHIDevice->OMSetDepthStencilState_StencilRejectOverlay();
+				// 라인은 depth test만 수행, depth write는 하지 않음 (의미론적으로 라인은 표면이 아님)
+				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqualReadOnly);
 				RHIDevice->GetDeviceContext()->DrawIndexed(DynamicLineMesh->GetCurrentIndexCount(), 0, 0);
 				// 상태 복구
 				RHIDevice->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);

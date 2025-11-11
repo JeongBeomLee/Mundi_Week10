@@ -19,8 +19,8 @@ END_PROPERTIES()
 UCameraComponent::UCameraComponent()
     : FieldOfView(60.0f)
     , AspectRatio(1.0f / 1.0f)
-    , NearClip(0.1f)
-    , FarClip(100.0f)
+    , NearClip(1.0f)   // 0.1f → 1.0f: Depth precision 향상 (z-fighting 방지)
+    , FarClip(1000.0f) // 100.0f → 1000.0f: 표준 범위, 비율 1000:1 유지
     , ProjectionMode(ECameraProjectionMode::Perspective)
     , ZooMFactor(1.0f)
 

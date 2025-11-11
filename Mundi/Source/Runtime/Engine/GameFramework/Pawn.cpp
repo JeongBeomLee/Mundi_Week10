@@ -50,7 +50,7 @@ APawn::APawn()
 
 		// 기본 카메라 설정
 		CameraComponent->SetFOV(90.0f);
-		CameraComponent->SetClipPlanes(10.0f, 100000.0f);
+		CameraComponent->SetClipPlanes(1.0f, 10000.0f);
 	}
 }
 

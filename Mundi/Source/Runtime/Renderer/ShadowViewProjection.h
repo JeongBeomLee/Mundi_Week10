@@ -658,7 +658,7 @@ public:
 	// PointLight용 Cube Map Shadow VP 행렬 6개 생성
 	// @param Position - 라이트 월드 위치
 	// @param AttenuationRadius - 라이트 감쇠 반경 (Far plane으로 사용)
-	// @param NearPlane - Near clipping plane (기본값 0.1f)
+	// @param NearPlane - Near clipping plane (기본값 0.01f)
 	// @return 6개의 VP 행렬 배열
 	static TArray<FShadowViewProjection> CreateForPointLightCube(
 		const FVector& Position,
