@@ -568,7 +568,14 @@ void FSceneRenderer::RenderShadowPass()
 
 void FSceneRenderer::CollectShadowMeshBatches(TArray<FMeshBatchElement>& OutMeshBatches) const
 {
+	// 일반 메시 컴포넌트
 	for (UMeshComponent* MeshComponent : Proxies.Meshes)
+	{
+		MeshComponent->CollectMeshBatches(OutMeshBatches, View);
+	}
+
+	// 스켈레탈 메시 컴포넌트
+	for (UMeshComponent* MeshComponent : SkeletalProxies)
 	{
 		MeshComponent->CollectMeshBatches(OutMeshBatches, View);
 	}
