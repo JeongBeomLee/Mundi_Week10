@@ -23,7 +23,6 @@ public:
     void OnSerialized() override;
 
     void SetSkeletalMesh(const FString& FilePath) override;
-    void SetSkeletalMesh(USkeletalMesh* InSkeletalMesh);
 
     USkeletalMesh* GetSkeletalMesh() const  { return SkeletalMesh; }
 
@@ -44,9 +43,6 @@ public:
     int32 GetBoneCount() const { return static_cast<int32>(EditableBones.size()); }
     FBone* GetBone(int32 Index);
     FTransform GetBoneWorldTransform(int32 BoneIndex) const;
-    void SetBoneWorldTransform(int32 BoneIndex, const FTransform& WorldTransform);
-    FTransform GetBoneLocalTransform(int32 BoneIndex) const;
-    void SetBoneLocalTransform(int32 BoneIndex, const FTransform& LocalTransform);
     int32 GetSelectedBoneIndex() const { return SelectedBoneIndex; }
     void SetSelectedBoneIndex(int32 Index) { SelectedBoneIndex = Index; }
 
@@ -55,12 +51,6 @@ public:
 
     // 시각화
     void RenderDebugVolume(URenderer* Renderer) const;
-
-    // 본 편집 시 Dirty flag 설정 (에디터용)
-    void MarkSkeletalMeshDirty() { bChangedSkeletalMesh = true; }
-
-    // 본 Transform을 Bind Pose로 복구
-    void RevertToBindPose();
 
 protected:
     void UpdateBoneMatrices();

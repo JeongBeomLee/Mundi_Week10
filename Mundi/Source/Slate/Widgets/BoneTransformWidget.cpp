@@ -28,58 +28,34 @@ void UBoneTransformWidget::RenderWidget()
 	ImGui::Separator();
 	ImGui::Spacing();
 
-	USkeletalMesh* SkeletalMesh = PreviewComponent ? PreviewComponent->GetSkeletalMesh() : nullptr;
-	FSkeletalMesh* MeshAsset = SkeletalMesh ? SkeletalMesh->GetSkeletalMeshAsset() : nullptr;
-
-	if (!PreviewComponent || !SelectedBoneIndexPtr || !MeshAsset ||
-		*SelectedBoneIndexPtr < 0 || *SelectedBoneIndexPtr >= MeshAsset->Bones.Num())
+	if (!PreviewComponent || !SelectedBoneIndexPtr || *SelectedBoneIndexPtr < 0 || *SelectedBoneIndexPtr >= PreviewComponent->EditableBones.size())
 	{
 		ImGui::TextDisabled("Select a bone from the hierarchy");
 		return;
 	}
 
-	int32 BoneIndex = *SelectedBoneIndexPtr;
-	const FBoneInfo& BoneInfo = MeshAsset->Bones[BoneIndex];
+	FBone& SelectedBone = PreviewComponent->EditableBones[*SelectedBoneIndexPtr];
 
-	ImGui::Text("Bone: %s (Index: %d)", BoneInfo.BoneName.c_str(), BoneIndex);
+	ImGui::Text("Bone: %s (Index: %d)", SelectedBone.Name.c_str(), *SelectedBoneIndexPtr);
 	ImGui::Separator();
 	ImGui::Spacing();
-
-	// Local Transform 가져오기
-	FTransform LocalTransform = PreviewComponent->GetBoneLocalTransform(BoneIndex);
-
-	// Bone이 변경되었으면 캐시 업데이트 (FBone 패턴)
-	if (LastEditedBoneIndex != BoneIndex)
-	{
-		CachedLocalRotationEuler = LocalTransform.Rotation.ToEulerZYXDeg();
-		LastEditedBoneIndex = BoneIndex;
-	}
 
 	// Local Transform 편집 (PropertyRenderer 스타일)
 	ImGui::Text("Local Transform (Preview):");
 	ImGui::Spacing();
 
-	bool bChanged = false;
-
 	// Position
-	bChanged |= UPropertyUtils::RenderVector3WithColorBars("Position", &LocalTransform.Translation, 0.1f);
+	UPropertyUtils::RenderVector3WithColorBars("Position", &SelectedBone.LocalPosition, 0.1f);
 
-	// Rotation (Euler 캐시 사용, gimbal lock 방지)
-	if (UPropertyUtils::RenderVector3WithColorBars("Rotation", &CachedLocalRotationEuler, 1.0f))
+	// Rotation (Euler 저장 패턴으로 gimbal lock UI 문제 방지)
+	FVector euler = SelectedBone.GetLocalRotationEuler();
+	if (UPropertyUtils::RenderVector3WithColorBars("Rotation", &euler, 1.0f))
 	{
-		LocalTransform.Rotation = FQuat::MakeFromEulerZYX(CachedLocalRotationEuler).GetNormalized();
-		bChanged = true;
+		SelectedBone.SetLocalRotationEuler(euler);
 	}
 
 	// Scale
-	bChanged |= UPropertyUtils::RenderVector3WithColorBars("Scale", &LocalTransform.Scale3D, 0.01f);
-
-	// 값이 변경되었으면 BoneSpaceTransforms 업데이트
-	if (bChanged)
-	{
-		PreviewComponent->SetBoneLocalTransform(BoneIndex, LocalTransform);
-		PreviewComponent->MarkSkeletalMeshDirty();
-	}
+	UPropertyUtils::RenderVector3WithColorBars("Scale", &SelectedBone.LocalScale, 0.01f);
 
 	// 버튼을 하단에 배치하기 위해 남은 공간 계산
 	float availHeight = ImGui::GetContentRegionAvail().y;

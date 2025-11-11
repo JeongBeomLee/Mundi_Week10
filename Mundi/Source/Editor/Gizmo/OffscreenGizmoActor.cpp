@@ -406,7 +406,6 @@ void AOffscreenGizmoActor::UpdateSelfTransformFromDrag(uint32 GizmoAxis, float M
 		}
 		else // Local
 		{
-			// 로컬 축을 드래그 시작 시점의 월드 축으로 변환
 			FVector WorldSpaceRotationAxis = DragStartRotation.RotateVector(LocalAxisVector);
 			FQuat DeltaQuat = FQuat::FromAxisAngle(WorldSpaceRotationAxis, TotalAngle);
 			NewRot = DeltaQuat * DragStartRotation;

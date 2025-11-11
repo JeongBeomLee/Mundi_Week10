@@ -261,8 +261,9 @@ void USkeletalMeshEditorWidget::SetTargetSkeletalMesh(USkeletalMesh* SkeletalMes
 		PreviewActor->AddOwnedComponent(PreviewMeshComponent);
 		PreviewActor->SetRootComponent(PreviewMeshComponent);
 
-		// Skeletal Mesh 설정 (이미 로드된 객체를 직접 전달)
-		PreviewMeshComponent->SetSkeletalMesh(SkeletalMesh);
+		// Skeletal Mesh 설정 (리소스 경로로)
+		const FString& AssetPath = SkeletalMesh->GetAssetPathFileName();
+		PreviewMeshComponent->SetSkeletalMesh(AssetPath);
 
 		// 컴포넌트 등록 (World 전달)
 		PreviewMeshComponent->RegisterComponent(EditorWorld);
@@ -315,18 +316,10 @@ void USkeletalMeshEditorWidget::Update()
 	}
 
 	// EditorWorld Tick (BoneGizmo 등 Embedded World의 액터들을 업데이트)
-	// CRITICAL: PreviewComponent->TickComponent()에서 UpdateBoneMatrices() 호출됨
 	if (EditorWorld)
 	{
 		float DeltaTime = ImGui::GetIO().DeltaTime;
 		EditorWorld->Tick(DeltaTime);
-	}
-
-	// CRITICAL: Gizmo 업데이트는 EditorWorld->Tick() 이후에 호출되어야 함
-	// 이유: ComponentSpaceTransforms가 UpdateBoneMatrices()에서 업데이트되어야 함
-	if (ViewportWidget)
-	{
-		ViewportWidget->UpdateGizmoForSelectedBone();
 	}
 
 	// ViewportClient 업데이트
@@ -338,6 +331,7 @@ void USkeletalMeshEditorWidget::Update()
 	}
 
 	// NOTE: Gizmo 컴포넌트 가시성은 BoneGizmo->Tick()에서 UpdateComponentVisibility() 호출로 자동 업데이트됨
+	// NOTE: Gizmo 업데이트 (선택된 본 위치로 이동)는 ViewportWidget->Update()에서 처리됨
 }
 
 void USkeletalMeshEditorWidget::RenderWidget()
@@ -423,15 +417,16 @@ void USkeletalMeshEditorWidget::RevertChanges()
 		return;
 	}
 
-	// BoneSpaceTransforms를 Bind Pose로 복구
-	PreviewMeshComponent->RevertToBindPose();
-	PreviewMeshComponent->SetSelectedBoneIndex(-1);
-	SelectedBoneIndex = -1;
-
-	// Transform Widget의 Euler 캐시 리셋
-	if (TransformWidget)
+	// TargetSkeletalMesh의 Bones에서 EditableBones를 다시 로드 (되돌리기)
+	if (FSkeletalMesh* SkeletalMeshAsset = TargetSkeletalMesh->GetSkeletalMeshAsset())
 	{
-		TransformWidget->ResetEulerCache();
+		PreviewMeshComponent->EditableBones.clear();
+		for (int32 i = 0; i < static_cast<int32>(SkeletalMeshAsset->Bones.size()); ++i)
+		{
+			PreviewMeshComponent->EditableBones.push_back(FBone::FromBoneInfo(i, SkeletalMeshAsset->Bones));
+		}
+		PreviewMeshComponent->SetSelectedBoneIndex(-1);
+		SelectedBoneIndex = -1;
 	}
 
 	// Gizmo 위치를 복구된 본 위치로 업데이트 (ViewportWidget을 통해)
