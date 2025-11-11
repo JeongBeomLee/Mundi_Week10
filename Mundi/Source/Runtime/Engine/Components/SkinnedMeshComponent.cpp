@@ -89,7 +89,7 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
     // 정점 개수만큼 순회
     AnimatedVertices.Empty();
     AnimatedVertices.SetNum(VertexCount);
-    for (int i = 0; i < VertexCount; i++)
+    concurrency::parallel_for(0, VertexCount, [&](uint32 i)
     {
         const FSkinnedVertex& SourceVertex = MeshAsset->SkinnedVertices[i];
         FNormalVertex& AnimatedVertex = AnimatedVertices[i];
@@ -99,7 +99,7 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
         AnimatedVertex.Tangent = {};
 
         // Tangent의 W는 Bitangent의 방향 요소이므로 원본 보존
-        float TangentW = SourceVertex.BaseVertex.Tangent.W;        
+        float TangentW = SourceVertex.BaseVertex.Tangent.W;
      
         // 총 4개의 가중치
         for (int j = 0; j < 4; j++)
@@ -116,7 +116,7 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
             FVector4 Normal4 = TransformDirection(SourceVertex.BaseVertex.normal, SkinningInvTransMatrix[BoneIndex]);
             // Normal4 = TransformDirection(Normal4, SkinningInvTransMatrix[BoneIndex]);
             FVector Normal = FVector(Normal4.X, Normal4.Y, Normal4.Z);            
-            FVector4 Tangent = TransformDirection(SourceVertex.BaseVertex.Tangent, SkinningInvTransMatrix[BoneIndex]);
+            FVector4 Tangent = TransformDirection(SourceVertex.BaseVertex.Tangent, SkinningMatrix[BoneIndex]);
             
             AnimatedVertex.pos += BoneWeight * Pos;
             AnimatedVertex.normal += BoneWeight * Normal;
@@ -129,7 +129,7 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
         AnimatedVertex.Tangent.W = TangentW;
         AnimatedVertex.color = SourceVertex.BaseVertex.color;
         AnimatedVertex.tex = SourceVertex.BaseVertex.tex;
+
     }
-    
-    testflag = false;    
+    );    
 }

@@ -66,6 +66,7 @@
 #include <DirectXMath.h>
 #include <DirectXColors.h>
 #include <cassert>
+#include <ppl.h>
 
 // Core Project Headers
 #include "VertexData.h"

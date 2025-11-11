@@ -52,7 +52,5 @@ protected:
     
     TArray<FMatrix> SkinningInvTransMatrix = {};
 
-    bool testflag = true;
-
     bool bChangedSkeletalMesh = false;
 };
