@@ -77,16 +77,11 @@ void USkeletalMeshEditorWidget::InitializeEditorWorld()
 		AmbLight->GetLightComponent()->SetLightColor(FLinearColor(1, 1, 1));
 	}
 
-	// OffscreenGizmoActor 생성 (ImGui 입력 전용)
-	BoneGizmo = EditorWorld->SpawnActor<AOffscreenGizmoActor>();
+	// OffscreenGizmoActor 가져오기 (World::InitializeEmbeddedGizmo()에서 이미 생성됨)
+	BoneGizmo = EditorWorld->GetOffscreenGizmoActor();
 	if (BoneGizmo)
 	{
-		// NOTE: SpawnActor가 SetWorld()를 호출하여 SelectionManager 자동 초기화됨
-		BoneGizmo->SetTickInEditor(true);  // EditorWorld에서 Tick 활성화
-		BoneGizmo->SetbRender(false);  // 본 선택 전까지 숨김
 		// NOTE: Camera는 Initialize()에서 ViewportClient 생성 후 설정
-		BoneGizmo->SetMode(EGizmoMode::Translate);
-		BoneGizmo->SetSpace(EGizmoSpace::Local);
 
 		// BillboardComponent 아이콘 숨김 (RootComponent의 SpriteComponent)
 		if (USceneComponent* RootComp = BoneGizmo->GetRootComponent())
@@ -151,10 +146,10 @@ void USkeletalMeshEditorWidget::Initialize()
 	// Viewport ↔ ViewportClient 연결
 	EmbeddedViewport->SetViewportClient(ViewportClient);
 
-	// EditorWorld에서 BoneGizmo 찾기 (InitializeEditorWorld()에서 생성됨, 재사용)
+	// EditorWorld에서 BoneGizmo 가져오기 (InitializeEditorWorld()에서 생성됨, 재사용)
 	if (!BoneGizmo && EditorWorld)
 	{
-		BoneGizmo = EditorWorld->GetActorOfClass<AOffscreenGizmoActor>();
+		BoneGizmo = EditorWorld->GetOffscreenGizmoActor();
 		if (!BoneGizmo)
 		{
 			UE_LOG("SkeletalMeshEditorWidget: WARNING - BoneGizmo not found in EditorWorld!");

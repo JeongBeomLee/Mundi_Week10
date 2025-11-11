@@ -18,6 +18,7 @@
 #include "Frustum.h"
 #include "Occlusion.h"
 #include "Gizmo/GizmoActor.h"
+#include "Gizmo/OffscreenGizmoActor.h"
 #include "Grid/GridActor.h"
 #include "StaticMeshComponent.h"
 #include "DirectionalLightActor.h"
@@ -83,10 +84,14 @@ void UWorld::Initialize()
 	// Grid는 공간감을 위해 모든 World에 필요
 	InitializeGrid();
 
-	// Gizmo는 Editor World만 필요 (Embedded/PIE에서는 불필요)
+	// Gizmo 초기화: Editor는 AGizmoActor, Embedded는 AOffscreenGizmoActor
 	if (WorldType == EWorldType::Editor)
 	{
 		InitializeGizmo();
+	}
+	else if (WorldType == EWorldType::Embedded)
+	{
+		InitializeEmbeddedGizmo();
 	}
 
 	//// Pawn 생성
@@ -116,6 +121,23 @@ void UWorld::InitializeGizmo()
 		FVector{ 1, 1, 1 }));
 
 	EditorActors.push_back(GizmoActor);
+}
+
+void UWorld::InitializeEmbeddedGizmo()
+{
+	// Embedded World용 Gizmo (ImGui 입력 전용, SkeletalMeshEditor 등에서 사용)
+	OffscreenGizmoActor = NewObject<AOffscreenGizmoActor>();
+	OffscreenGizmoActor->SetWorld(this);
+	OffscreenGizmoActor->PostActorCreated();
+	OffscreenGizmoActor->SetTickInEditor(true);
+	OffscreenGizmoActor->SetbRender(false);  // 초기에는 숨김 (본 선택 시 활성화)
+	OffscreenGizmoActor->SetMode(EGizmoMode::Translate);
+	OffscreenGizmoActor->SetSpace(EGizmoSpace::Local);
+
+	EditorActors.push_back(OffscreenGizmoActor);
+
+	// GizmoActor는 nullptr (Embedded에서는 AGizmoActor 사용 안 함)
+	GizmoActor = nullptr;
 }
 
 void UWorld::Tick(float DeltaSeconds)

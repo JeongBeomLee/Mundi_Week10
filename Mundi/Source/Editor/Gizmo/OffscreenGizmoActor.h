@@ -56,6 +56,7 @@ public:
 	EGizmoMode GetMode() const;
 	void SetSpace(EGizmoSpace NewSpace) { CurrentSpace = NewSpace; }
 	EGizmoSpace GetSpace() const { return CurrentSpace; }
+	void SetSpaceWorldMatrix(EGizmoSpace NewSpace, USceneComponent* Target);
 	bool GetbRender() const { return bRender; }
 	void SetbRender(bool bInRender) { bRender = bInRender; }
 	void SetCameraActor(ACameraActor* InCameraActor) { CameraActor = InCameraActor; }

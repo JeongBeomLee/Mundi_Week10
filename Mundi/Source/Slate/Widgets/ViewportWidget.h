@@ -84,6 +84,9 @@ private:
 	EGizmoMode* GizmoModePtr = nullptr;
 	EGizmoSpace* GizmoSpacePtr = nullptr;
 
+	// 드래그 시작 시 본의 원래 회전 저장 (World 모드 Rotate에서 사용)
+	FQuat DragStartBoneRotation = FQuat::Identity();
+
 	// 툴바 아이콘 텍스처 (메인 뷰포트와 동일)
 	class UTexture* IconSelect = nullptr;
 	class UTexture* IconMove = nullptr;

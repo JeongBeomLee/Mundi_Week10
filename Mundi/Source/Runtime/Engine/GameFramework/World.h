@@ -16,6 +16,7 @@ class AActor;
 class URenderer;
 class ACameraActor;
 class AGizmoActor;
+class AOffscreenGizmoActor;
 class AGridActor;
 class FViewport;
 class USlateManager;
@@ -58,6 +59,7 @@ public:
     void Initialize();
     void InitializeGrid();
     void InitializeGizmo();
+    void InitializeEmbeddedGizmo();
 
     template<class T>
     T* SpawnActor();
@@ -109,6 +111,7 @@ public:
     const TArray<AActor*>& GetActors() { static TArray<AActor*> Empty; return Level ? Level->GetActors() : Empty; }
     const TArray<AActor*>& GetEditorActors() { return EditorActors; }
     AGizmoActor* GetGizmoActor() { return GizmoActor; }
+    AOffscreenGizmoActor* GetOffscreenGizmoActor() { return OffscreenGizmoActor; }
     AGridActor* GetGridActor() { return GridActor; }
     UWorldPartitionManager* GetPartitionManager() { return Partition.get(); }
 
@@ -188,7 +191,8 @@ private:
     TArray<AActor*> EditorActors;
     ACameraActor* MainCameraActor = nullptr;
     AGridActor* GridActor = nullptr;
-    AGizmoActor* GizmoActor = nullptr;
+    AGizmoActor* GizmoActor = nullptr;  // Editor World용
+    AOffscreenGizmoActor* OffscreenGizmoActor = nullptr;  // Embedded World용
 
     /** === 레벨 컨테이너 === */
     std::unique_ptr<ULevel> Level;

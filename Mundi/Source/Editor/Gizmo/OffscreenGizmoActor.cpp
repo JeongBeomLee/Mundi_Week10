@@ -22,103 +22,72 @@ AOffscreenGizmoActor::AOffscreenGizmoActor()
 	//======= Arrow Component 생성 =======
 	RootComponent = CreateDefaultSubobject<USceneComponent>("DefaultSceneComponent");
 
-	ArrowX = CreateDefaultSubobject<UGizmoArrowComponent>("GizmoArrowComponent");
-	ArrowY = CreateDefaultSubobject<UGizmoArrowComponent>("GizmoArrowComponent");
-	ArrowZ = CreateDefaultSubobject<UGizmoArrowComponent>("GizmoArrowComponent");
+	TArray<UGizmoArrowComponent**> ArrowPtrs = { &ArrowX, &ArrowY, &ArrowZ };
+	TArray<FVector> ArrowDirections = { FVector(1.0f, 0.0f, 0.0f), FVector(0.0f, 1.0f, 0.0f), FVector(0.0f, 0.0f, 1.0f) };
+	TArray<FVector> ArrowColors = { FVector(1.0f, 0.0f, 0.0f), FVector(0.0f, 1.0f, 0.0f), FVector(0.0f, 0.0f, 1.0f) };
+	TArray<FVector> ArrowRotations = { FVector(0, 0, 0), FVector(0, 0, 90), FVector(0, -90, 0) };
 
-	ArrowX->SetDirection(FVector(1.0f, 0.0f, 0.0f));//빨
-	ArrowY->SetDirection(FVector(0.0f, 1.0f, 0.0f));//초
-	ArrowZ->SetDirection(FVector(0.0f, 0.0f, 1.0f));//파
-
-	ArrowX->SetColor(FVector(1.0f, 0.0f, 0.0f));
-	ArrowY->SetColor(FVector(0.0f, 1.0f, 0.0f));
-	ArrowZ->SetColor(FVector(0.0f, 0.0f, 1.0f));
-
-	ArrowX->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
-	ArrowY->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
-	ArrowZ->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
-
-	ArrowX->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
-	ArrowY->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
-	ArrowZ->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
-
-	ArrowX->SetRenderPriority(100);
-	ArrowY->SetRenderPriority(100);
-	ArrowZ->SetRenderPriority(100);
-
-	AddOwnedComponent(ArrowX);
-	AddOwnedComponent(ArrowY);
-	AddOwnedComponent(ArrowZ);
-
-	if (ArrowX) ArrowX->SetRelativeRotation(FQuat::MakeFromEulerZYX(FVector(0, 0, 0)));
-	if (ArrowY) ArrowY->SetRelativeRotation(FQuat::MakeFromEulerZYX(FVector(0, 0, 90)));
-	if (ArrowZ) ArrowZ->SetRelativeRotation(FQuat::MakeFromEulerZYX(FVector(0, -90, 0)));
+	for (int i = 0; i < 3; ++i)
+	{
+		*ArrowPtrs[i] = CreateDefaultSubobject<UGizmoArrowComponent>("GizmoArrowComponent");
+		(*ArrowPtrs[i])->SetDirection(ArrowDirections[i]);
+		(*ArrowPtrs[i])->SetColor(ArrowColors[i]);
+		(*ArrowPtrs[i])->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
+		(*ArrowPtrs[i])->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
+		(*ArrowPtrs[i])->SetRenderPriority(100);
+		(*ArrowPtrs[i])->SetRelativeRotation(FQuat::MakeFromEulerZYX(ArrowRotations[i]));
+		AddOwnedComponent(*ArrowPtrs[i]);
+	}
 
 	//======= Rotate Component 생성 =======
-	RotateX = NewObject<UGizmoRotateComponent>();
-	RotateY = NewObject<UGizmoRotateComponent>();
-	RotateZ = NewObject<UGizmoRotateComponent>();
+	TArray<UGizmoRotateComponent**> RotatePtrs = { &RotateX, &RotateY, &RotateZ };
+	TArray<FVector> RotateDirections = { FVector(1.0f, 0.0f, 0.0f), FVector(0.0f, 1.0f, 0.0f), FVector(0.0f, 0.0f, 1.0f) };
+	TArray<FVector> RotateColors = { FVector(1.0f, 0.0f, 0.0f), FVector(0.0f, 1.0f, 0.0f), FVector(0.0f, 0.0f, 1.0f) };
+	TArray<FVector> RotateRotations = { FVector(0, 0, 0), FVector(0, 0, 90), FVector(0, -90, 0) };
 
-	RotateX->SetDirection(FVector(1.0f, 0.0f, 0.0f));
-	RotateY->SetDirection(FVector(0.0f, 1.0f, 0.0f));
-	RotateZ->SetDirection(FVector(0.0f, 0.0f, 1.0f));
-
-	RotateX->SetColor(FVector(1.0f, 0.0f, 0.0f));
-	RotateY->SetColor(FVector(0.0f, 1.0f, 0.0f));
-	RotateZ->SetColor(FVector(0.0f, 0.0f, 1.0f));
-
-	RotateX->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
-	RotateY->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
-	RotateZ->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
-
-	RotateX->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
-	RotateY->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
-	RotateZ->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
-
-	RotateX->SetRenderPriority(100);
-	RotateY->SetRenderPriority(100);
-	RotateZ->SetRenderPriority(100);
-
-	AddOwnedComponent(RotateX);
-	AddOwnedComponent(RotateY);
-	AddOwnedComponent(RotateZ);
-
-	if (RotateX) RotateX->SetRelativeRotation(FQuat::MakeFromEulerZYX(FVector(0, 0, 0)));
-	if (RotateY) RotateY->SetRelativeRotation(FQuat::MakeFromEulerZYX(FVector(0, 0, 90)));
-	if (RotateZ) RotateZ->SetRelativeRotation(FQuat::MakeFromEulerZYX(FVector(0, -90, 0)));
+	for (int i = 0; i < 3; ++i)
+	{
+		*RotatePtrs[i] = NewObject<UGizmoRotateComponent>();
+		(*RotatePtrs[i])->SetDirection(RotateDirections[i]);
+		(*RotatePtrs[i])->SetColor(RotateColors[i]);
+		(*RotatePtrs[i])->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
+		(*RotatePtrs[i])->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
+		(*RotatePtrs[i])->SetRenderPriority(100);
+		(*RotatePtrs[i])->SetRelativeRotation(FQuat::MakeFromEulerZYX(RotateRotations[i]));
+		AddOwnedComponent(*RotatePtrs[i]);
+	}
 
 	//======= Scale Component 생성 =======
-	ScaleX = NewObject<UGizmoScaleComponent>();
-	ScaleY = NewObject<UGizmoScaleComponent>();
-	ScaleZ = NewObject<UGizmoScaleComponent>();
+	TArray<UGizmoScaleComponent**> ScalePtrs = { &ScaleX, &ScaleY, &ScaleZ };
+	TArray<FVector> ScaleDirections = { FVector(1.0f, 0.0f, 0.0f), FVector(0.0f, 1.0f, 0.0f), FVector(0.0f, 0.0f, 1.0f) };
+	TArray<FVector> ScaleColors = { FVector(1.0f, 0.0f, 0.0f), FVector(0.0f, 1.0f, 0.0f), FVector(0.0f, 0.0f, 1.0f) };
+	TArray<FVector> ScaleRotations = { FVector(0, 0, 0), FVector(0, 0, 90), FVector(0, -90, 0) };
 
-	ScaleX->SetDirection(FVector(1.0f, 0.0f, 0.0f));
-	ScaleY->SetDirection(FVector(0.0f, 1.0f, 0.0f));
-	ScaleZ->SetDirection(FVector(0.0f, 0.0f, 1.0f));
+	for (int i = 0; i < 3; ++i)
+	{
+		*ScalePtrs[i] = NewObject<UGizmoScaleComponent>();
+		(*ScalePtrs[i])->SetDirection(ScaleDirections[i]);
+		(*ScalePtrs[i])->SetColor(ScaleColors[i]);
+		(*ScalePtrs[i])->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
+		(*ScalePtrs[i])->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
+		(*ScalePtrs[i])->SetRenderPriority(100);
+		(*ScalePtrs[i])->SetRelativeRotation(FQuat::MakeFromEulerZYX(ScaleRotations[i]));
+		AddOwnedComponent(*ScalePtrs[i]);
+	}
 
-	ScaleX->SetColor(FVector(1.0f, 0.0f, 0.0f));
-	ScaleY->SetColor(FVector(0.0f, 1.0f, 0.0f));
-	ScaleZ->SetColor(FVector(0.0f, 0.0f, 1.0f));
-
-	ScaleX->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
-	ScaleY->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
-	ScaleZ->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
-
-	ScaleX->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
-	ScaleY->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
-	ScaleZ->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
-
-	ScaleX->SetRenderPriority(100);
-	ScaleY->SetRenderPriority(100);
-	ScaleZ->SetRenderPriority(100);
-
-	if (ScaleX) ScaleX->SetRelativeRotation(FQuat::MakeFromEulerZYX(FVector(0, 0, 0)));
-	if (ScaleY) ScaleY->SetRelativeRotation(FQuat::MakeFromEulerZYX(FVector(0, 0, 90)));
-	if (ScaleZ) ScaleZ->SetRelativeRotation(FQuat::MakeFromEulerZYX(FVector(0, -90, 0)));
-
-	AddOwnedComponent(ScaleX);
-	AddOwnedComponent(ScaleY);
-	AddOwnedComponent(ScaleZ);
+	// 모든 Gizmo 컴포넌트를 에디터 헬퍼로 설정 (섀도우 생성 방지, EditorPrimitives로 처리)
+	TArray<UActorComponent*> AllGizmoComponents = {
+		ArrowX, ArrowY, ArrowZ,
+		RotateX, RotateY, RotateZ,
+		ScaleX, ScaleY, ScaleZ
+	};
+	for (UActorComponent* GizmoComp : AllGizmoComponents)
+	{
+		if (GizmoComp)
+		{
+			GizmoComp->SetEditability(false);
+		}
+	}
 
 	CurrentMode = EGizmoMode::Translate;
 
@@ -146,15 +115,18 @@ void AOffscreenGizmoActor::PostActorCreated()
 	}
 
 	// 초기 컴포넌트 가시성 설정 (모두 비활성화)
-	if (ArrowX) ArrowX->SetActive(false);
-	if (ArrowY) ArrowY->SetActive(false);
-	if (ArrowZ) ArrowZ->SetActive(false);
-	if (RotateX) RotateX->SetActive(false);
-	if (RotateY) RotateY->SetActive(false);
-	if (RotateZ) RotateZ->SetActive(false);
-	if (ScaleX) ScaleX->SetActive(false);
-	if (ScaleY) ScaleY->SetActive(false);
-	if (ScaleZ) ScaleZ->SetActive(false);
+	TArray<UActorComponent*> AllComponents = {
+		ArrowX, ArrowY, ArrowZ,
+		RotateX, RotateY, RotateZ,
+		ScaleX, ScaleY, ScaleZ
+	};
+	for (UActorComponent* Comp : AllComponents)
+	{
+		if (Comp)
+		{
+			Comp->SetActive(false);
+		}
+	}
 }
 
 void AOffscreenGizmoActor::Tick(float DeltaSeconds)
@@ -172,6 +144,26 @@ void AOffscreenGizmoActor::SetMode(EGizmoMode NewMode)
 EGizmoMode AOffscreenGizmoActor::GetMode() const
 {
 	return CurrentMode;
+}
+
+void AOffscreenGizmoActor::SetSpaceWorldMatrix(EGizmoSpace NewSpace, USceneComponent* Target)
+{
+	SetSpace(NewSpace);
+
+	if (!Target)
+		return;
+
+	if (NewSpace == EGizmoSpace::Local || CurrentMode == EGizmoMode::Scale)
+	{
+		// Local 모드: Gizmo를 타겟의 회전으로 설정
+		FQuat TargetRot = Target->GetWorldRotation();
+		SetActorRotation(TargetRot);
+	}
+	else if (NewSpace == EGizmoSpace::World)
+	{
+		// World 모드: Gizmo를 월드 축에 정렬 (단위 회전)
+		SetActorRotation(FQuat::Identity());
+	}
 }
 
 void AOffscreenGizmoActor::ProcessGizmoInteractionImGui(
@@ -449,15 +441,18 @@ void AOffscreenGizmoActor::UpdateComponentVisibility()
 	// bRender가 false이면 모든 컴포넌트 비활성화
 	if (!bRender)
 	{
-		if (ArrowX) ArrowX->SetActive(false);
-		if (ArrowY) ArrowY->SetActive(false);
-		if (ArrowZ) ArrowZ->SetActive(false);
-		if (RotateX) RotateX->SetActive(false);
-		if (RotateY) RotateY->SetActive(false);
-		if (RotateZ) RotateZ->SetActive(false);
-		if (ScaleX) ScaleX->SetActive(false);
-		if (ScaleY) ScaleY->SetActive(false);
-		if (ScaleZ) ScaleZ->SetActive(false);
+		TArray<UActorComponent*> AllComponents = {
+			ArrowX, ArrowY, ArrowZ,
+			RotateX, RotateY, RotateZ,
+			ScaleX, ScaleY, ScaleZ
+		};
+		for (UActorComponent* Comp : AllComponents)
+		{
+			if (Comp)
+			{
+				Comp->SetActive(false);
+			}
+		}
 		return;
 	}
 
@@ -466,19 +461,35 @@ void AOffscreenGizmoActor::UpdateComponentVisibility()
 	uint32 HighlightAxis = bIsDragging ? DraggingAxis : GizmoAxis;
 
 	bool bShowArrows = bHasSelection && (CurrentMode == EGizmoMode::Translate);
-	if (ArrowX) { ArrowX->SetActive(bShowArrows); ArrowX->SetHighlighted(HighlightAxis == 1, 1); }
-	if (ArrowY) { ArrowY->SetActive(bShowArrows); ArrowY->SetHighlighted(HighlightAxis == 2, 2); }
-	if (ArrowZ) { ArrowZ->SetActive(bShowArrows); ArrowZ->SetHighlighted(HighlightAxis == 3, 3); }
-
 	bool bShowRotates = bHasSelection && (CurrentMode == EGizmoMode::Rotate);
-	if (RotateX) { RotateX->SetActive(bShowRotates); RotateX->SetHighlighted(HighlightAxis == 1, 1); }
-	if (RotateY) { RotateY->SetActive(bShowRotates); RotateY->SetHighlighted(HighlightAxis == 2, 2); }
-	if (RotateZ) { RotateZ->SetActive(bShowRotates); RotateZ->SetHighlighted(HighlightAxis == 3, 3); }
-
 	bool bShowScales = bHasSelection && (CurrentMode == EGizmoMode::Scale);
-	if (ScaleX) { ScaleX->SetActive(bShowScales); ScaleX->SetHighlighted(HighlightAxis == 1, 1); }
-	if (ScaleY) { ScaleY->SetActive(bShowScales); ScaleY->SetHighlighted(HighlightAxis == 2, 2); }
-	if (ScaleZ) { ScaleZ->SetActive(bShowScales); ScaleZ->SetHighlighted(HighlightAxis == 3, 3); }
+
+	TArray<UGizmoArrowComponent*> ArrowComponents = { ArrowX, ArrowY, ArrowZ };
+	TArray<UGizmoRotateComponent*> RotateComponents = { RotateX, RotateY, RotateZ };
+	TArray<UGizmoScaleComponent*> ScaleComponents = { ScaleX, ScaleY, ScaleZ };
+
+	for (int i = 0; i < 3; ++i)
+	{
+		uint32 AxisIndex = i + 1; // 1, 2, 3
+
+		if (ArrowComponents[i])
+		{
+			ArrowComponents[i]->SetActive(bShowArrows);
+			ArrowComponents[i]->SetHighlighted(HighlightAxis == AxisIndex, AxisIndex);
+		}
+
+		if (RotateComponents[i])
+		{
+			RotateComponents[i]->SetActive(bShowRotates);
+			RotateComponents[i]->SetHighlighted(HighlightAxis == AxisIndex, AxisIndex);
+		}
+
+		if (ScaleComponents[i])
+		{
+			ScaleComponents[i]->SetActive(bShowScales);
+			ScaleComponents[i]->SetHighlighted(HighlightAxis == AxisIndex, AxisIndex);
+		}
+	}
 }
 
 // [COMMON] ProcessGizmoHovering (AGizmoActor와 동일)
