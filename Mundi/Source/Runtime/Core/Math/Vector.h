@@ -1119,21 +1119,23 @@ struct alignas(16) FMatrix
 		if (OutScale.Y > KINDA_SMALL_NUMBER) { Row1 = Row1 / OutScale.Y; }
 		if (OutScale.Z > KINDA_SMALL_NUMBER) { Row2 = Row2 / OutScale.Z; }
 
-		// 회전 행렬을 Quaternion으로 변환 (간단한 Shepperd 방법)
+		// 회전 행렬을 Quaternion으로 변환 (Shepperd 방법, row-major left-handed)
+		// Row-major matrix: basis vectors are stored as rows
+		// For left-handed Z-up: qx = (m12 - m21), qy = (m20 - m02), qz = (m01 - m10)
 		float trace = Row0.X + Row1.Y + Row2.Z;
 
 		if (trace > 0.0f)
 		{
 			float s = std::sqrt(trace + 1.0f) * 2.0f;
 			OutRotation.W = 0.25f * s;
-			OutRotation.X = (Row2.Y - Row1.Z) / s;
-			OutRotation.Y = (Row0.Z - Row2.X) / s;
-			OutRotation.Z = (Row1.X - Row0.Y) / s;
+			OutRotation.X = (Row1.Z - Row2.Y) / s;  // m[1][2] - m[2][1]
+			OutRotation.Y = (Row2.X - Row0.Z) / s;  // m[2][0] - m[0][2]
+			OutRotation.Z = (Row0.Y - Row1.X) / s;  // m[0][1] - m[1][0]
 		}
 		else if (Row0.X > Row1.Y && Row0.X > Row2.Z)
 		{
 			float s = std::sqrt(1.0f + Row0.X - Row1.Y - Row2.Z) * 2.0f;
-			OutRotation.W = (Row2.Y - Row1.Z) / s;
+			OutRotation.W = (Row1.Z - Row2.Y) / s;  // m[1][2] - m[2][1]
 			OutRotation.X = 0.25f * s;
 			OutRotation.Y = (Row0.Y + Row1.X) / s;
 			OutRotation.Z = (Row0.Z + Row2.X) / s;
@@ -1141,7 +1143,7 @@ struct alignas(16) FMatrix
 		else if (Row1.Y > Row2.Z)
 		{
 			float s = std::sqrt(1.0f + Row1.Y - Row0.X - Row2.Z) * 2.0f;
-			OutRotation.W = (Row0.Z - Row2.X) / s;
+			OutRotation.W = (Row2.X - Row0.Z) / s;  // m[2][0] - m[0][2]
 			OutRotation.X = (Row0.Y + Row1.X) / s;
 			OutRotation.Y = 0.25f * s;
 			OutRotation.Z = (Row1.Z + Row2.Y) / s;
@@ -1149,7 +1151,7 @@ struct alignas(16) FMatrix
 		else
 		{
 			float s = std::sqrt(1.0f + Row2.Z - Row0.X - Row1.Y) * 2.0f;
-			OutRotation.W = (Row1.X - Row0.Y) / s;
+			OutRotation.W = (Row0.Y - Row1.X) / s;  // m[0][1] - m[1][0]
 			OutRotation.X = (Row0.Z + Row2.X) / s;
 			OutRotation.Y = (Row1.Z + Row2.Y) / s;
 			OutRotation.Z = 0.25f * s;
