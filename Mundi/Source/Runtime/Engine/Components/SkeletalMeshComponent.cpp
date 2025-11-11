@@ -664,7 +664,8 @@ void USkeletalMeshComponent::RenderDebugVolume(URenderer* Renderer) const
     RenderBonePyramids(StartPoints, EndPoints, Colors);
     RenderJointSpheres(StartPoints, EndPoints, Colors);
 
-    Renderer->AddLines(StartPoints, EndPoints, Colors);
+    // 본 시각화는 항상 위에 그려져야 하므로 bOverlay=true 설정 (Gizmo와 동일)
+    Renderer->AddLines(StartPoints, EndPoints, Colors, true);
 }
 
 void USkeletalMeshComponent::RenderBonePyramids(

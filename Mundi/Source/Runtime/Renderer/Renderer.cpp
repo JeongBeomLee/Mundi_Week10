@@ -41,9 +41,13 @@ URenderer::URenderer(D3D11RHI* InDevice) : RHIDevice(InDevice)
 
 URenderer::~URenderer()
 {
-	if (LineBatchData)
+	if (LineBatchDataNormal)
 	{
-		delete LineBatchData;
+		delete LineBatchDataNormal;
+	}
+	if (LineBatchDataOverlay)
+	{
+		delete LineBatchDataOverlay;
 	}
 }
 
@@ -134,8 +138,9 @@ void URenderer::InitializeLineBatch()
 	uint32 maxIndices = MAX_LINES * 2;
 	DynamicLineMesh->Load(maxVertices, maxIndices, RHIDevice->GetDevice());
 
-	// Create FMeshData for accumulating line data
-	LineBatchData = new FMeshData();
+	// Create FMeshData for accumulating line data (2 batches: Normal and Overlay)
+	LineBatchDataNormal = new FMeshData();
+	LineBatchDataOverlay = new FMeshData();
 
 	// Load line shader
 	LineShader = UResourceManager::GetInstance().Load<UShader>("Shaders/UI/ShaderLine.hlsl");
@@ -143,50 +148,60 @@ void URenderer::InitializeLineBatch()
 
 void URenderer::BeginLineBatch()
 {
-	if (!LineBatchData) return;
+	if (!LineBatchDataNormal || !LineBatchDataOverlay) return;
 
 	bLineBatchActive = true;
 
-	// Clear previous batch data
-	LineBatchData->Vertices.clear();
-	LineBatchData->Color.clear();
-	LineBatchData->Indices.clear();
+	// Clear previous batch data (both normal and overlay)
+	LineBatchDataNormal->Vertices.clear();
+	LineBatchDataNormal->Color.clear();
+	LineBatchDataNormal->Indices.clear();
+
+	LineBatchDataOverlay->Vertices.clear();
+	LineBatchDataOverlay->Color.clear();
+	LineBatchDataOverlay->Indices.clear();
 }
 
-void URenderer::AddLine(const FVector& Start, const FVector& End, const FVector4& Color)
+void URenderer::AddLine(const FVector& Start, const FVector& End, const FVector4& Color, bool bOverlay)
 {
-	if (!bLineBatchActive || !LineBatchData) return;
+	if (!bLineBatchActive || !LineBatchDataNormal || !LineBatchDataOverlay) return;
 
-	uint32 startIndex = static_cast<uint32>(LineBatchData->Vertices.size());
+	// Select appropriate batch based on overlay flag
+	FMeshData* TargetBatch = bOverlay ? LineBatchDataOverlay : LineBatchDataNormal;
+
+	uint32 startIndex = static_cast<uint32>(TargetBatch->Vertices.size());
 
 	// Add vertices
-	LineBatchData->Vertices.push_back(Start);
-	LineBatchData->Vertices.push_back(End);
+	TargetBatch->Vertices.push_back(Start);
+	TargetBatch->Vertices.push_back(End);
 
 	// Add colors
-	LineBatchData->Color.push_back(Color);
-	LineBatchData->Color.push_back(Color);
+	TargetBatch->Color.push_back(Color);
+	TargetBatch->Color.push_back(Color);
 
 	// Add indices for line (2 vertices per line)
-	LineBatchData->Indices.push_back(startIndex);
-	LineBatchData->Indices.push_back(startIndex + 1);
+	TargetBatch->Indices.push_back(startIndex);
+	TargetBatch->Indices.push_back(startIndex + 1);
 }
 
-void URenderer::AddLines(const TArray<FVector>& StartPoints, const TArray<FVector>& EndPoints, const TArray<FVector4>& Colors)
+void URenderer::AddLines(const TArray<FVector>& StartPoints, const TArray<FVector>& EndPoints, const TArray<FVector4>& Colors, bool bOverlay)
 {
-	if (!bLineBatchActive || !LineBatchData) return;
+	if (!bLineBatchActive || !LineBatchDataNormal || !LineBatchDataOverlay) return;
 
 	// Validate input arrays have same size
 	if (StartPoints.size() != EndPoints.size() || StartPoints.size() != Colors.size())
 		return;
 
-	uint32 startIndex = static_cast<uint32>(LineBatchData->Vertices.size());
+	// Select appropriate batch based on overlay flag
+	FMeshData* TargetBatch = bOverlay ? LineBatchDataOverlay : LineBatchDataNormal;
+
+	uint32 startIndex = static_cast<uint32>(TargetBatch->Vertices.size());
 
 	// Reserve space for efficiency
 	size_t lineCount = StartPoints.size();
-	LineBatchData->Vertices.reserve(LineBatchData->Vertices.size() + lineCount * 2);
-	LineBatchData->Color.reserve(LineBatchData->Color.size() + lineCount * 2);
-	LineBatchData->Indices.reserve(LineBatchData->Indices.size() + lineCount * 2);
+	TargetBatch->Vertices.reserve(TargetBatch->Vertices.size() + lineCount * 2);
+	TargetBatch->Color.reserve(TargetBatch->Color.size() + lineCount * 2);
+	TargetBatch->Indices.reserve(TargetBatch->Indices.size() + lineCount * 2);
 
 	// Add all lines at once
 	for (size_t i = 0; i < lineCount; ++i)
@@ -194,69 +209,120 @@ void URenderer::AddLines(const TArray<FVector>& StartPoints, const TArray<FVecto
 		uint32 currentIndex = startIndex + static_cast<uint32>(i * 2);
 
 		// Add vertices
-		LineBatchData->Vertices.push_back(StartPoints[i]);
-		LineBatchData->Vertices.push_back(EndPoints[i]);
+		TargetBatch->Vertices.push_back(StartPoints[i]);
+		TargetBatch->Vertices.push_back(EndPoints[i]);
 
 		// Add colors
-		LineBatchData->Color.push_back(Colors[i]);
-		LineBatchData->Color.push_back(Colors[i]);
+		TargetBatch->Color.push_back(Colors[i]);
+		TargetBatch->Color.push_back(Colors[i]);
 
 		// Add indices for line (2 vertices per line)
-		LineBatchData->Indices.push_back(currentIndex);
-		LineBatchData->Indices.push_back(currentIndex + 1);
+		TargetBatch->Indices.push_back(currentIndex);
+		TargetBatch->Indices.push_back(currentIndex + 1);
 	}
 }
 
 void URenderer::EndLineBatch(const FMatrix& ModelMatrix)
 {
-	if (!bLineBatchActive || !LineBatchData || !DynamicLineMesh || LineBatchData->Vertices.empty())
+	if (!bLineBatchActive || !LineBatchDataNormal || !LineBatchDataOverlay || !DynamicLineMesh)
 	{
 		bLineBatchActive = false;
 		return;
 	}
 
-	// Clamp to GPU buffer capacity to avoid full drop when overflowing
-	const uint32 totalLines = static_cast<uint32>(LineBatchData->Indices.size() / 2);
-	if (totalLines > MAX_LINES)
+	// === 1단계: Normal 라인 렌더링 (depth test 사용) ===
+
+	if (!LineBatchDataNormal->Vertices.empty())
 	{
-		const uint32 clampedLines = MAX_LINES;
-		const uint32 clampedVerts = clampedLines * 2;
-		const uint32 clampedIndices = clampedLines * 2;
-		LineBatchData->Vertices.resize(clampedVerts);
-		LineBatchData->Color.resize(clampedVerts);
-		LineBatchData->Indices.resize(clampedIndices);
+		// Clamp to GPU buffer capacity to avoid full drop when overflowing
+		const uint32 totalLines = static_cast<uint32>(LineBatchDataNormal->Indices.size() / 2);
+		if (totalLines > MAX_LINES)
+		{
+			const uint32 clampedLines = MAX_LINES;
+			const uint32 clampedVerts = clampedLines * 2;
+			const uint32 clampedIndices = clampedLines * 2;
+			LineBatchDataNormal->Vertices.resize(clampedVerts);
+			LineBatchDataNormal->Color.resize(clampedVerts);
+			LineBatchDataNormal->Indices.resize(clampedIndices);
+		}
+
+		// Efficiently update dynamic mesh data (no buffer recreation!)
+		if (DynamicLineMesh->UpdateData(LineBatchDataNormal, RHIDevice->GetDeviceContext()))
+		{
+			// Set up rendering state
+			FMatrix ModelInvTranspose = ModelMatrix.InverseAffine().Transpose();
+			RHIDevice->SetAndUpdateConstantBuffer(ModelBufferType(ModelMatrix, ModelInvTranspose));
+			RHIDevice->PrepareShader(LineShader);
+
+			// Render using dynamic mesh
+			if (DynamicLineMesh->GetCurrentVertexCount() > 0 && DynamicLineMesh->GetCurrentIndexCount() > 0)
+			{
+				UINT stride = sizeof(FVertexSimple);
+				UINT offset = 0;
+
+				ID3D11Buffer* vertexBuffer = DynamicLineMesh->GetVertexBuffer();
+				ID3D11Buffer* indexBuffer = DynamicLineMesh->GetIndexBuffer();
+
+				RHIDevice->GetDeviceContext()->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+				RHIDevice->GetDeviceContext()->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+				RHIDevice->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+				// Overlay 스텐실(=1) 영역은 그리지 않도록 스텐실 테스트 설정
+				RHIDevice->OMSetDepthStencilState_StencilRejectOverlay();
+				RHIDevice->GetDeviceContext()->DrawIndexed(DynamicLineMesh->GetCurrentIndexCount(), 0, 0);
+				// 상태 복구
+				RHIDevice->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
+			}
+		}
 	}
 
-	// Efficiently update dynamic mesh data (no buffer recreation!)
-	if (!DynamicLineMesh->UpdateData(LineBatchData, RHIDevice->GetDeviceContext()))
+	// === 2단계: Overlay 라인 렌더링 (항상 위에 표시) ===
+
+	if (!LineBatchDataOverlay->Vertices.empty())
 	{
-		bLineBatchActive = false;
-		return;
-	}
+		// Depth buffer를 클리어하여 이후 그려지는 라인이 항상 위에 표시되도록 함 (Gizmo와 동일)
+		RHIDevice->ClearDepthBuffer(1.0f, 0);
 
-	// Set up rendering state
-	FMatrix ModelInvTranspose = ModelMatrix.InverseAffine().Transpose();
-	RHIDevice->SetAndUpdateConstantBuffer(ModelBufferType(ModelMatrix, ModelInvTranspose));
-	RHIDevice->PrepareShader(LineShader);
+		// Clamp to GPU buffer capacity to avoid full drop when overflowing
+		const uint32 totalLines = static_cast<uint32>(LineBatchDataOverlay->Indices.size() / 2);
+		if (totalLines > MAX_LINES)
+		{
+			const uint32 clampedLines = MAX_LINES;
+			const uint32 clampedVerts = clampedLines * 2;
+			const uint32 clampedIndices = clampedLines * 2;
+			LineBatchDataOverlay->Vertices.resize(clampedVerts);
+			LineBatchDataOverlay->Color.resize(clampedVerts);
+			LineBatchDataOverlay->Indices.resize(clampedIndices);
+		}
 
-	// Render using dynamic mesh
-	if (DynamicLineMesh->GetCurrentVertexCount() > 0 && DynamicLineMesh->GetCurrentIndexCount() > 0)
-	{
-		UINT stride = sizeof(FVertexSimple);
-		UINT offset = 0;
+		// Efficiently update dynamic mesh data (no buffer recreation!)
+		if (DynamicLineMesh->UpdateData(LineBatchDataOverlay, RHIDevice->GetDeviceContext()))
+		{
+			// Set up rendering state
+			FMatrix ModelInvTranspose = ModelMatrix.InverseAffine().Transpose();
+			RHIDevice->SetAndUpdateConstantBuffer(ModelBufferType(ModelMatrix, ModelInvTranspose));
+			RHIDevice->PrepareShader(LineShader);
 
-		ID3D11Buffer* vertexBuffer = DynamicLineMesh->GetVertexBuffer();
-		ID3D11Buffer* indexBuffer = DynamicLineMesh->GetIndexBuffer();
+			// Render using dynamic mesh
+			if (DynamicLineMesh->GetCurrentVertexCount() > 0 && DynamicLineMesh->GetCurrentIndexCount() > 0)
+			{
+				UINT stride = sizeof(FVertexSimple);
+				UINT offset = 0;
 
-		RHIDevice->GetDeviceContext()->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
-		RHIDevice->GetDeviceContext()->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
-		RHIDevice->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-		// Overlay 스텐실(=1) 영역은 그리지 않도록 스텐실 테스트 설정
-		RHIDevice->OMSetDepthStencilState_StencilRejectOverlay();
-		RHIDevice->GetDeviceContext()->DrawIndexed(DynamicLineMesh->GetCurrentIndexCount(), 0, 0);
-		// 상태 복구
-		RHIDevice->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
+				ID3D11Buffer* vertexBuffer = DynamicLineMesh->GetVertexBuffer();
+				ID3D11Buffer* indexBuffer = DynamicLineMesh->GetIndexBuffer();
+
+				RHIDevice->GetDeviceContext()->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+				RHIDevice->GetDeviceContext()->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+				RHIDevice->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+				// Overlay 스텐실(=1) 영역은 그리지 않도록 스텐실 테스트 설정
+				RHIDevice->OMSetDepthStencilState_StencilRejectOverlay();
+				RHIDevice->GetDeviceContext()->DrawIndexed(DynamicLineMesh->GetCurrentIndexCount(), 0, 0);
+				// 상태 복구
+				RHIDevice->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
+			}
+		}
 	}
 
 	bLineBatchActive = false;
@@ -264,11 +330,15 @@ void URenderer::EndLineBatch(const FMatrix& ModelMatrix)
 
 void URenderer::ClearLineBatch()
 {
-	if (!LineBatchData) return;
+	if (!LineBatchDataNormal || !LineBatchDataOverlay) return;
 
-	LineBatchData->Vertices.clear();
-	LineBatchData->Color.clear();
-	LineBatchData->Indices.clear();
+	LineBatchDataNormal->Vertices.clear();
+	LineBatchDataNormal->Color.clear();
+	LineBatchDataNormal->Indices.clear();
+
+	LineBatchDataOverlay->Vertices.clear();
+	LineBatchDataOverlay->Color.clear();
+	LineBatchDataOverlay->Indices.clear();
 
 	bLineBatchActive = false;
 }

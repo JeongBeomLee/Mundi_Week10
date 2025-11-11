@@ -33,8 +33,8 @@ public:
 
 	// Batch Line Rendering System
 	void BeginLineBatch();
-	void AddLine(const FVector& Start, const FVector& End, const FVector4& Color = FVector4(1.0f, 1.0f, 1.0f, 1.0f));
-	void AddLines(const TArray<FVector>& StartPoints, const TArray<FVector>& EndPoints, const TArray<FVector4>& Colors);
+	void AddLine(const FVector& Start, const FVector& End, const FVector4& Color = FVector4(1.0f, 1.0f, 1.0f, 1.0f), bool bOverlay = false);
+	void AddLines(const TArray<FVector>& StartPoints, const TArray<FVector>& EndPoints, const TArray<FVector4>& Colors, bool bOverlay = false);
 	void EndLineBatch(const FMatrix& ModelMatrix);
 	void ClearLineBatch();
 
@@ -53,7 +53,8 @@ private:
 
 	// Batch Line Rendering System using UDynamicMesh for efficiency
 	ULineDynamicMesh* DynamicLineMesh = nullptr;
-	FMeshData* LineBatchData = nullptr;
+	FMeshData* LineBatchDataNormal = nullptr;   // Normal lines (depth tested)
+	FMeshData* LineBatchDataOverlay = nullptr;  // Overlay lines (always on top)
 	UShader* LineShader = nullptr;
 	bool bLineBatchActive = false;
 	static const uint32 MAX_LINES = 200000;  // Maximum lines per batch (safety headroom)
