@@ -520,7 +520,8 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
     int ControlPointsCount = FbxMeshNode->GetControlPointsCount();
     FbxVector4* ControlPoints = FbxMeshNode->GetControlPoints();
     int PolygonCount = FbxMeshNode->GetPolygonCount();
-
+    FbxAMatrix GlobalTransform = FbxMeshNode->GetNode()->EvaluateGlobalTransform();
+    
     UE_LOG("FBXManager: Parsing mesh geometry");
     UE_LOG("  Control Points: %d", ControlPointsCount);
     UE_LOG("  Polygons: %d", PolygonCount);
@@ -575,6 +576,7 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
 
             // 위치 (Position)
             FbxVector4 Position = ControlPoints[ControlPointIndex];
+            Position = GlobalTransform.MultT(Position);
             Vertex.pos = FVector(
                 static_cast<float>(Position[0]),
                 static_cast<float>(Position[1]),
@@ -603,6 +605,8 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
                 }
 
                 FbxVector4 Normal = NormalElement->GetDirectArray().GetAt(NormalIndex);
+                Normal = GlobalTransform.Inverse().Transpose().MultR(Normal);
+
                 Vertex.normal = FVector(
                     static_cast<float>(Normal[0]),
                     static_cast<float>(Normal[1]),
@@ -668,6 +672,7 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
                 }
 
                 FbxVector4 Tangent = TangentElement->GetDirectArray().GetAt(TangentIndex);
+                Tangent = GlobalTransform.Inverse().Transpose().MultR(Tangent);
                 Vertex.Tangent = FVector4(
                     static_cast<float>(Tangent[0]),
                     static_cast<float>(Tangent[1]),
