@@ -47,6 +47,14 @@ public:
 		OnRevertCallback = OnRevert;
 	}
 
+	/**
+	 * @brief Euler 캐시 리셋 (Revert 시 호출)
+	 */
+	void ResetEulerCache()
+	{
+		LastEditedBoneIndex = -1;
+	}
+
 private:
 	// 외부에서 주입된 데이터 (포인터/참조)
 	USkeletalMeshComponent* PreviewComponent = nullptr;
@@ -54,4 +62,8 @@ private:
 
 	// 콜백 함수
 	std::function<void()> OnRevertCallback;
+
+	// Gimbal lock 방지: Euler 각도 캐시 (FBone 패턴)
+	FVector CachedLocalRotationEuler = FVector(0, 0, 0);
+	int32 LastEditedBoneIndex = -1;
 };
