@@ -31,6 +31,7 @@
 #include "BoneHierarchyWidget.h"
 #include "BoneTransformWidget.h"
 #include "ViewportWidget.h"
+#include "CameraActor.h"
 
 extern UEditorEngine GEngine;
 
@@ -66,6 +67,7 @@ void USkeletalMeshEditorWidget::InitializeEditorWorld()
 	{
 		DirLight->GetLightComponent()->SetIntensity(1.0f);
 		DirLight->GetLightComponent()->SetLightColor(FLinearColor(1, 1, 1));
+		DirLight->GetLightComponent()->SetCastShadow(false);
 	}
 
 	// AmbientLight 추가 (은은한 환경광)
@@ -73,7 +75,7 @@ void USkeletalMeshEditorWidget::InitializeEditorWorld()
 	AmbLight->SetActorLocation(FVector(10000, 10000, 10000));
 	if (AmbLight->GetLightComponent())
 	{
-		AmbLight->GetLightComponent()->SetIntensity(0.4f);
+		AmbLight->GetLightComponent()->SetIntensity(1.0f);
 		AmbLight->GetLightComponent()->SetLightColor(FLinearColor(1, 1, 1));
 	}
 
@@ -143,6 +145,14 @@ void USkeletalMeshEditorWidget::Initialize()
 
 	// ViewportClient에 EditorWorld 설정 (메인 World와 격리)
 	ViewportClient->SetWorld(EditorWorld);
+
+	// 카메라 설정
+	ACameraActor* EditorCamera = ViewportClient->GetCamera();
+	if (EditorCamera)
+	{
+		EditorCamera->SetActorLocation(FVector(2.5f, 0.0f, 1.0f));
+		EditorCamera->SetActorRotation(FQuat::MakeFromEulerZYX(FVector(0.0f, 0.0f, 180.0f)));
+	}
 
 	// Viewport ↔ ViewportClient 연결
 	EmbeddedViewport->SetViewportClient(ViewportClient);

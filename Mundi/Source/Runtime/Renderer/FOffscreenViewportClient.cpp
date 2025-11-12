@@ -104,8 +104,7 @@ void FOffscreenViewportClient::MoveCamera(const FVector& Direction, float DeltaT
 {
 	if (!Camera) return;
 
-	// 이동 속도
-	const float MoveSpeed = 150.0f;
+	const float MoveSpeed = 10.0f;
 
 	// 카메라의 현재 회전을 기준으로 방향 변환
 	FQuat CameraRotation = Camera->GetActorRotation();
