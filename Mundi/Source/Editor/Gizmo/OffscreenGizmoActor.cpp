@@ -393,14 +393,17 @@ void AOffscreenGizmoActor::UpdateSelfTransformFromDrag(uint32 GizmoAxis, float M
 		FQuat NewRot;
 		if (CurrentSpace == EGizmoSpace::World)
 		{
+			// 월드 축 기준 회전: 월드 공간 축으로 델타 계산 후 왼쪽 곱
+			// (쿼터니언 곱셈 q1*q2는 "먼저 q2, 그 다음 q1" 순서)
 			FQuat DeltaQuat = FQuat::FromAxisAngle(LocalAxisVector, TotalAngle);
 			NewRot = DeltaQuat * DragStartRotation;
 		}
 		else // Local
 		{
-			FVector WorldSpaceRotationAxis = DragStartRotation.RotateVector(LocalAxisVector);
-			FQuat DeltaQuat = FQuat::FromAxisAngle(WorldSpaceRotationAxis, TotalAngle);
-			NewRot = DeltaQuat * DragStartRotation;
+			// 로컬 축 기준 회전: 로컬 공간의 축을 기준으로 회전 (오른쪽 곱)
+			// (오브젝트 자신의 로컬 공간에서 회전, 부모가 없는 것처럼 동작)
+			FQuat LocalDeltaQuat = FQuat::FromAxisAngle(LocalAxisVector, TotalAngle);
+			NewRot = DragStartRotation * LocalDeltaQuat;
 		}
 
 		// Gizmo Actor 자신의 회전 변경

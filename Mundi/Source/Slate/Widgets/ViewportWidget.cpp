@@ -23,19 +23,25 @@ void UViewportWidget::Update()
 	// Gizmo를 타겟 Transform에 동기화
 	if (BoneGizmo && TargetTransform)
 	{
-		// Gizmo를 타겟 위치로 이동
-		BoneGizmo->SetActorLocation(TargetTransform->Translation);
+		// 드래그 중이 아닐 때만 Gizmo Transform 업데이트
+		// (드래그 중에는 OffscreenGizmoActor가 자체적으로 Transform 관리)
+		bool bIsDragging = BoneGizmo->GetbIsDragging();
+		if (!bIsDragging)
+		{
+			// Gizmo를 타겟 위치로 이동
+			BoneGizmo->SetActorLocation(TargetTransform->Translation);
 
-		// Gizmo 회전은 Space 모드에 따라 설정
-		if (CurrentGizmoSpace == EGizmoSpace::Local || CurrentGizmoMode == EGizmoMode::Scale)
-		{
-			// Local 모드 또는 Scale 모드: 타겟의 회전을 따라감
-			BoneGizmo->SetActorRotation(TargetTransform->Rotation);
-		}
-		else // World 모드
-		{
-			// World 모드: 월드 축에 정렬 (Identity 회전)
-			BoneGizmo->SetActorRotation(FQuat::Identity());
+			// Gizmo 회전은 Space 모드에 따라 설정
+			if (CurrentGizmoSpace == EGizmoSpace::Local || CurrentGizmoMode == EGizmoMode::Scale)
+			{
+				// Local 모드 또는 Scale 모드: 타겟의 회전을 따라감
+				BoneGizmo->SetActorRotation(TargetTransform->Rotation);
+			}
+			else // World 모드
+			{
+				// World 모드: 월드 축에 정렬 (Identity 회전)
+				BoneGizmo->SetActorRotation(FQuat::Identity());
+			}
 		}
 
 		BoneGizmo->SetbRender(true);
@@ -238,12 +244,14 @@ void UViewportWidget::RenderWidget()
 					// Rotate 모드: 회전 변경
 					if (CurrentGizmoSpace == EGizmoSpace::World)
 					{
-						// World 모드: Gizmo의 회전을 타겟의 원래 회전에 곱함
+						// World 모드: Gizmo 회전(델타)을 원래 회전에 적용
+						// (Gizmo는 드래그 시작 시 Identity였으므로, 현재 Gizmo 회전 = 델타)
 						TargetTransform->Rotation = GizmoTransform.Rotation * DragStartRotation;
 					}
-					else
+					else // Local 모드
 					{
-						// Local 모드: Gizmo의 절대 회전 사용
+						// Local 모드: Gizmo가 최종 회전을 직접 계산했으므로 그대로 사용
+						// (Gizmo는 드래그 시작 시 본 회전과 같았고, 로컬 축 기준으로 회전함)
 						TargetTransform->Rotation = GizmoTransform.Rotation;
 					}
 				}
