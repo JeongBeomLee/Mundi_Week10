@@ -1,0 +1,236 @@
+{
+  "Level" : {
+    "Actors" : {
+      "845" : {
+        "Name" : "Directional Light Actor",
+        "OwnedComponents" : [{
+            "CSMLambda" : 0.850000,
+            "Id" : 847,
+            "Intensity" : 1.000000,
+            "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
+            "NumCascades" : 5,
+            "ParentId" : 0,
+            "RelativeLocation" : [-2.818068, 0.000000, 2.236943],
+            "RelativeRotationEuler" : [83.452469, 31.223211, -3.620559],
+            "RelativeScale" : [1.000000, 1.000000, 1.000000],
+            "ShadowBias" : 0.005000,
+            "ShadowMapType" : 1,
+            "ShadowProjectionType" : 0,
+            "ShadowSharpen" : 2.000000,
+            "ShadowSlopeBias" : 2.000000,
+            "Temperature" : 6500.000000,
+            "Type" : "UDirectionalLightComponent",
+            "bHiddenInGame" : false,
+            "bIsActive" : true,
+            "bIsCastShadows" : true,
+            "bIsVisible" : true,
+            "bTickEnabled" : true
+          }],
+        "RootComponentId" : 847,
+        "Type" : "ADirectionalLightActor"
+      },
+      "848" : {
+        "Name" : "Ambient Light Actor",
+        "OwnedComponents" : [{
+            "Id" : 850,
+            "Intensity" : 0.100000,
+            "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
+            "ParentId" : 0,
+            "RelativeLocation" : [0.000000, 0.000000, 0.000000],
+            "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
+            "RelativeScale" : [1.000000, 1.000000, 1.000000],
+            "ShadowBias" : 0.001000,
+            "ShadowSharpen" : 1.000000,
+            "ShadowSlopeBias" : 0.000000,
+            "Temperature" : 6500.000000,
+            "Type" : "UAmbientLightComponent",
+            "bHiddenInGame" : false,
+            "bIsActive" : true,
+            "bIsCastShadows" : true,
+            "bIsVisible" : true,
+            "bTickEnabled" : true
+          }],
+        "RootComponentId" : 850,
+        "Type" : "AAmbientLightActor"
+      },
+      "851" : {
+        "Name" : "스켈레탈 메시_0",
+        "OwnedComponents" : [{
+            "Id" : 853,
+            "MaterialSlots" : [{
+                "AssetPath" : "Guard_02",
+                "Type" : "UMaterial"
+              }],
+            "ParentId" : 0,
+            "RelativeLocation" : [0.000000, 0.000000, 0.000000],
+            "RelativeRotationEuler" : [0.000000, -0.000000, -179.999985],
+            "RelativeScale" : [1.000000, 1.000000, 1.000000],
+            "SkeletalMesh" : "Data/castle_guard.fbx",
+            "Type" : "USkeletalMeshComponent",
+            "bHiddenInGame" : false,
+            "bIsActive" : true,
+            "bIsVisible" : true,
+            "bTickEnabled" : true
+          }],
+        "RootComponentId" : 853,
+        "Type" : "ASkeletalMeshActor"
+      },
+      "854" : {
+        "Name" : "ASkeletalMeshActor_0",
+        "OwnedComponents" : [{
+            "Id" : 856,
+            "MaterialSlots" : [{
+                "AssetPath" : "Vanguard_VisorMat",
+                "Type" : "UMaterial"
+              }, {
+                "AssetPath" : "VanguardBodyMat",
+                "Type" : "UMaterial"
+              }],
+            "ParentId" : 0,
+            "RelativeLocation" : [0.000000, 2.500000, 0.000000],
+            "RelativeRotationEuler" : [0.000000, -0.000000, 180.000000],
+            "RelativeScale" : [1.000000, 1.000000, 1.000000],
+            "SkeletalMesh" : "Data/Vanguard By T. Choonyung.fbx",
+            "Type" : "USkeletalMeshComponent",
+            "bHiddenInGame" : false,
+            "bIsActive" : true,
+            "bIsVisible" : true,
+            "bTickEnabled" : true
+          }],
+        "RootComponentId" : 856,
+        "Type" : "ASkeletalMeshActor"
+      },
+      "857" : {
+        "Name" : "ASkeletalMeshActor_1",
+        "OwnedComponents" : [{
+            "Id" : 859,
+            "MaterialSlots" : [{
+                "AssetPath" : "MI_Manny_01_New",
+                "Type" : "UMaterial"
+              }, {
+                "AssetPath" : "MI_Manny_02_New",
+                "Type" : "UMaterial"
+              }],
+            "ParentId" : 0,
+            "RelativeLocation" : [0.000000, -2.500000, 0.000000],
+            "RelativeRotationEuler" : [0.000000, -0.000000, 180.000000],
+            "RelativeScale" : [1.000000, 1.000000, 1.000000],
+            "SkeletalMesh" : "Data/SKM_Manny_Simple.fbx",
+            "Type" : "USkeletalMeshComponent",
+            "bHiddenInGame" : false,
+            "bIsActive" : true,
+            "bIsVisible" : true,
+            "bTickEnabled" : true
+          }],
+        "RootComponentId" : 859,
+        "Type" : "ASkeletalMeshActor"
+      },
+      "864" : {
+        "Name" : "스태틱 메시_0",
+        "OwnedComponents" : [{
+            "Id" : 865,
+            "MaterialSlots" : [{
+                "AssetPath" : "Guard_02",
+                "Type" : "UMaterial"
+              }],
+            "ParentId" : 0,
+            "RelativeLocation" : [0.000000, 0.000000, 3.000000],
+            "RelativeRotationEuler" : [0.000000, -0.000000, 180.000000],
+            "RelativeScale" : [1.000000, 1.000000, 1.000000],
+            "StaticMesh" : "Data/castle_guard.fbx",
+            "Type" : "UStaticMeshComponent",
+            "bHiddenInGame" : false,
+            "bIsActive" : true,
+            "bIsVisible" : true,
+            "bTickEnabled" : true
+          }],
+        "RootComponentId" : 865,
+        "Type" : "AStaticMeshActor"
+      },
+      "866" : {
+        "Name" : "AStaticMeshActor_0",
+        "OwnedComponents" : [{
+            "Id" : 867,
+            "MaterialSlots" : [{
+                "AssetPath" : "Vanguard_VisorMat",
+                "Type" : "UMaterial"
+              }, {
+                "AssetPath" : "VanguardBodyMat",
+                "Type" : "UMaterial"
+              }],
+            "ParentId" : 0,
+            "RelativeLocation" : [0.000000, 2.500000, 3.000000],
+            "RelativeRotationEuler" : [0.000000, -0.000000, 180.000000],
+            "RelativeScale" : [1.000000, 1.000000, 1.000000],
+            "StaticMesh" : "Data/Vanguard By T. Choonyung.fbx",
+            "Type" : "UStaticMeshComponent",
+            "bHiddenInGame" : false,
+            "bIsActive" : true,
+            "bIsVisible" : true,
+            "bTickEnabled" : true
+          }],
+        "RootComponentId" : 867,
+        "Type" : "AStaticMeshActor"
+      },
+      "868" : {
+        "Name" : "AStaticMeshActor_1",
+        "OwnedComponents" : [{
+            "Id" : 869,
+            "MaterialSlots" : [{
+                "AssetPath" : "MI_Manny_01_New",
+                "Type" : "UMaterial"
+              }, {
+                "AssetPath" : "MI_Manny_02_New",
+                "Type" : "UMaterial"
+              }],
+            "ParentId" : 0,
+            "RelativeLocation" : [0.000000, -2.500000, 3.000000],
+            "RelativeRotationEuler" : [0.000000, -0.000000, 180.000000],
+            "RelativeScale" : [1.000000, 1.000000, 1.000000],
+            "StaticMesh" : "Data/SKM_Manny_Simple.fbx",
+            "Type" : "UStaticMeshComponent",
+            "bHiddenInGame" : false,
+            "bIsActive" : true,
+            "bIsVisible" : true,
+            "bTickEnabled" : true
+          }],
+        "RootComponentId" : 869,
+        "Type" : "AStaticMeshActor"
+      },
+      "870" : {
+        "Name" : "스태틱 메시_1",
+        "OwnedComponents" : [{
+            "Id" : 871,
+            "MaterialSlots" : [{
+                "AssetPath" : "texture",
+                "Type" : "UMaterial"
+              }],
+            "ParentId" : 0,
+            "RelativeLocation" : [0.000000, 0.000000, -0.563721],
+            "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+            "RelativeScale" : [10.000000, 10.000000, 1.000000],
+            "StaticMesh" : "Data/cube-tex.obj",
+            "Type" : "UStaticMeshComponent",
+            "bHiddenInGame" : false,
+            "bIsActive" : true,
+            "bIsVisible" : true,
+            "bTickEnabled" : true
+          }],
+        "RootComponentId" : 871,
+        "Type" : "AStaticMeshActor"
+      }
+    },
+    "NextUUID" : 872,
+    "PerspectiveCamera" : {
+      "FOV" : [60.000000],
+      "FarClip" : [1000.000000],
+      "Location" : [-16.715515, -38.301697, 13.513243],
+      "NearClip" : [1.000000],
+      "Rotation" : [0.000000, 16.200211, 63.700119]
+    },
+    "Version" : 1
+  },
+  "WorldSettings" : {
+    "PlayerSpawnLocation" : [0.000000, 0.000000, 0.000000]
+  }
+}

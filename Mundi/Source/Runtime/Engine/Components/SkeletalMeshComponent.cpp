@@ -140,7 +140,7 @@ void USkeletalMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMe
 
     if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshAsset())
     {
-        UE_LOG("[USkeletalMeshComponent/CollectMeshBatches] SkeletalMesh is null");
+        // UE_LOG("[USkeletalMeshComponent/CollectMeshBatches] SkeletalMesh is null");
         return;
     }
 
@@ -485,7 +485,7 @@ void USkeletalMeshComponent::UpdateVertexBuffer(D3D11RHI* InDevice)
     FSkeletalMesh* MeshAsset = SkeletalMesh ? SkeletalMesh->GetSkeletalMeshAsset() : nullptr;
     if (!MeshAsset)
     {
-        UE_LOG("[USkeletalMeshComponent/UpdateSkinnedVertices] FSkeletalMesh is null");
+        //UE_LOG("[USkeletalMeshComponent/UpdateSkinnedVertices] FSkeletalMesh is null");
         return;
     }
 
@@ -577,14 +577,14 @@ void USkeletalMeshComponent::UpdateBoneMatrices()
     FSkeletalMesh* MeshAsset = SkeletalMesh ? SkeletalMesh->GetSkeletalMeshAsset() : nullptr;
     if (!MeshAsset)
     {
-        UE_LOG("[USkeletalMeshComponent/UpdateBoneMatrices] FSkeletalMesh is null");
+       // UE_LOG("[USkeletalMeshComponent/UpdateBoneMatrices] FSkeletalMesh is null");
         return;
     }
 
     const int32 BoneCount = MeshAsset->Bones.Num();
     if (BoneCount == 0)
     {
-        UE_LOG("[USkeletalMeshComponent/UpdateBoneMatrices] BoneCount is zero");
+       // UE_LOG("[USkeletalMeshComponent/UpdateBoneMatrices] BoneCount is zero");
         ComponentSpaceTransforms.Empty();
         return;
     }
@@ -630,7 +630,7 @@ void USkeletalMeshComponent::UpdateSkinningMatrices()
     FSkeletalMesh* MeshAsset = SkeletalMesh ? SkeletalMesh->GetSkeletalMeshAsset() : nullptr;
     if (!MeshAsset)
     {
-        UE_LOG("[USkeletalMeshComponent/UpdateSkinningMatrices] FSkeletalMesh is null");
+        //UE_LOG("[USkeletalMeshComponent/UpdateSkinningMatrices] FSkeletalMesh is null");
         return;
     }
 
@@ -638,7 +638,7 @@ void USkeletalMeshComponent::UpdateSkinningMatrices()
     const int32 BoneCount = ComponentSpaceTransforms.Num();
     if (BoneCount == 0)
     {
-        UE_LOG("[USkeletalMeshComponent/UpdateSkinningMatrices] BoneMatrices is zero");
+        //UE_LOG("[USkeletalMeshComponent/UpdateSkinningMatrices] BoneMatrices is zero");
         return;
     }
 
