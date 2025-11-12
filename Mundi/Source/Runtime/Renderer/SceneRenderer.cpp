@@ -305,7 +305,7 @@ void FSceneRenderer::GatherVisibleProxies()
 	const bool bUseAntiAliasing = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_FXAA);
 	const bool bUseBillboard = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_Billboard);
 	// 일단 스태틱메시 사용
-	const bool bDrawSkeletalMeshes = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_StaticMeshes);
+	const bool bDrawSkeletalMeshes = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_SkeletalMesh);
 
 	// 현재 뷰포트에서 piloting 중인 액터 확인
 	FViewportClient* ViewportClient = View->Viewport ? View->Viewport->GetViewportClient() : nullptr;

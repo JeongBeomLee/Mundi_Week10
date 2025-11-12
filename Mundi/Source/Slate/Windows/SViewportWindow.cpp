@@ -79,6 +79,7 @@ SViewportWindow::~SViewportWindow()
 	IconAntiAliasing = nullptr;
 	IconTile = nullptr;
 	IconShadowMap = nullptr;
+	IconSkeletalMesh = nullptr;
 
 	IconSingleToMultiViewport = nullptr;
 	IconMultiToSingleViewport = nullptr;
@@ -413,6 +414,9 @@ void SViewportWindow::LoadToolbarIcons(ID3D11Device* Device)
 
 	IconStaticMesh = NewObject<UTexture>();
 	IconStaticMesh->Load(GDataDir + "/Icon/Viewport_StaticMesh.png", Device);
+
+	IconSkeletalMesh = NewObject<UTexture>();
+	IconSkeletalMesh->Load(GDataDir + "/Icon/Viewport_SkeletalMesh.png", Device);
 
 	IconBillboard = NewObject<UTexture>();
 	IconBillboard->Load(GDataDir + "/Icon/Viewport_Billboard.png", Device);
@@ -1597,6 +1601,24 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 		if (ImGui::IsItemHovered())
 		{
 			ImGui::SetTooltip("스태틱 메시 렌더링을 표시합니다.");
+		}
+
+		// Skeletal Mesh
+		bool bSkeletalMesh = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_SkeletalMesh);
+		if (ImGui::Checkbox("##SkeletalMesh", &bSkeletalMesh))
+		{
+			RenderSettings.ToggleShowFlag(EEngineShowFlags::SF_SkeletalMesh);
+		}
+		ImGui::SameLine();
+		if (IconSkeletalMesh && IconSkeletalMesh->GetShaderResourceView())
+		{
+			ImGui::Image((void*)IconSkeletalMesh->GetShaderResourceView(), IconSize);
+			ImGui::SameLine(0, 4);
+		}
+		ImGui::Text(" 스켈레탈 메시");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("스켈레탈 메시 렌더링을 표시합니다.");
 		}
 
 		// Billboard
