@@ -69,7 +69,7 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
     FSkeletalMesh* MeshAsset = SkeletalMesh ? SkeletalMesh->GetSkeletalMeshAsset() : nullptr;
     if (!MeshAsset)
     {
-        UE_LOG("[USkinnedMeshComponent/PerformCPUSkinning] FSkeletalMesh is null");
+        //UE_LOG("[USkinnedMeshComponent/PerformCPUSkinning] FSkeletalMesh is null");
         return;
     }
 
