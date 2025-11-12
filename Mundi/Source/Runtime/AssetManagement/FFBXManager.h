@@ -28,7 +28,7 @@ private:
     static void FindAllMeshesRecursive(FbxNode* FbxMeshNode, TArray<FbxMesh*>& OutMesh);
     static void ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData, TArray<int>& OutVertexToControlPointMap);
     static void ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData);
-    static void ParseSkinWeights(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData, const TArray<int>& VertexToControlPointMap);
+    static void ParseSkinWeights(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData, const TArray<int>& VertexToControlPointMap, int StartVertexIndex, int VertexCount);
     static void LoadMaterials(FbxMesh* FbxMeshNode, TArray<FMaterialInfo>* OutMaterialInfos = nullptr);
     static void RegisterMaterialsFromInfos(const TArray<FMaterialInfo>& InMaterialInfos);
 

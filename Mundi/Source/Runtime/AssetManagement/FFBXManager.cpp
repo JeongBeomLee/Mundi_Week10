@@ -369,15 +369,14 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
         UE_LOG("FBXManager: Loading %s (%zu mesh parts found)",
                    NormalizedPathStr.c_str(), AllMeshes.size());
 
-        // 스킨 정보가 있는 "메인" 메시를 찾습니다.
-        // 뼈대(Hierarchy)와 가중치(Weights)는 이 메시를 기준으로 파싱합니다.
-        FbxMesh* MainMeshForSkinning = AllMeshes[0];
+        // 본 계층 구조는 첫 번째 스킨 디포머가 있는 메시에서 파싱
+        FbxMesh* FirstSkinnedMesh = nullptr;
         for (FbxMesh* Mesh : AllMeshes)
         {
             if (Mesh->GetDeformerCount(FbxDeformer::eSkin) > 0)
             {
-                MainMeshForSkinning = Mesh;
-                UE_LOG("FBXManager: Found main skin deformer on mesh: %s",
+                FirstSkinnedMesh = Mesh;
+                UE_LOG("FBXManager: Found first skinned mesh for bone hierarchy: %s",
                        Mesh->GetNode() ? Mesh->GetNode()->GetName() : "");
                 break;
             }
@@ -385,14 +384,31 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
 
         UE_LOG("FBXManager: Loading %s", NormalizedPathStr.c_str());
 
-        // 8. 메시 데이터 파싱
-        TArray<int> VertexToControlPointMap;
-        ParseBoneHierarchy(MainMeshForSkinning, SkeletalMeshData);
+        // 8. 본 계층 구조 파싱 (한 번만)
+        if (FirstSkinnedMesh)
+        {
+            ParseBoneHierarchy(FirstSkinnedMesh, SkeletalMeshData);
+        }
+
+        // 9. 각 메시마다 정점 데이터와 스킨 가중치를 파싱
         for (FbxMesh* Mesh : AllMeshes)
         {
+            TArray<int> VertexToControlPointMap; // 각 메시마다 로컬 맵 생성
+
+            // 이 메시의 정점 시작 인덱스 저장
+            int StartVertexIndex = static_cast<int>(SkeletalMeshData->Vertices.size());
+
             ParseMeshGeometry(Mesh, SkeletalMeshData, VertexToControlPointMap);
+
+            // 추가된 정점 개수 계산
+            int VertexCount = static_cast<int>(SkeletalMeshData->Vertices.size()) - StartVertexIndex;
+
+            // 이 메시에 스킨 디포머가 있으면 가중치 파싱
+            if (Mesh->GetDeformerCount(FbxDeformer::eSkin) > 0)
+            {
+                ParseSkinWeights(Mesh, SkeletalMeshData, VertexToControlPointMap, StartVertexIndex, VertexCount);
+            }
         }
-        ParseSkinWeights(MainMeshForSkinning, SkeletalMeshData, VertexToControlPointMap);
         LoadMaterials(AllMeshes[0], &MaterialInfos);
 
         RegisterMaterialInfos(MaterialInfos);
@@ -977,8 +993,10 @@ void FFBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMes
  * @param FbxMeshNode FBX 메시 노드
  * @param OutMeshData 파싱 결과를 저장할 FSkeletalMesh
  * @param VertexToControlPointMap Vertex → ControlPoint 매핑 (ParseMeshGeometry에서 생성)
+ * @param StartVertexIndex 이 메시의 정점 시작 인덱스
+ * @param VertexCount 이 메시의 정점 개수
  */
-void FFBXManager::ParseSkinWeights(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData, const TArray<int>& VertexToControlPointMap)
+void FFBXManager::ParseSkinWeights(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData, const TArray<int>& VertexToControlPointMap, int StartVertexIndex, int VertexCount)
 {
     int DeformerCount = FbxMeshNode->GetDeformerCount(FbxDeformer::eSkin);
     int ControlPointsCount = FbxMeshNode->GetControlPointsCount();
@@ -1015,13 +1033,14 @@ void FFBXManager::ParseSkinWeights(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshD
         }
     }
 
-    // Vertex에 Skinning 정보 적용
+    // Vertex에 Skinning 정보 적용 (이 메시의 정점들만 처리)
     OutMeshData->SkinnedVertices.resize(OutMeshData->Vertices.size());
 
-    for (size_t i = 0; i < OutMeshData->Vertices.size(); i++)
+    for (int i = 0; i < VertexCount; i++)
     {
-        FSkinnedVertex& SkinnedVert = OutMeshData->SkinnedVertices[i];
-        SkinnedVert.BaseVertex = OutMeshData->Vertices[i];
+        int GlobalVertexIndex = StartVertexIndex + i;
+        FSkinnedVertex& SkinnedVert = OutMeshData->SkinnedVertices[GlobalVertexIndex];
+        SkinnedVert.BaseVertex = OutMeshData->Vertices[GlobalVertexIndex];
 
         // ParseMeshGeometry에서 생성한 매핑을 사용하여 Vertex → ControlPoint 변환
         int ControlPointIndex = VertexToControlPointMap[i];
