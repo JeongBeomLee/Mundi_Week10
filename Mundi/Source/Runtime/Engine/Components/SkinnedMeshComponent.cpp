@@ -100,6 +100,7 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
 
         // Tangent의 W는 Bitangent의 방향 요소이므로 원본 보존
         float TangentW = SourceVertex.BaseVertex.Tangent.W;
+        FVector Tangent3 = {};
         
         // 총 4개의 가중치
         for (int j = 0; j < 4; j++)
@@ -116,17 +117,21 @@ void USkinnedMeshComponent::PerformCPUSkinning(TArray<FNormalVertex>& AnimatedVe
             FVector4 Normal4 = TransformDirection(SourceVertex.BaseVertex.normal, SkinningInvTransMatrix[BoneIndex]);
             // Normal4 = TransformDirection(Normal4, SkinningInvTransMatrix[BoneIndex]);
             FVector Normal = FVector(Normal4.X, Normal4.Y, Normal4.Z);            
-            FVector4 Tangent = TransformDirection(SourceVertex.BaseVertex.Tangent, SkinningInvTransMatrix[BoneIndex]);
+            FVector4 Tangent = TransformDirection(SourceVertex.BaseVertex.Tangent, SkinningMatrix[BoneIndex]);
             
             AnimatedVertex.pos += BoneWeight * Pos;
             AnimatedVertex.normal += BoneWeight * Normal;
-            AnimatedVertex.Tangent += BoneWeight * Tangent;
+            Tangent3 += BoneWeight * FVector(Tangent.X, Tangent.Y, Tangent.Z);
         }
 
         AnimatedVertex.normal.Normalize();
-        AnimatedVertex.Tangent.Normalize();
-        // 원본 탄젠트 w 복원
-        AnimatedVertex.Tangent.W = TangentW;
+        Tangent3.Normalize();
+
+        // 그람 슈미트
+        float Scalar = FVector::Dot(AnimatedVertex.normal, Tangent3);
+        Tangent3 = (Tangent3 - (Scalar * AnimatedVertex.normal)).GetSafeNormal();
+        // 원본 w 복원
+        AnimatedVertex.Tangent = FVector4(Tangent3, TangentW);
         AnimatedVertex.color = SourceVertex.BaseVertex.color;
         AnimatedVertex.tex = SourceVertex.BaseVertex.tex;
     }
