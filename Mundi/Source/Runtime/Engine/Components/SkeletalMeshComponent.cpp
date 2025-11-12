@@ -580,7 +580,6 @@ void USkeletalMeshComponent::UpdateBoneMatrices()
                 ComponentSpaceTransforms[i] = BoneLocal * ComponentSpaceTransforms[ParentIndex];
             }
         }
-        UE_LOG("Update BOne Matrices");
     }
     else
     {

@@ -45,7 +45,10 @@ void UBoneTransformWidget::RenderWidget()
 	ImGui::Spacing();
 
 	// Position
-	UPropertyUtils::RenderVector3WithColorBars("Position", &SelectedBone.LocalPosition, 0.1f);
+	if(UPropertyUtils::RenderVector3WithColorBars("Position", &SelectedBone.LocalPosition, 0.1f))
+	{
+		PreviewComponent->MarkSkinningDirty();		
+	}
 
 	// Rotation (Euler 저장 패턴으로 gimbal lock UI 문제 방지)
 	FVector euler = SelectedBone.GetLocalRotationEuler();
@@ -56,7 +59,12 @@ void UBoneTransformWidget::RenderWidget()
 	}
 
 	// Scale
-	UPropertyUtils::RenderVector3WithColorBars("Scale", &SelectedBone.LocalScale, 0.01f);
+	if(UPropertyUtils::RenderVector3WithColorBars("Scale", &SelectedBone.LocalScale, 0.01f))
+	{
+		PreviewComponent->MarkSkinningDirty();
+	}
+
+	
 
 	// 버튼을 하단에 배치하기 위해 남은 공간 계산
 	float availHeight = ImGui::GetContentRegionAvail().y;
