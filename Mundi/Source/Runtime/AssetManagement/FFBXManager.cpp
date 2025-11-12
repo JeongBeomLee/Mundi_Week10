@@ -25,34 +25,130 @@
 
 using namespace fbxsdk;
 
-// FNormalVertex를 unordered_map/set의 키로 사용하기 위한 std::hash 특수화
-// 정점 중복 제거(Vertex Deduplication)에 사용됨
-namespace std {
-    template <>
-    struct hash<FNormalVertex>
+// ========================================
+// FVertexKey: Index-based Vertex Deduplication
+// ========================================
+// FBX 데이터의 실제 인덱스를 기반으로 정점을 식별합니다.
+// Float 값 직접 비교 대신 인덱스 기반으로 중복을 판단하여 부동소수점 오차 문제를 해결합니다.
+struct FVertexKey
+{
+    int32 PositionIndex;    // ControlPoint 인덱스
+    int32 NormalIndex;      // Normal 인덱스
+    int32 TangentIndex;     // Tangent 인덱스
+    int32 UVIndex;          // UV 인덱스
+    int32 ColorIndex;       // Color 인덱스
+
+    FVertexKey(int32 Pos, int32 N, int32 T, int32 UV, int32 Col)
+        : PositionIndex(Pos)
+        , NormalIndex(N)
+        , TangentIndex(T)
+        , UVIndex(UV)
+        , ColorIndex(Col)
     {
-        size_t operator()(const FNormalVertex& v) const noexcept
+        // 해시 값 미리 계산 (성능 최적화)
+        Hash = std::hash<int32>()(PositionIndex << 0)
+             ^ std::hash<int32>()(NormalIndex   << 1)
+             ^ std::hash<int32>()(TangentIndex  << 2)
+             ^ std::hash<int32>()(UVIndex       << 3)
+             ^ std::hash<int32>()(ColorIndex    << 4);
+    }
+
+    bool operator==(const FVertexKey& Other) const
+    {
+        return PositionIndex == Other.PositionIndex
+            && NormalIndex   == Other.NormalIndex
+            && TangentIndex  == Other.TangentIndex
+            && UVIndex       == Other.UVIndex
+            && ColorIndex    == Other.ColorIndex;
+    }
+
+    size_t GetHash() const { return Hash; }
+
+private:
+    size_t Hash;
+};
+
+// std::hash 특수화
+namespace std
+{
+    template<>
+    struct hash<FVertexKey>
+    {
+        size_t operator()(const FVertexKey& Key) const
         {
-            // 위치 해시
-            size_t h1 = hash<float>()(v.pos.X);
-            size_t h2 = hash<float>()(v.pos.Y);
-            size_t h3 = hash<float>()(v.pos.Z);
-
-            // 노멀 해시
-            size_t h4 = hash<float>()(v.normal.X);
-            size_t h5 = hash<float>()(v.normal.Y);
-            size_t h6 = hash<float>()(v.normal.Z);
-
-            // UV 해시
-            size_t h7 = hash<float>()(v.tex.X);
-            size_t h8 = hash<float>()(v.tex.Y);
-
-            // 해시 조합
-            return ((h1 ^ (h2 << 1)) >> 1) ^ (h3 << 1) ^
-                   ((h4 ^ (h5 << 1)) >> 1) ^ (h6 << 1) ^
-                   ((h7 ^ (h8 << 1)) >> 1);
+            return Key.GetHash();
         }
     };
+}
+
+// ========================================
+// Helper Functions for LayerElement Parsing
+// ========================================
+// GetVertexElementData: FBX LayerElement의 MappingMode와 ReferenceMode를 정확히 처리합니다.
+// 이는 Normal, Tangent, UV, Color 등 모든 LayerElement에 대해 올바른 데이터 추출을 보장합니다.
+template<typename FbxLayerElementType, typename TDataType>
+bool GetVertexElementData(const FbxLayerElementType* Element, int32 ControlPointIndex, int32 VertexIndex, TDataType& OutData)
+{
+    if (!Element)
+    {
+        return false;
+    }
+
+    const auto MappingMode = Element->GetMappingMode();
+    const auto ReferenceMode = Element->GetReferenceMode();
+
+    // 1) eAllSame: 모든 정점이 같은 값
+    if (MappingMode == FbxLayerElement::eAllSame)
+    {
+        if (Element->GetDirectArray().GetCount() > 0)
+        {
+            OutData = Element->GetDirectArray().GetAt(0);
+            return true;
+        }
+        return false;
+    }
+
+    // 2) 인덱스 결정 (eByControlPoint, eByPolygonVertex만 처리)
+    int32 Index = -1;
+    if (MappingMode == FbxLayerElement::eByControlPoint)
+    {
+        Index = ControlPointIndex;
+    }
+    else if (MappingMode == FbxLayerElement::eByPolygonVertex)
+    {
+        Index = VertexIndex;
+    }
+    else
+    {
+        // eByPolygon, eByEdge 등 필요시 추가
+        return false;
+    }
+
+    // 3) ReferenceMode별 분리 처리
+    if (ReferenceMode == FbxLayerElement::eDirect)
+    {
+        // DirectArray 크기만 검사
+        if (Index >= 0 && Index < Element->GetDirectArray().GetCount())
+        {
+            OutData = Element->GetDirectArray().GetAt(Index);
+            return true;
+        }
+    }
+    else if (ReferenceMode == FbxLayerElement::eIndexToDirect)
+    {
+        // IndexArray, DirectArray 순차 검사
+        if (Index >= 0 && Index < Element->GetIndexArray().GetCount())
+        {
+            int32 DirectIndex = Element->GetIndexArray().GetAt(Index);
+            if (DirectIndex >= 0 && DirectIndex < Element->GetDirectArray().GetCount())
+            {
+                OutData = Element->GetDirectArray().GetAt(DirectIndex);
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 // ========================================
@@ -516,6 +612,285 @@ void FFBXManager::FindAllMeshesRecursive(FbxNode* FbxMeshNode, TArray<FbxMesh*>&
 }
 
 /*
+ * FindBindPose()
+ *
+ * 스켈레톤 루트 노드에 대한 BindPose를 찾습니다.
+ * BindPose는 메시가 본에 바인딩될 때의 정확한 초기 변환 상태를 저장합니다.
+ */
+FbxPose* FFBXManager::FindBindPose(FbxNode* SkeletonRoot)
+{
+    if (!SkeletonRoot)
+    {
+        return nullptr;
+    }
+
+    FbxScene* Scene = SkeletonRoot->GetScene();
+    if (!Scene)
+    {
+        return nullptr;
+    }
+
+    // 스켈레톤에 속한 모든 본 노드를 수집
+    TArray<FbxNode*> SkeletonBones;
+    CollectSkeletonBoneNodes(SkeletonRoot, SkeletonBones);
+
+    const int32 PoseCount = Scene->GetPoseCount();
+    for (int32 PoseIndex = 0; PoseIndex < PoseCount; PoseIndex++)
+    {
+        FbxPose* CurrentPose = Scene->GetPose(PoseIndex);
+        if (!CurrentPose || !CurrentPose->IsBindPose())
+        {
+            continue;
+        }
+
+        // 이 바인드 포즈가 스켈레톤의 일부 본을 포함하는지 확인
+        bool bPoseContainsSomeBones = false;
+        int32 NodeCount = CurrentPose->GetCount();
+
+        for (int32 NodeIndex = 0; NodeIndex < NodeCount; NodeIndex++)
+        {
+            FbxNode* Node = CurrentPose->GetNode(NodeIndex);
+            if (SkeletonBones.Contains(Node))
+            {
+                bPoseContainsSomeBones = true;
+                break;
+            }
+        }
+
+        // 이 스켈레톤에 바인드 포즈가 적어도 하나의 본을 포함하면 반환
+        if (bPoseContainsSomeBones)
+        {
+            return CurrentPose;
+        }
+    }
+
+    return nullptr; // 해당 스켈레톤에 관련된 바인드 포즈 없음
+}
+
+/*
+ * CollectSkeletonBoneNodes()
+ *
+ * 노드와 그 자식들을 재귀적으로 탐색하여 모든 본 노드를 수집합니다.
+ */
+void FFBXManager::CollectSkeletonBoneNodes(FbxNode* Node, TArray<FbxNode*>& OutBoneNodes)
+{
+    if (!Node)
+    {
+        return;
+    }
+
+    // 본 노드인지 확인
+    if (Node->GetNodeAttribute() &&
+        Node->GetNodeAttribute()->GetAttributeType() == FbxNodeAttribute::eSkeleton)
+    {
+        OutBoneNodes.Add(Node);
+    }
+
+    // 자식 노드들에 대해 재귀적으로 처리
+    for (int32 ChildIndex = 0; ChildIndex < Node->GetChildCount(); ChildIndex++)
+    {
+        FbxNode* ChildNode = Node->GetChild(ChildIndex);
+        CollectSkeletonBoneNodes(ChildNode, OutBoneNodes);
+    }
+}
+
+/*
+ * FindSkeletonRootNodes()
+ *
+ * 씬에서 모든 스켈레톤 루트 노드를 찾습니다.
+ */
+void FFBXManager::FindSkeletonRootNodes(FbxNode* Node, TArray<FbxNode*>& OutSkeletonRoots)
+{
+    if (IsSkeletonRootNode(Node))
+    {
+        OutSkeletonRoots.Add(Node);
+        return; // 이미 루트로 식별된 노드 아래는 더 탐색하지 않음
+    }
+
+    // 자식 노드들 재귀적으로 탐색
+    for (int i = 0; i < Node->GetChildCount(); i++)
+    {
+        FindSkeletonRootNodes(Node->GetChild(i), OutSkeletonRoots);
+    }
+}
+
+/*
+ * IsSkeletonRootNode()
+ *
+ * 노드가 스켈레톤 루트인지 확인합니다.
+ * 부모가 없거나 부모가 스켈레톤이 아닌 경우에만 루트로 간주합니다.
+ */
+bool FFBXManager::IsSkeletonRootNode(FbxNode* Node)
+{
+    if (!Node)
+    {
+        return false;
+    }
+
+    FbxNodeAttribute* Attribute = Node->GetNodeAttribute();
+    if (Attribute && Attribute->GetAttributeType() == FbxNodeAttribute::eSkeleton)
+    {
+        // 부모가 없거나 부모가 스켈레톤이 아닌 경우에만 루트로 간주
+        FbxNode* Parent = Node->GetParent();
+        if (Parent == nullptr || Parent->GetNodeAttribute() == nullptr ||
+            Parent->GetNodeAttribute()->GetAttributeType() != FbxNodeAttribute::eSkeleton)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+/*
+ * CollectBoneData()
+ *
+ * 본 노드를 재귀적으로 순회하며 계층 구조와 BindPose 기반 변환을 계산합니다.
+ * 이는 FFbxLoader의 정확한 방식을 따릅니다.
+ */
+void FFBXManager::CollectBoneData(FbxNode* Node, FSkeletalMesh* OutMeshData, int32 ParentIndex, FbxPose* BindPose, TMap<FbxNode*, int32>& NodeToIndexMap)
+{
+    if (!Node)
+    {
+        return;
+    }
+
+    FString BoneName = Node->GetName();
+    const int32 CurrentIndex = static_cast<int32>(OutMeshData->Bones.size());
+
+    // 노드 인덱스 맵에 추가 (빠른 검색용)
+    NodeToIndexMap.Add(Node, CurrentIndex);
+
+    FBoneInfo BoneInfo;
+    BoneInfo.BoneName = BoneName;
+    BoneInfo.ParentIndex = ParentIndex;
+
+    // BindPose에서 변환 행렬 가져오기
+    int32 PoseNodeIndex = -1;
+    if (BindPose)
+    {
+        PoseNodeIndex = BindPose->Find(Node);
+    }
+
+    // 로컬 변환 행렬 계산
+    FbxAMatrix LocalMatrix;
+    FbxAMatrix GlobalMatrix;
+
+    if (PoseNodeIndex != -1)
+    {
+        // BindPose에서 글로벌 행렬 가져오기
+        FbxMatrix NodeMatrix = BindPose->GetMatrix(PoseNodeIndex);
+        for (int32 r = 0; r < 4; ++r)
+        {
+            for (int32 c = 0; c < 4; ++c)
+            {
+                GlobalMatrix[r][c] = NodeMatrix.Get(r, c);
+            }
+        }
+
+        // 로컬 행렬 계산
+        if (ParentIndex != -1)
+        {
+            FbxNode* ParentNode = Node->GetParent();
+            if (ParentNode)
+            {
+                int32 ParentPoseIndex = BindPose->Find(ParentNode);
+                if (ParentPoseIndex != -1)
+                {
+                    FbxMatrix ParentNodeMatrix = BindPose->GetMatrix(ParentPoseIndex);
+                    FbxAMatrix ParentGlobalMatrix;
+                    for (int r = 0; r < 4; ++r)
+                    {
+                        for (int c = 0; c < 4; ++c)
+                        {
+                            ParentGlobalMatrix[r][c] = ParentNodeMatrix.Get(r, c);
+                        }
+                    }
+
+                    // Local = ParentGlobal^-1 * Global
+                    LocalMatrix = ParentGlobalMatrix.Inverse() * GlobalMatrix;
+                }
+                else
+                {
+                    LocalMatrix = Node->EvaluateLocalTransform();
+                }
+            }
+            else
+            {
+                LocalMatrix = Node->EvaluateLocalTransform();
+            }
+        }
+        else
+        {
+            // 루트 노드는 글로벌 = 로컬
+            LocalMatrix = GlobalMatrix;
+        }
+    }
+    else
+    {
+        // BindPose가 없으면 현재 노드 변환 사용
+        LocalMatrix = Node->EvaluateLocalTransform();
+        GlobalMatrix = Node->EvaluateGlobalTransform();
+    }
+
+    // BindPoseLocalTransform: LocalMatrix를 FMatrix로 변환
+    for (int i = 0; i < 4; i++)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            BoneInfo.BindPoseLocalTransform.M[i][j] = static_cast<float>(LocalMatrix.Get(i, j));
+        }
+    }
+
+    // cm -> m 변환
+    const float ScaleFactor = 0.01f;
+    BoneInfo.BindPoseLocalTransform.M[3][0] *= ScaleFactor;
+    BoneInfo.BindPoseLocalTransform.M[3][1] *= ScaleFactor;
+    BoneInfo.BindPoseLocalTransform.M[3][2] *= ScaleFactor;
+
+    // GlobalTransform: 바인드 포즈 시점의 본 월드 변환
+    for (int i = 0; i < 4; i++)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            BoneInfo.GlobalTransform.M[i][j] = static_cast<float>(GlobalMatrix.Get(i, j));
+        }
+    }
+    BoneInfo.GlobalTransform.M[3][0] *= ScaleFactor;
+    BoneInfo.GlobalTransform.M[3][1] *= ScaleFactor;
+    BoneInfo.GlobalTransform.M[3][2] *= ScaleFactor;
+
+    // InverseBindPoseMatrix 계산
+    FbxAMatrix InverseBindMatrix = GlobalMatrix.Inverse();
+    for (int i = 0; i < 4; i++)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            BoneInfo.InverseBindPoseMatrix.M[i][j] = static_cast<float>(InverseBindMatrix.Get(i, j));
+        }
+    }
+    BoneInfo.InverseBindPoseMatrix.M[3][0] *= ScaleFactor;
+    BoneInfo.InverseBindPoseMatrix.M[3][1] *= ScaleFactor;
+    BoneInfo.InverseBindPoseMatrix.M[3][2] *= ScaleFactor;
+
+    // SkinningMatrix 계산
+    BoneInfo.SkinningMatrix = BoneInfo.InverseBindPoseMatrix * BoneInfo.GlobalTransform;
+
+    OutMeshData->Bones.push_back(BoneInfo);
+
+    // 자식 노드들을 재귀적으로 처리
+    for (int i = 0; i < Node->GetChildCount(); i++)
+    {
+        FbxNode* ChildNode = Node->GetChild(i);
+        if (ChildNode &&
+            ChildNode->GetNodeAttribute() &&
+            ChildNode->GetNodeAttribute()->GetAttributeType() == FbxNodeAttribute::eSkeleton)
+        {
+            CollectBoneData(ChildNode, OutMeshData, CurrentIndex, BindPose, NodeToIndexMap);
+        }
+    }
+}
+
+/*
  * ParseMeshGeometry()
  *
  * FBX 메시에서 Geometry 정보(Vertices, Indices, Materials)를 파싱합니다.
@@ -536,24 +911,29 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
     int ControlPointsCount = FbxMeshNode->GetControlPointsCount();
     FbxVector4* ControlPoints = FbxMeshNode->GetControlPoints();
     int PolygonCount = FbxMeshNode->GetPolygonCount();
-    FbxAMatrix GlobalTransform = FbxMeshNode->GetNode()->EvaluateGlobalTransform();
-    
-    UE_LOG("FBXManager: Parsing mesh geometry");
+
+    // [수정] LocalTransformMatrix 사용 (GlobalTransform 대신)
+    // 이유: 메시의 로컬 변환만 적용해야 함. 부모 노드 변환은 별도 처리
+    const FbxAMatrix LocalTransformMatrix = FbxMeshNode->GetNode()->EvaluateLocalTransform();
+
+    UE_LOG("FBXManager: Parsing mesh geometry (Fixed)");
     UE_LOG("  Control Points: %d", ControlPointsCount);
     UE_LOG("  Polygons: %d", PolygonCount);
 
-    // Geometry Element (Normal, UV, Tangent, Material 정보) 가져오기
+    // Geometry Element (Normal, UV, Tangent, Color, Material 정보) 가져오기
     FbxGeometryElementNormal* NormalElement = FbxMeshNode->GetElementNormal();
     FbxGeometryElementUV* UVElement = FbxMeshNode->GetElementUV();
     FbxGeometryElementTangent* TangentElement = FbxMeshNode->GetElementTangent();
+    FbxGeometryElementVertexColor* ColorElement = FbxMeshNode->GetElementVertexColor(); // [추가] Color Element
     FbxGeometryElementMaterial* MaterialElement = FbxMeshNode->GetElementMaterial();
-    
-    // Vertex 중복 제거를 위한 자료구조
-    TArray<uint32> Indices;
-    TMap<FNormalVertex, uint32> VertexMap;
+
+    // [수정] Index-based Vertex Deduplication using FVertexKey
+    TMap<FVertexKey, uint32> UniqueVertices;
 
     // Material별 인덱스 그룹핑
     TMap<int, TArray<uint32>> MaterialGroups;
+
+    int VertexCounter = 0; // 폴리곤 정점 인덱스 (eByPolygonVertex 모드용)
 
     // 폴리곤 순회하며 파싱
     for (int PolyIndex = 0; PolyIndex < PolygonCount; PolyIndex++)
@@ -570,16 +950,14 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
         int MaterialIndex = 0;
         if (MaterialElement)
         {
-            if (MaterialElement->GetMappingMode() == FbxGeometryElement::eByPolygon)
+            auto Mode = MaterialElement->GetMappingMode();
+            if (Mode == FbxGeometryElement::eByPolygon)
             {
-                if (MaterialElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
-                    MaterialIndex = MaterialElement->GetIndexArray().GetAt(PolyIndex);
-                else
-                    MaterialIndex = PolyIndex;
+                MaterialIndex = MaterialElement->GetIndexArray().GetAt(PolyIndex);
             }
-            else if (MaterialElement->GetMappingMode() == FbxGeometryElement::eAllSame)
+            else if (Mode == FbxGeometryElement::eAllSame)
             {
-                MaterialIndex = 0;
+                MaterialIndex = MaterialElement->GetIndexArray().GetAt(0);
             }
         }
 
@@ -587,141 +965,120 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
 
         for (int VertInPoly = 0; VertInPoly < 3; VertInPoly++)
         {
-            int ControlPointIndex = FbxMeshNode->GetPolygonVertex(PolyIndex, VertInPoly);
-            FNormalVertex Vertex;
+            const int32 ControlPointIndex = FbxMeshNode->GetPolygonVertex(PolyIndex, VertInPoly);
 
-            // 위치 (Position)
-            // cm -> m
-            const float ScaleFactor = 0.01f;
+            // [수정] FVertexKey를 사용한 인덱스 기반 중복 제거
+            // 실제 데이터 인덱스를 기준으로 정점을 식별합니다
             FbxVector4 Position = ControlPoints[ControlPointIndex];
-            Position = GlobalTransform.MultT(Position);
-            Vertex.pos = FVector(
-                static_cast<float>(Position[0]) * ScaleFactor,
-                static_cast<float>(Position[1]) * ScaleFactor,
-                static_cast<float>(Position[2]) * ScaleFactor
-            );
+            FbxVector4 Normal;
+            FbxVector4 Tangent;
+            FbxVector2 UV;
+            FbxColor Color;
 
-            // 노멀 (Normal)
-            if (NormalElement)
+            // 각 LayerElement의 인덱스 계산 (GetVertexElementData에서 사용)
+            int32 NormalIndex = (NormalElement) ? (NormalElement->GetMappingMode() == FbxLayerElement::eByControlPoint ? ControlPointIndex : VertexCounter) : -1;
+            int32 TangentIndex = (TangentElement) ? (TangentElement->GetMappingMode() == FbxLayerElement::eByControlPoint ? ControlPointIndex : VertexCounter) : -1;
+            int32 UVIndex = (UVElement) ? (UVElement->GetMappingMode() == FbxLayerElement::eByPolygonVertex ? FbxMeshNode->GetTextureUVIndex(PolyIndex, VertInPoly) : ControlPointIndex) : -1;
+            int32 ColorIndex = (ColorElement) ? (ColorElement->GetMappingMode() == FbxLayerElement::eByControlPoint ? ControlPointIndex : VertexCounter) : -1;
+
+            uint32 NewIndex;
+
+            // 정점 병합 키 생성
+            FVertexKey Key(ControlPointIndex, NormalIndex, TangentIndex, UVIndex, ColorIndex);
+
+            // 맵에서 키 검색
+            if (const uint32* Found = UniqueVertices.Find(Key))
             {
-                int NormalIndex = 0;
-                int VertexId = PolyIndex * 3 + VertInPoly;
-
-                if (NormalElement->GetMappingMode() == FbxGeometryElement::eByPolygonVertex)
-                {
-                    if (NormalElement->GetReferenceMode() == FbxGeometryElement::eDirect)
-                        NormalIndex = VertexId;
-                    else if (NormalElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
-                        NormalIndex = NormalElement->GetIndexArray().GetAt(VertexId);
-                }
-                else if (NormalElement->GetMappingMode() == FbxGeometryElement::eByControlPoint)
-                {
-                    if (NormalElement->GetReferenceMode() == FbxGeometryElement::eDirect)
-                        NormalIndex = ControlPointIndex;
-                    else if (NormalElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
-                        NormalIndex = NormalElement->GetIndexArray().GetAt(ControlPointIndex);
-                }
-
-                FbxVector4 Normal = NormalElement->GetDirectArray().GetAt(NormalIndex);
-                Normal = GlobalTransform.Inverse().Transpose().MultT(Normal);
-
-                Vertex.normal = FVector(
-                    static_cast<float>(Normal[0]),
-                    static_cast<float>(Normal[1]),
-                    static_cast<float>(Normal[2])
-                );
+                NewIndex = *Found;
             }
             else
             {
-                Vertex.normal = FVector(0, 0, 1);
-            }
+                FNormalVertex NewVertex;
 
-            // UV 좌표
-            if (UVElement)
-            {
-                int UVIndex = 0;
-                int VertexId = PolyIndex * 3 + VertInPoly;
-
-                if (UVElement->GetMappingMode() == FbxGeometryElement::eByPolygonVertex)
+                // Position
+                // cm -> m
+                const float ScaleFactor = 0.01f;
+                if (ControlPointIndex < ControlPointsCount)
                 {
-                    if (UVElement->GetReferenceMode() == FbxGeometryElement::eDirect)
-                        UVIndex = VertexId;
-                    else if (UVElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
-                        UVIndex = UVElement->GetIndexArray().GetAt(VertexId);
-                }
-                else if (UVElement->GetMappingMode() == FbxGeometryElement::eByControlPoint)
-                {
-                    if (UVElement->GetReferenceMode() == FbxGeometryElement::eDirect)
-                        UVIndex = ControlPointIndex;
-                    else if (UVElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
-                        UVIndex = UVElement->GetIndexArray().GetAt(ControlPointIndex);
+                    Position = LocalTransformMatrix.MultT(Position);
+                    NewVertex.pos = FVector(
+                        static_cast<float>(Position[0]) * ScaleFactor,
+                        static_cast<float>(Position[1]) * ScaleFactor,
+                        static_cast<float>(Position[2]) * ScaleFactor
+                    );
                 }
 
-                FbxVector2 UV = UVElement->GetDirectArray().GetAt(UVIndex);
-                Vertex.tex = FVector2D(
-                    static_cast<float>(UV[0]),
-                    1.0f - static_cast<float>(UV[1])
-                );
-            }
-            else
-            {
-                Vertex.tex = FVector2D(0, 0);
-            }
-
-            // 접선 (Tangent)
-            if (TangentElement)
-            {
-                int TangentIndex = 0;
-                int VertexId = PolyIndex * 3 + VertInPoly;
-
-                if (TangentElement->GetMappingMode() == FbxGeometryElement::eByPolygonVertex)
+                // Normal: InverseTranspose 적용
+                if (NormalElement && GetVertexElementData(NormalElement, ControlPointIndex, VertexCounter, Normal))
                 {
-                    if (TangentElement->GetReferenceMode() == FbxGeometryElement::eDirect)
-                        TangentIndex = VertexId;
-                    else if (TangentElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
-                        TangentIndex = TangentElement->GetIndexArray().GetAt(VertexId);
+                    Normal = LocalTransformMatrix.Inverse().Transpose().MultT(Normal);
+                    NewVertex.normal = FVector(
+                        static_cast<float>(Normal[0]),
+                        static_cast<float>(Normal[1]),
+                        static_cast<float>(Normal[2])
+                    );
                 }
-                else if (TangentElement->GetMappingMode() == FbxGeometryElement::eByControlPoint)
+                else
                 {
-                    if (TangentElement->GetReferenceMode() == FbxGeometryElement::eDirect)
-                        TangentIndex = ControlPointIndex;
-                    else if (TangentElement->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
-                        TangentIndex = TangentElement->GetIndexArray().GetAt(ControlPointIndex);
+                    NewVertex.normal = FVector(0, 0, 1);
                 }
 
-                FbxVector4 Tangent = TangentElement->GetDirectArray().GetAt(TangentIndex);
-                Tangent = GlobalTransform.Inverse().Transpose().MultT(Tangent);
-                Vertex.Tangent = FVector4(
-                    static_cast<float>(Tangent[0]),
-                    static_cast<float>(Tangent[1]),
-                    static_cast<float>(Tangent[2]),
-                    1.0f
-                );
-            }
-            else
-            {
-                Vertex.Tangent = FVector4(1, 0, 0, 1);
-            }
+                // Tangent: InverseTranspose 적용
+                if (TangentElement && GetVertexElementData(TangentElement, ControlPointIndex, VertexCounter, Tangent))
+                {
+                    Tangent = LocalTransformMatrix.Inverse().Transpose().MultT(Tangent);
+                    NewVertex.Tangent = FVector4(
+                        static_cast<float>(Tangent[0]),
+                        static_cast<float>(Tangent[1]),
+                        static_cast<float>(Tangent[2]),
+                        1.0f // W (Handedness)
+                    );
+                }
+                else
+                {
+                    NewVertex.Tangent = FVector4(1, 0, 0, 1);
+                }
 
-            Vertex.color = FVector4(1, 1, 1, 1);
+                // UV
+                if (UVElement && GetVertexElementData(UVElement, ControlPointIndex, VertexCounter, UV))
+                {
+                    NewVertex.tex = FVector2D(
+                        static_cast<float>(UV[0]),
+                        1.0f - static_cast<float>(UV[1]) // V 좌표는 보통 뒤집힘 (DirectX 스타일)
+                    );
+                }
+                else
+                {
+                    NewVertex.tex = FVector2D(0, 0);
+                }
 
-            // 정점 중복 제거
-            uint32 VertexIndex;
-            if (VertexMap.contains(Vertex))
-            {
-                VertexIndex = VertexMap[Vertex];
-            }
-            else
-            {
-                VertexIndex = static_cast<uint32>(OutMeshData->Vertices.size());
-                VertexMap[Vertex] = VertexIndex;
-                OutMeshData->Vertices.push_back(Vertex);
+                // [추가] Vertex Color: ColorElement가 있으면 파싱
+                if (ColorElement && GetVertexElementData(ColorElement, ControlPointIndex, VertexCounter, Color))
+                {
+                    NewVertex.color = FVector4(
+                        static_cast<float>(Color.mRed),
+                        static_cast<float>(Color.mGreen),
+                        static_cast<float>(Color.mBlue),
+                        static_cast<float>(Color.mAlpha)
+                    );
+                }
+                else
+                {
+                    NewVertex.color = FVector4(1, 1, 1, 1);
+                }
+
+                // 새로운 정점을 Vertices 배열에 추가
+                OutMeshData->Vertices.push_back(NewVertex);
+                // 새 정점의 인덱스 계산
+                NewIndex = static_cast<uint32>(OutMeshData->Vertices.size() - 1);
+                // 맵에 새 정점 정보 추가
+                UniqueVertices.Add(Key, NewIndex);
                 // Vertex 인덱스 → ControlPoint 인덱스 매핑 저장 (Skinning에 사용)
                 OutVertexToControlPointMap.push_back(ControlPointIndex);
             }
 
-            TriangleIndices.push_back(VertexIndex);
-            Indices.push_back(VertexIndex);
+            TriangleIndices.push_back(NewIndex);
+            VertexCounter++; // 다음 폴리곤 정점으로 이동
         }
 
         // Material 그룹에 삼각형 추가
@@ -740,7 +1097,6 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
     int MaterialCount = MeshNode ? MeshNode->GetMaterialCount() : 0;
 
     // Scene에서 Material 리스트 가져오기
-    // 노드에 Material이 있든 없든, MaterialElement가 Scene Material을 참조할 수 있으므로 항상 가져옴
     TArray<FbxSurfaceMaterial*> SceneMaterials;
     FbxScene* Scene = FbxMeshNode->GetScene();
 
@@ -779,8 +1135,8 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
             FGroupInfo GroupInfo;
             GroupInfo.StartIndex = IndexBufferOffset + static_cast<uint32>(SortedIndices.size());
             GroupInfo.IndexCount = static_cast<uint32>(GroupIndices.size());
-            
-            // Material 이름 설정 - 노드에서 먼저 시도, 실패하면 Scene에서 시도
+
+            // Material 이름 설정
             FbxSurfaceMaterial* Material = nullptr;
 
             if (MeshNode && MaterialIndex >= 0 && MaterialIndex < MaterialCount)
@@ -811,22 +1167,25 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
             }
         }
 
-        // Material 그룹 재정렬된 인덱스로 교체
         OutMeshData->Indices.insert(OutMeshData->Indices.end(), SortedIndices.begin(), SortedIndices.end());
-        OutMeshData->bHasMaterial = true; // 그룹이 하나라도 있으면 true
+        OutMeshData->bHasMaterial = true;
     }
     else
     {
-        // Material이 없는 경우 원본 Indices 사용
         FGroupInfo GroupInfo;
-        GroupInfo.StartIndex = IndexBufferOffset; // (전역 오프셋)
-        GroupInfo.IndexCount = static_cast<uint32>(Indices.size()); // (이 메시 조각의 전체 인덱스 수)
+        GroupInfo.StartIndex = IndexBufferOffset;
+        GroupInfo.IndexCount = static_cast<uint32>(OutMeshData->Vertices.size());
         GroupInfo.InitialMaterialName = "";
         OutMeshData->GroupInfos.push_back(GroupInfo);
 
-        // OutMeshData->Indices에 대입(=)하지 않고, 뒤에 추가(Append)합니다.
+        // 인덱스 생성 (중복 제거로 인해 순차적이지 않을 수 있음)
+        TArray<uint32> Indices;
+        for (uint32 i = 0; i < static_cast<uint32>(OutMeshData->Vertices.size()); ++i)
+        {
+            Indices.push_back(i);
+        }
         OutMeshData->Indices.insert(OutMeshData->Indices.end(), Indices.begin(), Indices.end());
-        OutMeshData->bHasMaterial = OutMeshData->bHasMaterial || false; // 기존 bHasMaterial 상태를 유지
+        OutMeshData->bHasMaterial = OutMeshData->bHasMaterial || false;
     }
 
     UE_LOG("FBXManager: Parsed geometry - Vertices: %zu, Indices: %zu",
@@ -838,12 +1197,15 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
  *
  * FBX 메시에서 Bone 계층 구조를 파싱합니다.
  *
- * 주요 처리:
- * - Skin Deformer에서 Cluster(본) 목록 가져오기
- * - 각 Cluster가 링크하는 Bone Node 찾기
- * - 부모-자식 관계 구축 (ParentIndex)
- * - Offset Matrix 계산 (Mesh Local → Bone Local 변환 행렬)
- * - Column-major → Row-major 변환 (FBX → DirectX)
+ * [중요] 기존 Cluster 기반 방식의 문제점:
+ * - BindPose를 무시하고 GetTransformMatrix/GetTransformLinkMatrix만 사용
+ * - Cluster 순서에 의존하여 부모-자식 관계가 잘못 설정될 수 있음
+ * - 노드 계층 구조를 무시하여 일부 본이 누락될 수 있음
+ *
+ * [개선] 새로운 BindPose 기반 방식:
+ * - BindPose를 명시적으로 찾아 사용
+ * - 노드 계층 구조를 재귀적으로 순회
+ * - ParentGlobalMatrix.Inverse() * NodeGlobalMatrix로 정확한 로컬 변환 계산
  *
  * @param FbxMeshNode FBX 메시 노드
  * @param OutMeshData 파싱 결과를 저장할 FSkeletalMesh
@@ -853,7 +1215,7 @@ void FFBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMes
     FbxScene* Scene = FbxMeshNode->GetScene();
     int DeformerCount = FbxMeshNode->GetDeformerCount(FbxDeformer::eSkin);
 
-    UE_LOG("FBXManager: Parsing bone hierarchy");
+    UE_LOG("FBXManager: Parsing bone hierarchy (BindPose-based)");
     UE_LOG("  Skin Deformers: %d", DeformerCount);
 
     if (DeformerCount == 0)
@@ -861,134 +1223,81 @@ void FFBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMes
 
     FbxSkin* Skin = static_cast<FbxSkin*>(FbxMeshNode->GetDeformer(0, FbxDeformer::eSkin));
     int ClusterCount = Skin->GetClusterCount();
-
     UE_LOG("  Clusters (Bones): %d", ClusterCount);
 
-    // 각 Cluster(본) 순회
+    // 1. 스켈레톤 루트 노드 찾기
+    // Cluster의 링크 노드들 중 최상위 스켈레톤 노드를 찾습니다.
+    TArray<FbxNode*> SkeletonRoots;
+    TSet<FbxNode*> AllBoneNodes;
+
+    // 모든 Cluster의 링크 노드를 수집
     for (int ClusterIndex = 0; ClusterIndex < ClusterCount; ClusterIndex++)
     {
         FbxCluster* Cluster = Skin->GetCluster(ClusterIndex);
         FbxNode* BoneNode = Cluster->GetLink();
-
-        if (!BoneNode)
-            continue;
-
-        FBoneInfo BoneInfo;
-        BoneInfo.BoneName = BoneNode->GetName();
-
-        // 부모 본 찾기
-        FbxNode* ParentNode = BoneNode->GetParent();
-        BoneInfo.ParentIndex = -1;
-        
-        if (ParentNode && ParentNode != Scene->GetRootNode())
+        if (BoneNode)
         {
-            for (int i = 0; i < ClusterCount; i++)
-            {
-                FbxCluster* TestCluster = Skin->GetCluster(i);
-                if (TestCluster->GetLink() == ParentNode)
-                {
-                    BoneInfo.ParentIndex = i;
-                    break;
-                }
-            }
+            AllBoneNodes.Add(BoneNode);
         }
-
-        // ========================================
-        // 1. 행렬 가져오기
-        // ========================================
-        // FBX SDK API:
-        // - GetTransformMatrix(): 메시의 T-Pose 월드 행렬 (Model Local → World)
-        // - GetTransformLinkMatrix(): 뼈의 T-Pose 월드 행렬 (Bone Local → World)
-
-        FbxAMatrix MeshTransform;          // Mesh Local → World
-        FbxAMatrix BoneWorldTransform;     // Bone Local → World (at Bind Pose)
-        Cluster->GetTransformMatrix(MeshTransform);
-        Cluster->GetTransformLinkMatrix(BoneWorldTransform);
-
-        // ========================================
-        // 2. InverseBindPoseMatrix 계산
-        // ========================================
-        // InverseBindPose = T-Pose 시점의 월드 공간 정점을 뼈 로컬 공간으로 변환
-        // = (World → Bone Local) * (Mesh Local → World)
-        // = BoneWorldTransform.Inverse() * MeshTransform
-        // = Mesh Local → Bone Local
-        FbxAMatrix FbxInverseBindPose = BoneWorldTransform.Inverse() * MeshTransform;
-
-        // FBX 행렬을 DirectX 행렬로 복사 (전치 없이)
-        BoneInfo.InverseBindPoseMatrix = FMatrix::Identity();
-        for (int i = 0; i < 4; i++)
-        {
-            for (int j = 0; j < 4; j++)
-            {
-                BoneInfo.InverseBindPoseMatrix.M[i][j] = static_cast<float>(FbxInverseBindPose.Get(i, j));
-            }
-        }
-
-        // cm -> m
-        const float ScaleFactor = 0.01f;
-        BoneInfo.InverseBindPoseMatrix.M[3][0] *= ScaleFactor;
-        BoneInfo.InverseBindPoseMatrix.M[3][1] *= ScaleFactor;
-        BoneInfo.InverseBindPoseMatrix.M[3][2] *= ScaleFactor;
-
-        // ========================================
-        // 3. GlobalTransform: Bone Local → World (at Bind Pose)
-        // ========================================
-        // 바인드 포즈 시점의 본 월드 변환
-        // 애니메이션 시에는 현재 프레임의 본 변환으로 교체됨
-        BoneInfo.GlobalTransform = FMatrix::Identity();
-        for (int i = 0; i < 4; i++)
-        {
-            for (int j = 0; j < 4; j++)
-            {
-                BoneInfo.GlobalTransform.M[i][j] = static_cast<float>(BoneWorldTransform.Get(i, j));
-            }
-        }
-
-        // cm -> m
-        BoneInfo.GlobalTransform.M[3][0] *= ScaleFactor;
-        BoneInfo.GlobalTransform.M[3][1] *= ScaleFactor;
-        BoneInfo.GlobalTransform.M[3][2] *= ScaleFactor;
-
-        // ========================================
-        // 4. SkinningMatrix: 바인드 포즈에서의 최종 변환
-        // ========================================
-        // SkinningMatrix = InverseBindPose * GlobalTransform (at Bind Pose)
-        //                = (Mesh Local → Bone Local) * (Bone Local → World)
-        //                = Mesh Local → World
-        //
-        // 애니메이션 적용 시: AnimatedBoneTransform * InverseBindPose
-        //                = (Bone Local → World at current frame) * (Mesh Local → Bone Local)
-        //                = Mesh Local → World (animated)
-        BoneInfo.SkinningMatrix = BoneInfo.InverseBindPoseMatrix * BoneInfo.GlobalTransform;
-
-        OutMeshData->Bones.push_back(BoneInfo);
     }
 
-    // ========================================
-    // 5. BindPoseLocalTransform 계산
-    // ========================================
-    // 모든 본의 GlobalTransform(바인드 포즈)을 이미 계산했으므로,
-    // 이제 각 본의 LocalTransform을 계산합니다.
-    // LocalTransform = GlobalTransform * ParentGlobalTransform.Inverse()
-
-    for (size_t i = 0; i < OutMeshData->Bones.size(); i++)
+    // 각 본 노드의 최상위 스켈레톤 조상을 찾습니다
+    for (FbxNode* BoneNode : AllBoneNodes)
     {
-        FBoneInfo& Bone = OutMeshData->Bones[i];
+        FbxNode* CurrentNode = BoneNode;
+        FbxNode* SkeletonRoot = CurrentNode;
 
-        if (Bone.ParentIndex == -1)
+        // 부모를 따라 올라가며 스켈레톤 노드인 최상위 노드를 찾습니다
+        while (CurrentNode)
         {
-            // 루트 본: 부모가 없으므로 Local = Global
-            Bone.BindPoseLocalTransform = Bone.GlobalTransform;
+            FbxNode* Parent = CurrentNode->GetParent();
+            if (Parent && Parent->GetNodeAttribute() &&
+                Parent->GetNodeAttribute()->GetAttributeType() == FbxNodeAttribute::eSkeleton)
+            {
+                SkeletonRoot = Parent;
+                CurrentNode = Parent;
+            }
+            else
+            {
+                break;
+            }
         }
-        else
+
+        if (SkeletonRoot && !SkeletonRoots.Contains(SkeletonRoot))
         {
-            // 자식 본: Local = Global * ParentGlobal.Inverse()
-            const FMatrix& ParentGlobal = OutMeshData->Bones[Bone.ParentIndex].GlobalTransform;
-            Bone.BindPoseLocalTransform = Bone.GlobalTransform * ParentGlobal.InverseAffine();
+            SkeletonRoots.Add(SkeletonRoot);
         }
     }
 
-    UE_LOG("FBXManager: Parsed %d bones with bind pose local transforms", OutMeshData->Bones.size());
+    if (SkeletonRoots.IsEmpty())
+    {
+        UE_LOG("FBXManager: ERROR - No skeleton root found!");
+        return;
+    }
+
+    UE_LOG("FBXManager: Found %d skeleton root(s)", SkeletonRoots.Num());
+
+    // 2. BindPose 찾기
+    FbxPose* BindPose = FindBindPose(SkeletonRoots[0]);
+    if (!BindPose)
+    {
+        UE_LOG("FBXManager: WARNING - No BindPose found, using evaluated transforms");
+    }
+    else
+    {
+        UE_LOG("FBXManager: Found BindPose with %d nodes", BindPose->GetCount());
+    }
+
+    // 3. 본 계층 구조를 재귀적으로 수집
+    // NodeToIndexMap: 빠른 인덱스 검색용 (ParseSkinWeights에서 사용)
+    TMap<FbxNode*, int32> NodeToIndexMap;
+
+    for (FbxNode* SkeletonRoot : SkeletonRoots)
+    {
+        CollectBoneData(SkeletonRoot, OutMeshData, -1, BindPose, NodeToIndexMap);
+    }
+
+    UE_LOG("FBXManager: Parsed %d bones with BindPose-based transforms", OutMeshData->Bones.size());
 }
 
 /*

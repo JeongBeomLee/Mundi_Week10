@@ -32,6 +32,13 @@ private:
     static void LoadMaterials(FbxMesh* FbxMeshNode, TArray<FMaterialInfo>* OutMaterialInfos = nullptr);
     static void RegisterMaterialsFromInfos(const TArray<FMaterialInfo>& InMaterialInfos);
 
+    // BindPose and Skeleton Hierarchy helpers
+    static FbxPose* FindBindPose(FbxNode* SkeletonRoot);
+    static void CollectSkeletonBoneNodes(FbxNode* Node, TArray<FbxNode*>& OutBoneNodes);
+    static void FindSkeletonRootNodes(FbxNode* Node, TArray<FbxNode*>& OutSkeletonRoots);
+    static bool IsSkeletonRootNode(FbxNode* Node);
+    static void CollectBoneData(FbxNode* Node, FSkeletalMesh* OutMeshData, int32 ParentIndex, FbxPose* BindPose, TMap<FbxNode*, int32>& NodeToIndexMap);
+
     static TMap<FString, FSkeletalMesh*> FBXSkeletalMeshMap;
     static TMap<FString, FStaticMesh*> FBXStaticMeshMap;
 };
