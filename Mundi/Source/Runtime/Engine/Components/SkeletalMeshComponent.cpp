@@ -727,8 +727,17 @@ void USkeletalMeshComponent::RenderBonePyramids(
     TArray<FVector>& OutStartPoints,
     TArray<FVector>& OutEndPoints,
     TArray<FVector4>& OutColors) const
-{    
-    const float BoneThickness = 0.8f;
+{
+    // 메시 바운딩 박스 크기를 기준으로 본 두께를 스케일링
+    float BoneThickness = 0.8f;
+    if (SkeletalMesh)
+    {
+        const FAABB LocalBound = SkeletalMesh->GetLocalBound();
+        const FVector BoundSize = LocalBound.Max - LocalBound.Min;
+        const float MeshScale = (BoundSize.X + BoundSize.Y + BoundSize.Z) / 3.0f;
+        BoneThickness = MeshScale * 0.01f;  // 메시 평균 크기의 1%
+    }
+
     const FVector4 WhiteColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
     const FVector4 GreenColor = FVector4(0.0f, 1.0f, 0.0f, 1.0f);
     const FVector4 YellowColor = FVector4(1.0f, 1.0f, 0.0f, 1.0f);
@@ -794,7 +803,16 @@ void USkeletalMeshComponent::RenderJointSpheres(
     TArray<FVector>& OutEndPoints,
     TArray<FVector4>& OutColors) const
 {
-    const float SphereRadius = 1.5f;
+    // 메시 바운딩 박스 크기를 기준으로 조인트 구 반지름을 스케일링
+    float SphereRadius = 1.5f;
+    if (SkeletalMesh)
+    {
+        const FAABB LocalBound = SkeletalMesh->GetLocalBound();
+        const FVector BoundSize = LocalBound.Max - LocalBound.Min;
+        const float MeshScale = (BoundSize.X + BoundSize.Y + BoundSize.Z) / 3.0f;
+        SphereRadius = MeshScale * 0.015f;  // 메시 평균 크기의 1.5%
+    }
+
     const int32 NumSegments = 8;
     const FVector4 WhiteColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
     const FVector4 GreenColor = FVector4(0.0f, 1.0f, 0.0f, 1.0f);
