@@ -436,21 +436,15 @@ UMaterialInstanceDynamic* USkeletalMeshComponent::CreateAndSetMaterialInstanceDy
 
 void USkeletalMeshComponent::EnsureSkinningReady(D3D11RHI* InDevice)
 {
-    // 스키닝이 일어나지 않음.
-    /*if (bSkinningDirty && SkeletalMesh)
+    // 스키닝이 일어나지 않음.    
+    if (bSkinningDirty)
     {
         UpdateBoneMatrices();
         UpdateSkinningMatrices();
         PerformCPUSkinning(AnimatedVertices);
         UpdateVertexBuffer(InDevice);
         bSkinningDirty = false;
-    }*/
-
-    UpdateBoneMatrices();
-    UpdateSkinningMatrices();
-    PerformCPUSkinning(AnimatedVertices);
-    UpdateVertexBuffer(InDevice);
-    bSkinningDirty = false;
+    }
 }
 
 void USkeletalMeshComponent::UpdateVertexBuffer(D3D11RHI* InDevice)
@@ -586,6 +580,7 @@ void USkeletalMeshComponent::UpdateBoneMatrices()
                 ComponentSpaceTransforms[i] = BoneLocal * ComponentSpaceTransforms[ParentIndex];
             }
         }
+        UE_LOG("Update BOne Matrices");
     }
     else
     {
@@ -628,12 +623,6 @@ void USkeletalMeshComponent::UpdateSkinningMatrices()
         {
             SkinningInvTransMatrix[i] = SkinningMatrix[i].InverseAffine().Transpose();
         }
-        // UE_LOG("**************************");
-        // UE_LOG("%f %f %f", SkinningMatrix[i].VRows[0].X, SkinningMatrix[i].VRows[0].Y, SkinningMatrix[i].VRows[0].Z, SkinningMatrix[i].VRows[0].W);
-        // UE_LOG("%f %f %f", SkinningMatrix[i].VRows[1].X, SkinningMatrix[i].VRows[1].Y, SkinningMatrix[i].VRows[1].Z, SkinningMatrix[i].VRows[1].W);
-        // UE_LOG("%f %f %f", SkinningMatrix[i].VRows[2].X, SkinningMatrix[i].VRows[2].Y, SkinningMatrix[i].VRows[2].Z, SkinningMatrix[i].VRows[2].W);
-        // UE_LOG("%f %f %f", SkinningMatrix[i].VRows[3].X, SkinningMatrix[i].VRows[3].Y, SkinningMatrix[i].VRows[3].Z, SkinningMatrix[i].VRows[3].W);
-        // UE_LOG("-------------------------");
     }
 }
 
@@ -706,7 +695,7 @@ void USkeletalMeshComponent::RenderBonePyramids(
     TArray<FVector>& OutStartPoints,
     TArray<FVector>& OutEndPoints,
     TArray<FVector4>& OutColors) const
-{
+{    
     const float BoneThickness = 0.8f;
     const FVector4 WhiteColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
     const FVector4 GreenColor = FVector4(0.0f, 1.0f, 0.0f, 1.0f);

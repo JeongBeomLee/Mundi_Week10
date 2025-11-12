@@ -70,6 +70,8 @@ void FBoneTransformCalculator::SetBoneWorldTransform(USkeletalMeshComponent* Com
 		);
 	}
 
+	Component->MarkSkinningDirty();
+
 	// Euler angle도 업데이트
 	Bone.LocalRotationEuler = Bone.LocalRotation.ToEulerZYXDeg();
 }

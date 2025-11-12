@@ -34,6 +34,8 @@ public:
     UMaterialInstanceDynamic* CreateAndSetMaterialInstanceDynamic(uint32 ElementIndex);
 
     void EnsureSkinningReady(D3D11RHI* InDevice);
+    void MarkSkinningDirty() { bSkinningDirty = true; }
+    bool IsSkinningDirty() const { return bSkinningDirty; }
 
     void UpdateVertexBuffer(D3D11RHI* InDevice);
 

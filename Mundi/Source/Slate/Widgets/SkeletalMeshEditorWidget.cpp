@@ -524,5 +524,7 @@ void USkeletalMeshEditorWidget::RevertChanges()
 		SelectedBoneIndex = -1;
 	}
 
+	PreviewMeshComponent->MarkSkinningDirty();
+
 	// NOTE: Gizmo는 다음 Update() 사이클에서 자동으로 nullptr로 동기화됨
 }

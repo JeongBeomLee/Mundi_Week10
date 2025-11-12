@@ -52,6 +52,7 @@ void UBoneTransformWidget::RenderWidget()
 	if (UPropertyUtils::RenderVector3WithColorBars("Rotation", &euler, 1.0f))
 	{
 		SelectedBone.SetLocalRotationEuler(euler);
+		PreviewComponent->MarkSkinningDirty();
 	}
 
 	// Scale

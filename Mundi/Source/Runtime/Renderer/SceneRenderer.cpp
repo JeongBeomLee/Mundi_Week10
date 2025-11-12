@@ -916,7 +916,7 @@ void FSceneRenderer::RenderOpaquePass(EViewModeIndex InRenderViewMode)
 
 	SkeletalMeshElements.Empty();
 	{
-		PROFILE_SCOPE("CPUSkinning")
+		// PROFILE_SCOPE("CPUSkinning")
 		for (UMeshComponent* MeshComponenent : SkeletalProxies)
 		{
 			if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(MeshComponenent))
