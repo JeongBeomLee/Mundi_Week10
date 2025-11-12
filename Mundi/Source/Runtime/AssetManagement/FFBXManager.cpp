@@ -504,6 +504,19 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
             {
                 ParseSkinWeights(Mesh, SkeletalMeshData, VertexToControlPointMap, StartVertexIndex, VertexCount);
             }
+            else
+            {
+                // 본 영향 안 받는 메시: 루트 본에 100% 가중치 할당
+                SkeletalMeshData->SkinnedVertices.resize(SkeletalMeshData->Vertices.size());
+                for (int i = StartVertexIndex; i < static_cast<int>(SkeletalMeshData->Vertices.size()); ++i)
+                {
+                    FSkinnedVertex& SkinnedVert = SkeletalMeshData->SkinnedVertices[i];
+                    SkinnedVert.BaseVertex = SkeletalMeshData->Vertices[i];
+                    SkinnedVert.BoneIndices[0] = 0; // 루트 본
+                    SkinnedVert.BoneWeights[0] = 1.0f; // 100% 가중치
+                    // BoneIndices[1-3]와 BoneWeights[1-3]는 기본값 0
+                }
+            }
         }
         LoadMaterials(AllMeshes[0], &MaterialInfos);
 
@@ -912,9 +925,7 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
     FbxVector4* ControlPoints = FbxMeshNode->GetControlPoints();
     int PolygonCount = FbxMeshNode->GetPolygonCount();
 
-    // [수정] LocalTransformMatrix 사용 (GlobalTransform 대신)
-    // 이유: 메시의 로컬 변환만 적용해야 함. 부모 노드 변환은 별도 처리
-    const FbxAMatrix LocalTransformMatrix = FbxMeshNode->GetNode()->EvaluateLocalTransform();
+    const FbxAMatrix GlobalTransformMatrix = FbxMeshNode->GetNode()->EvaluateGlobalTransform();
 
     UE_LOG("FBXManager: Parsing mesh geometry (Fixed)");
     UE_LOG("  Control Points: %d", ControlPointsCount);
@@ -1000,7 +1011,7 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
                 const float ScaleFactor = 0.01f;
                 if (ControlPointIndex < ControlPointsCount)
                 {
-                    Position = LocalTransformMatrix.MultT(Position);
+                    Position = GlobalTransformMatrix.MultT(Position);
                     NewVertex.pos = FVector(
                         static_cast<float>(Position[0]) * ScaleFactor,
                         static_cast<float>(Position[1]) * ScaleFactor,
@@ -1011,7 +1022,7 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
                 // Normal: InverseTranspose 적용
                 if (NormalElement && GetVertexElementData(NormalElement, ControlPointIndex, VertexCounter, Normal))
                 {
-                    Normal = LocalTransformMatrix.Inverse().Transpose().MultT(Normal);
+                    Normal = GlobalTransformMatrix.Inverse().Transpose().MultT(Normal);
                     NewVertex.normal = FVector(
                         static_cast<float>(Normal[0]),
                         static_cast<float>(Normal[1]),
@@ -1026,7 +1037,7 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
                 // Tangent: InverseTranspose 적용
                 if (TangentElement && GetVertexElementData(TangentElement, ControlPointIndex, VertexCounter, Tangent))
                 {
-                    Tangent = LocalTransformMatrix.Inverse().Transpose().MultT(Tangent);
+                    Tangent = GlobalTransformMatrix.Inverse().Transpose().MultT(Tangent);
                     NewVertex.Tangent = FVector4(
                         static_cast<float>(Tangent[0]),
                         static_cast<float>(Tangent[1]),
