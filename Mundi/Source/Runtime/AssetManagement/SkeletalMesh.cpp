@@ -158,3 +158,36 @@ void USkeletalMesh::ReleaseResources()
         IndexBuffer = nullptr;
     }
 }
+
+USkeletalMesh* USkeletalMesh::DuplicateForEditor(USkeletalMesh* Original, ID3D11Device* Device)
+{
+    if (!Original || !Original->GetSkeletalMeshAsset() || !Device)
+    {
+        UE_LOG("USkeletalMesh::DuplicateForEditor - Invalid original or device");
+        return nullptr;
+    }
+
+    // NewObject 대신 new로 직접 생성 (ResourceManager 등록 방지)
+    USkeletalMesh* Duplicate = new USkeletalMesh();
+
+    // FSkeletalMesh* 포인터는 원본 공유 (Material Instance Dynamic 패턴)
+    Duplicate->SkeletalMeshAsset = Original->SkeletalMeshAsset;
+
+    // 메타데이터 복사
+    Duplicate->FilePath = Original->FilePath;
+    Duplicate->CacheFilePath = Original->CacheFilePath;
+    Duplicate->VertexType = Original->VertexType;
+    Duplicate->VertexStride = Original->VertexStride;
+    Duplicate->VertexCount = Original->VertexCount;
+    Duplicate->IndexCount = Original->IndexCount;
+    Duplicate->LocalBound = Original->LocalBound;
+
+    // GPU 버퍼만 독립적으로 생성 (격리를 위한 핵심)
+    Duplicate->CreateVertexBuffer(Duplicate->SkeletalMeshAsset, Device, Duplicate->VertexType);
+    Duplicate->CreateIndexBuffer(Duplicate->SkeletalMeshAsset, Device);
+
+    UE_LOG("USkeletalMesh::DuplicateForEditor - Created duplicate %p (Original: %p, Shared FSkeletalMesh: %p)",
+        Duplicate, Original, Duplicate->SkeletalMeshAsset);
+
+    return Duplicate;
+}

@@ -34,6 +34,13 @@ void UBoneTransformWidget::RenderWidget()
 		return;
 	}
 
+	static bool bLoggedOnce = false;
+	if (!bLoggedOnce)
+	{
+		UE_LOG("BoneTransformWidget: PreviewComponent address = %p", PreviewComponent);
+		bLoggedOnce = true;
+	}
+
 	FBone& SelectedBone = PreviewComponent->EditableBones[*SelectedBoneIndexPtr];
 
 	ImGui::Text("Bone: %s (Index: %d)", SelectedBone.Name.c_str(), *SelectedBoneIndexPtr);

@@ -36,10 +36,13 @@ public:
 	virtual void Update() override;
 	virtual void RenderWidget() override;
 
-	/** @brief 편집 내용을 원본으로 되돌림 (TargetSkeletalMesh → PreviewMeshComponent) */
+	/** @brief Editor 내에서 변경 취소 (EditableBones를 원본으로 리셋) */
 	void RevertChanges();
 
-	/** @brief 리소스 정리 (UWidget에는 없지만 필요) */
+	/** @brief 창 닫을 때 호출 - 복제본 삭제, Actor 정리 */
+	void Cleanup();
+
+	/** @brief 엔진 종료 시 호출 - 모든 리소스 정리 */
 	void Shutdown();
 
 	/** @brief PreviewMeshComponent 접근자 (material 복사 등을 위해) */
@@ -60,7 +63,8 @@ private:
 	void LoadBonesFromAsset();
 
 	// 상태
-	USkeletalMesh* TargetSkeletalMesh = nullptr;  // 원본 Skeletal Mesh (편집 대상)
+	USkeletalMesh* TargetSkeletalMesh = nullptr;  // 원본 Skeletal Mesh (편집 대상, ResourceManager 소유)
+	USkeletalMesh* PreviewSkeletalMesh = nullptr;  // Editor 전용 복제본 (독립 GPU 버퍼, 수동 메모리 관리)
 	USkeletalMeshComponent* PreviewMeshComponent = nullptr;  // 미리보기 컴포넌트 (EditorWorld)
 	int32 SelectedBoneIndex = -1;
 

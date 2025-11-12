@@ -164,10 +164,42 @@ void USkeletalMeshEditorWidget::Initialize()
 	}
 }
 
+void USkeletalMeshEditorWidget::Cleanup()
+{
+	// 창 닫을 때 호출 - 복제본 삭제, Actor 정리
+
+	// PreviewActor 정리 (복제본 삭제 전에 참조 해제 필요)
+	if (PreviewMeshComponent && PreviewSkeletalMesh)
+	{
+		PreviewMeshComponent->SetSkeletalMesh((USkeletalMesh*)nullptr);
+	}
+
+	if (PreviewActor && EditorWorld)
+	{
+		EditorWorld->DestroyActor(PreviewActor);
+		PreviewActor = nullptr;
+		PreviewMeshComponent = nullptr;
+	}
+
+	// 복제본 삭제 (수동 메모리 관리, Material Instance Dynamic 패턴)
+	if (PreviewSkeletalMesh)
+	{
+		UE_LOG("SkeletalMeshEditorWidget::Cleanup - Deleting PreviewSkeletalMesh %p", PreviewSkeletalMesh);
+		delete PreviewSkeletalMesh;
+		PreviewSkeletalMesh = nullptr;
+	}
+
+	// TargetSkeletalMesh 리셋 (다음에 같은 mesh를 열 때 새 복제본 생성되도록)
+	TargetSkeletalMesh = nullptr;
+	SelectedBoneIndex = -1;
+}
+
 void USkeletalMeshEditorWidget::Shutdown()
 {
-	// 종료 시 자동으로 변경사항 되돌리기 (미리보기만 수행하므로 항상 revert)
-	RevertChanges();
+	// 엔진 종료 시 호출 - 모든 리소스 정리
+
+	// 복제본 및 Actor 정리
+	Cleanup();
 
 	// 위젯 정리 (SDetailsWindow 패턴)
 	if (HierarchyWidget)
@@ -187,11 +219,6 @@ void USkeletalMeshEditorWidget::Shutdown()
 		DeleteObject(ViewportWidget);
 		ViewportWidget = nullptr;
 	}
-
-	// NOTE: PreviewActor는 여기서 정리하지 않음
-	// - EditorWorld는 static이므로 에디터 창을 닫아도 유지됨
-	// - 다음에 다른 컴포넌트를 열면 SetTargetComponent()에서 교체됨
-	// - 프로그램 종료 시 EditorWorld와 함께 자동 정리됨
 
 	// Viewport 정리
 	if (EmbeddedViewport)
@@ -222,6 +249,7 @@ void USkeletalMeshEditorWidget::SetTargetSkeletalMesh(USkeletalMesh* SkeletalMes
 	// 같은 Skeletal Mesh면 재사용 (불필요한 액터 재생성 방지)
 	if (TargetSkeletalMesh == SkeletalMesh && PreviewActor)
 	{
+		UE_LOG("SkeletalMeshEditorWidget: Reusing existing PreviewComponent %p", PreviewMeshComponent);
 		return;
 	}
 
@@ -234,7 +262,14 @@ void USkeletalMeshEditorWidget::SetTargetSkeletalMesh(USkeletalMesh* SkeletalMes
 		return;
 	}
 
-	// 기존 PreviewActor 제거 (다른 Skeletal Mesh로 전환 시)
+	// 기존 복제본 정리 (CRITICAL: Actor 파괴 전에 참조 해제!)
+	if (PreviewMeshComponent && PreviewSkeletalMesh)
+	{
+		// Component가 복제본을 참조하지 않도록 nullptr 설정
+		PreviewMeshComponent->SetSkeletalMesh((USkeletalMesh*)nullptr);
+	}
+
+	// 기존 PreviewActor 제거
 	if (PreviewActor)
 	{
 		EditorWorld->DestroyActor(PreviewActor);
@@ -242,9 +277,26 @@ void USkeletalMeshEditorWidget::SetTargetSkeletalMesh(USkeletalMesh* SkeletalMes
 		PreviewMeshComponent = nullptr;
 	}
 
+	// 복제본 삭제 (Component 파괴 후)
+	if (PreviewSkeletalMesh)
+	{
+		UE_LOG("SkeletalMeshEditorWidget: Deleting old PreviewSkeletalMesh %p", PreviewSkeletalMesh);
+		delete PreviewSkeletalMesh;
+		PreviewSkeletalMesh = nullptr;
+	}
+
 	// 새로운 미리보기 액터 생성
 	if (SkeletalMesh && SkeletalMesh->IsValidResource())
 	{
+		// Editor 전용 복제본 생성 (Material Instance Dynamic 패턴)
+		ID3D11Device* Device = GEngine.GetRenderer()->GetRHIDevice()->GetDevice();
+		PreviewSkeletalMesh = USkeletalMesh::DuplicateForEditor(SkeletalMesh, Device);
+		if (!PreviewSkeletalMesh)
+		{
+			UE_LOG("SkeletalMeshEditorWidget: Failed to duplicate skeletal mesh!");
+			return;
+		}
+
 		// EmptyActor 생성 (SkeletalMeshComponent 컨테이너)
 		PreviewActor = EditorWorld->SpawnActor<AEmptyActor>();
 		PreviewActor->SetActorLocation(FVector(0, 0, 0));
@@ -255,9 +307,11 @@ void USkeletalMeshEditorWidget::SetTargetSkeletalMesh(USkeletalMesh* SkeletalMes
 		PreviewActor->AddOwnedComponent(PreviewMeshComponent);
 		PreviewActor->SetRootComponent(PreviewMeshComponent);
 
-		// Skeletal Mesh 설정 (리소스 경로로)
-		const FString& AssetPath = SkeletalMesh->GetAssetPathFileName();
-		PreviewMeshComponent->SetSkeletalMesh(AssetPath);
+		// 복제본 설정 (오버로드 사용)
+		PreviewMeshComponent->SetSkeletalMesh(PreviewSkeletalMesh);
+
+		UE_LOG("SkeletalMeshEditorWidget: Created PreviewMeshComponent %p with duplicated mesh %p (Original: %p)",
+			PreviewMeshComponent, PreviewSkeletalMesh, SkeletalMesh);
 
 		// 컴포넌트 등록 (World 전달)
 		PreviewMeshComponent->RegisterComponent(EditorWorld);
@@ -292,6 +346,8 @@ void USkeletalMeshEditorWidget::ApplyPreviewMaterialsFromComponent(USkeletalMesh
 		UE_LOG("SkeletalMeshEditorWidget: Cannot apply preview materials - missing component");
 		return;
 	}
+
+	UE_LOG("SkeletalMeshEditorWidget: ApplyPreviewMaterialsFromComponent - SourceComponent=%p, PreviewComponent=%p", SourceComponent, PreviewMeshComponent);
 
 	// CRITICAL: PreviewComponent가 독립적인 MID 복사본을 소유하도록 수정
 	// SourceComponent의 MID 포인터를 직접 사용하면 dangling pointer 발생!

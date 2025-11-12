@@ -49,7 +49,13 @@ void SSkeletalMeshEditorWindow::SetTargetSkeletalMesh(USkeletalMesh* SkeletalMes
 
 bool SSkeletalMeshEditorWindow::OnWindowClose()
 {
-	// 미리보기 전용이므로 닫을 때 항상 허용 (Shutdown에서 자동으로 Revert됨)
+	// EditorWidget 정리 (복제본 삭제, Actor 정리)
+	if (EditorWidget)
+	{
+		EditorWidget->Cleanup();
+	}
+
+	// 창 닫기 허용
 	return true;
 }
 
@@ -64,7 +70,12 @@ void SSkeletalMeshEditorWindow::RenderContent()
 		{
 			if (ImGui::MenuItem("Close"))
 			{
-				// 미리보기 전용이므로 단순히 닫기 (Shutdown에서 자동으로 Revert됨)
+				// EditorWidget 정리
+				if (EditorWidget)
+				{
+					EditorWidget->Cleanup();
+				}
+				// 창 숨기기
 				SetWindowState(EUIWindowState::Hidden);
 			}
 			ImGui::EndMenu();

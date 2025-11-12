@@ -332,6 +332,39 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& FilePath)
     }
 }
 
+void USkeletalMeshComponent::SetSkeletalMesh(USkeletalMesh* Mesh)
+{
+    ClearDynamicMaterials();
+
+    // 사용중인 메시 해제
+    if (SkeletalMesh != nullptr)
+    {
+        SkeletalMesh->EraseUsingComponets(this);
+    }
+
+    // 복제본 직접 설정 (ResourceManager 경유 안 함)
+    SkeletalMesh = Mesh;
+    if (SkeletalMesh && SkeletalMesh->GetSkeletalMeshAsset())
+    {
+        const TArray<FGroupInfo>& GroupInfos = SkeletalMesh->GetMeshGroupInfo();
+
+        MaterialSlots.resize(GroupInfos.Num());
+
+        for (int i = 0; i < GroupInfos.Num(); ++i)
+        {
+            SetMaterialByName(i, GroupInfos[i].InitialMaterialName);
+        }
+
+        // FBoneInfo에서 EditableBones 초기화
+        LoadBonesFromAsset();
+        bSkinningDirty = true;
+    }
+    else
+    {
+        SkeletalMesh = nullptr;
+    }
+}
+
 void USkeletalMeshComponent::SetMaterial(uint32 InElementIndex, UMaterialInterface* InNewMaterial)
 {
     Super::SetMaterial(InElementIndex, InNewMaterial);

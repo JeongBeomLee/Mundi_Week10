@@ -47,6 +47,14 @@ public:
 
     const FString& GetCacheFilePath() const { return CacheFilePath; }
 
+    /**
+     * @brief Editor 전용 복제본 생성 (Material Instance Dynamic 패턴)
+     * @param Device D3D11 Device
+     * @return 독립적인 GPU 버퍼를 가진 복제본 (FSkeletalMesh* 포인터는 공유)
+     * @note ResourceManager에 등록되지 않음, 수동 삭제 필요
+     */
+    static USkeletalMesh* DuplicateForEditor(USkeletalMesh* Original, ID3D11Device* Device);
+
 private:
     void CreateVertexBuffer(FMeshData* InMeshData, ID3D11Device* InDevice, EVertexLayoutType InVertexType = EVertexLayoutType::PositionColorTexturNormal);
 	void CreateVertexBuffer(FSkeletalMesh* InSkeletalMesh, ID3D11Device* InDevice, EVertexLayoutType InVertexType = EVertexLayoutType::PositionColorTexturNormal);

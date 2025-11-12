@@ -48,6 +48,13 @@ public:
     int32 GetSelectedBoneIndex() const { return SelectedBoneIndex; }
     void SetSelectedBoneIndex(int32 Index) { SelectedBoneIndex = Index; }
 
+    /**
+     * @brief Editor 전용: 복제된 USkeletalMesh를 직접 설정 (오버로드)
+     * @param Mesh 복제본 (USkeletalMesh::DuplicateForEditor()로 생성된 것)
+     * @note ResourceManager를 거치지 않고 직접 설정
+     */
+    void SetSkeletalMesh(USkeletalMesh* Mesh);
+
     // 편집 가능한 Bone 배열 (FBoneInfo에서 초기화)
     TArray<FBone> EditableBones;
 
