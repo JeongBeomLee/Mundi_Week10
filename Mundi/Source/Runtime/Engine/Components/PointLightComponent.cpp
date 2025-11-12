@@ -75,13 +75,19 @@ void UPointLightComponent::UpdateLightData()
 {
 	Super::UpdateLightData();
 	// 점광원 특화 업데이트 로직
-	GWorld->GetLightManager()->UpdateLight(this);
+	if (UWorld* World = GetWorld())
+	{
+		World->GetLightManager()->UpdateLight(this);
+	}
 }
 
 void UPointLightComponent::OnTransformUpdated()
 {
 	Super::OnTransformUpdated();
-	GWorld->GetLightManager()->UpdateLight(this);
+	if (UWorld* World = GetWorld())
+	{
+		World->GetLightManager()->UpdateLight(this);
+	}
 }
 
 
@@ -98,7 +104,10 @@ void UPointLightComponent::OnRegister(UWorld* InWorld)
 
 void UPointLightComponent::OnUnregister()
 {
-	GWorld->GetLightManager()->DeRegisterLight(this);
+	if (UWorld* World = GetWorld())
+	{
+		World->GetLightManager()->DeRegisterLight(this);
+	}
 }
 
 void UPointLightComponent::RenderDebugVolume(URenderer* Renderer) const

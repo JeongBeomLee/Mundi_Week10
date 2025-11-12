@@ -30,7 +30,12 @@ UActorComponent::~UActorComponent()
 
 UWorld* UActorComponent::GetWorld() const
 {
-    return Owner ? Owner->GetWorld() : nullptr;
+    // 초기화 중(Owner가 없거나 World가 아직 설정되지 않은 경우) GWorld로 폴백
+    // NOTE: 컴포넌트가 정상적으로 등록된 후에는 항상 올바른 World를 반환함
+    if (!Owner) return GWorld;
+
+    UWorld* World = Owner->GetWorld();
+    return World ? World : GWorld;
 }
 
 // ─────────────── Registration

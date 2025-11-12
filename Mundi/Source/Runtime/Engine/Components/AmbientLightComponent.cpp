@@ -29,7 +29,10 @@ void UAmbientLightComponent::UpdateLightData()
 {
 	Super::UpdateLightData();
 	// 환경광 특화 업데이트 로직
-	GWorld->GetLightManager()->UpdateLight(this);
+	if (UWorld* World = GetWorld())
+	{
+		World->GetLightManager()->UpdateLight(this);
+	}
 }
 
 void UAmbientLightComponent::OnTransformUpdated()
@@ -52,7 +55,10 @@ void UAmbientLightComponent::OnUnregister()
 	// Serialize 시 Crash 방지를 위한 주석 처리
 	//if (bPendingDestroy == false)
 	//{
-		GWorld->GetLightManager()->DeRegisterLight(this);
+		if (UWorld* World = GetWorld())
+		{
+			World->GetLightManager()->DeRegisterLight(this);
+		}
 	//}
 }
 

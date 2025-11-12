@@ -141,7 +141,10 @@ void UDirectionalLightComponent::OnUnregister()
 	// Serialize 시 Crash 방지를 위한 주석 처리
 	//if (bPendingDestroy == false)
 	//{
-		GWorld->GetLightManager()->DeRegisterLight(this);
+		if (UWorld* World = GetWorld())
+		{
+			World->GetLightManager()->DeRegisterLight(this);
+		}
 	//}
 }
 
@@ -149,7 +152,10 @@ void UDirectionalLightComponent::UpdateLightData()
 {
 	Super::UpdateLightData();
 	// 방향성 라이트 특화 업데이트 로직
-	GWorld->GetLightManager()->UpdateLight(this);
+	if (UWorld* World = GetWorld())
+	{
+		World->GetLightManager()->UpdateLight(this);
+	}
 
 	// Update direction gizmo to reflect any changes
 	UpdateDirectionGizmo();
@@ -158,7 +164,10 @@ void UDirectionalLightComponent::UpdateLightData()
 void UDirectionalLightComponent::OnTransformUpdated()
 {
 	Super::OnTransformUpdated();
-	GWorld->GetLightManager()->UpdateLight(this);
+	if (UWorld* World = GetWorld())
+	{
+		World->GetLightManager()->UpdateLight(this);
+	}
 }
 
 void UDirectionalLightComponent::OnSerialized()
