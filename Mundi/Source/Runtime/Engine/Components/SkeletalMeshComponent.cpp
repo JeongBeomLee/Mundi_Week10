@@ -728,19 +728,26 @@ void USkeletalMeshComponent::RenderBonePyramids(
     TArray<FVector>& OutEndPoints,
     TArray<FVector4>& OutColors) const
 {
-    // 메시 바운딩 박스 크기를 기준으로 본 두께를 스케일링
+    // 월드 바운딩 박스 크기를 기준으로 본 두께를 스케일링 (월드 스케일 자동 반영)
     float BoneThickness = 0.8f;
     if (SkeletalMesh)
     {
-        const FAABB LocalBound = SkeletalMesh->GetLocalBound();
-        const FVector BoundSize = LocalBound.Max - LocalBound.Min;
+        const FAABB WorldBound = GetWorldAABB();
+        const FVector BoundSize = WorldBound.Max - WorldBound.Min;
         const float MeshScale = (BoundSize.X + BoundSize.Y + BoundSize.Z) / 3.0f;
-        BoneThickness = MeshScale * 0.01f;  // 메시 평균 크기의 1%
+        BoneThickness = MeshScale * 0.01f;
     }
 
     const FVector4 WhiteColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
     const FVector4 GreenColor = FVector4(0.0f, 1.0f, 0.0f, 1.0f);
     const FVector4 YellowColor = FVector4(1.0f, 1.0f, 0.0f, 1.0f);
+
+    // 컴포넌트의 월드 트랜스폼 (본 위치를 World Space로 변환)
+    const FTransform ComponentWorld = GetWorldTransform();
+
+    // ComponentSpaceTransforms가 없으면 그릴 수 없음
+    if (ComponentSpaceTransforms.IsEmpty())
+        return;
 
     for (int32 i = 0; i < GetBoneCount(); ++i)
     {
@@ -748,8 +755,16 @@ void USkeletalMeshComponent::RenderBonePyramids(
         if (Bone.ParentIndex < 0)
             continue;
 
-        FVector ParentPos = GetBoneWorldTransform(Bone.ParentIndex).Translation;
-        FVector ChildPos = GetBoneWorldTransform(i).Translation;
+        // 실제 렌더링에 사용되는 ComponentSpaceTransforms 사용
+        FVector ParentScale, ChildScale;
+        FQuat ParentRot, ChildRot;
+        FVector ParentTranslation, ChildTranslation;
+        ComponentSpaceTransforms[Bone.ParentIndex].Decompose(ParentScale, ParentRot, ParentTranslation);
+        ComponentSpaceTransforms[i].Decompose(ChildScale, ChildRot, ChildTranslation);
+
+        // Component Space → World Space 변환
+        FVector ParentPos = ComponentWorld.TransformPosition(ParentTranslation);
+        FVector ChildPos = ComponentWorld.TransformPosition(ChildTranslation);
         FVector BoneDir = (ChildPos - ParentPos);
         float BoneLength = BoneDir.Size();
 
@@ -803,23 +818,37 @@ void USkeletalMeshComponent::RenderJointSpheres(
     TArray<FVector>& OutEndPoints,
     TArray<FVector4>& OutColors) const
 {
-    // 메시 바운딩 박스 크기를 기준으로 조인트 구 반지름을 스케일링
+    // 월드 바운딩 박스 크기를 기준으로 조인트 구 반지름을 스케일링 (월드 스케일 자동 반영)
     float SphereRadius = 1.5f;
     if (SkeletalMesh)
     {
-        const FAABB LocalBound = SkeletalMesh->GetLocalBound();
-        const FVector BoundSize = LocalBound.Max - LocalBound.Min;
+        const FAABB WorldBound = GetWorldAABB();
+        const FVector BoundSize = WorldBound.Max - WorldBound.Min;
         const float MeshScale = (BoundSize.X + BoundSize.Y + BoundSize.Z) / 3.0f;
-        SphereRadius = MeshScale * 0.015f;  // 메시 평균 크기의 1.5%
+        SphereRadius = MeshScale * 0.015f;
     }
 
     const int32 NumSegments = 8;
     const FVector4 WhiteColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);
     const FVector4 GreenColor = FVector4(0.0f, 1.0f, 0.0f, 1.0f);
 
+    // 컴포넌트의 월드 트랜스폼 (본 위치를 World Space로 변환)
+    const FTransform ComponentWorld = GetWorldTransform();
+
+    // ComponentSpaceTransforms가 없으면 그릴 수 없음
+    if (ComponentSpaceTransforms.IsEmpty())
+        return;
+
     for (int32 i = 0; i < GetBoneCount(); ++i)
     {
-        FVector JointPos = GetBoneWorldTransform(i).Translation;
+        // 실제 렌더링에 사용되는 ComponentSpaceTransforms 사용
+        FVector JointScale;
+        FQuat JointRot;
+        FVector JointTranslation;
+        ComponentSpaceTransforms[i].Decompose(JointScale, JointRot, JointTranslation);
+
+        // Component Space → World Space 변환
+        FVector JointPos = ComponentWorld.TransformPosition(JointTranslation);
         FVector4 Color = (i == SelectedBoneIndex) ? GreenColor : WhiteColor;
 
         // 3개의 원 (XY, YZ, ZX 평면)

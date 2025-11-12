@@ -61,7 +61,7 @@ void USkeletalMeshEditorWidget::InitializeEditorWorld()
 	// DirectionalLight 추가 (기본 조명)
 	ADirectionalLightActor* DirLight = EditorWorld->SpawnActor<ADirectionalLightActor>();
 	DirLight->SetActorLocation(FVector(10000, 10000, 10000));
-	DirLight->SetActorRotation(FQuat::MakeFromEulerZYX(FVector(-45, -45, 0)));
+	DirLight->SetActorRotation(FQuat::MakeFromEulerZYX(FVector(0.f, 90.f, 0.f)));
 	if (DirLight->GetLightComponent())
 	{
 		DirLight->GetLightComponent()->SetIntensity(1.0f);
