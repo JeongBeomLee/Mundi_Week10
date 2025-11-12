@@ -591,12 +591,14 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
             FNormalVertex Vertex;
 
             // 위치 (Position)
+            // cm -> m
+            const float ScaleFactor = 0.01f;
             FbxVector4 Position = ControlPoints[ControlPointIndex];
             Position = GlobalTransform.MultT(Position);
             Vertex.pos = FVector(
-                static_cast<float>(Position[0]),
-                static_cast<float>(Position[1]),
-                static_cast<float>(Position[2])
+                static_cast<float>(Position[0]) * ScaleFactor,
+                static_cast<float>(Position[1]) * ScaleFactor,
+                static_cast<float>(Position[2]) * ScaleFactor
             );
 
             // 노멀 (Normal)
@@ -922,6 +924,12 @@ void FFBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMes
             }
         }
 
+        // cm -> m
+        const float ScaleFactor = 0.01f;
+        BoneInfo.InverseBindPoseMatrix.M[3][0] *= ScaleFactor;
+        BoneInfo.InverseBindPoseMatrix.M[3][1] *= ScaleFactor;
+        BoneInfo.InverseBindPoseMatrix.M[3][2] *= ScaleFactor;
+
         // ========================================
         // 3. GlobalTransform: Bone Local → World (at Bind Pose)
         // ========================================
@@ -935,6 +943,11 @@ void FFBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMes
                 BoneInfo.GlobalTransform.M[i][j] = static_cast<float>(BoneWorldTransform.Get(i, j));
             }
         }
+
+        // cm -> m
+        BoneInfo.GlobalTransform.M[3][0] *= ScaleFactor;
+        BoneInfo.GlobalTransform.M[3][1] *= ScaleFactor;
+        BoneInfo.GlobalTransform.M[3][2] *= ScaleFactor;
 
         // ========================================
         // 4. SkinningMatrix: 바인드 포즈에서의 최종 변환
