@@ -465,26 +465,8 @@ FSkeletalMesh* FFBXManager::LoadFBXSkeletalMeshAsset(const FString& PathFileName
         UE_LOG("FBXManager: Loading %s (%zu mesh parts found)",
                    NormalizedPathStr.c_str(), AllMeshes.size());
 
-        // 본 계층 구조는 첫 번째 스킨 디포머가 있는 메시에서 파싱
-        FbxMesh* FirstSkinnedMesh = nullptr;
-        for (FbxMesh* Mesh : AllMeshes)
-        {
-            if (Mesh->GetDeformerCount(FbxDeformer::eSkin) > 0)
-            {
-                FirstSkinnedMesh = Mesh;
-                UE_LOG("FBXManager: Found first skinned mesh for bone hierarchy: %s",
-                       Mesh->GetNode() ? Mesh->GetNode()->GetName() : "");
-                break;
-            }
-        }
-
-        UE_LOG("FBXManager: Loading %s", NormalizedPathStr.c_str());
-
-        // 8. 본 계층 구조 파싱 (한 번만)
-        if (FirstSkinnedMesh)
-        {
-            ParseBoneHierarchy(FirstSkinnedMesh, SkeletalMeshData);
-        }
+        // 8. 본 계층 구조 파싱 (Scene에서 직접 스켈레톤 루트 찾기)
+        ParseBoneHierarchy(Scene, SkeletalMeshData);
 
         // 9. 각 메시마다 정점 데이터와 스킨 가중치를 파싱
         for (FbxMesh* Mesh : AllMeshes)
@@ -758,7 +740,6 @@ bool FFBXManager::IsSkeletonRootNode(FbxNode* Node)
  * CollectBoneData()
  *
  * 본 노드를 재귀적으로 순회하며 계층 구조와 BindPose 기반 변환을 계산합니다.
- * 이는 FFbxLoader의 정확한 방식을 따릅니다.
  */
 void FFBXManager::CollectBoneData(FbxNode* Node, FSkeletalMesh* OutMeshData, int32 ParentIndex, FbxPose* BindPose, TMap<FbxNode*, int32>& NodeToIndexMap)
 {
@@ -1206,79 +1187,24 @@ void FFBXManager::ParseMeshGeometry(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMesh
 /*
  * ParseBoneHierarchy()
  *
- * FBX 메시에서 Bone 계층 구조를 파싱합니다.
+ * FBX Scene에서 Bone 계층 구조를 파싱합니다.
  *
- * [중요] 기존 Cluster 기반 방식의 문제점:
- * - BindPose를 무시하고 GetTransformMatrix/GetTransformLinkMatrix만 사용
- * - Cluster 순서에 의존하여 부모-자식 관계가 잘못 설정될 수 있음
- * - 노드 계층 구조를 무시하여 일부 본이 누락될 수 있음
- *
- * [개선] 새로운 BindPose 기반 방식:
+ * [개선된 방식]:
+ * - Scene에서 직접 스켈레톤 루트 노드를 찾아 순회
  * - BindPose를 명시적으로 찾아 사용
  * - 노드 계층 구조를 재귀적으로 순회
  * - ParentGlobalMatrix.Inverse() * NodeGlobalMatrix로 정확한 로컬 변환 계산
  *
- * @param FbxMeshNode FBX 메시 노드
+ * @param Scene FBX Scene
  * @param OutMeshData 파싱 결과를 저장할 FSkeletalMesh
  */
-void FFBXManager::ParseBoneHierarchy(FbxMesh* FbxMeshNode, FSkeletalMesh* OutMeshData)
+void FFBXManager::ParseBoneHierarchy(FbxScene* Scene, FSkeletalMesh* OutMeshData)
 {
-    FbxScene* Scene = FbxMeshNode->GetScene();
-    int DeformerCount = FbxMeshNode->GetDeformerCount(FbxDeformer::eSkin);
+    UE_LOG("FBXManager: Parsing bone hierarchy (Scene-based, BindPose)");
 
-    UE_LOG("FBXManager: Parsing bone hierarchy (BindPose-based)");
-    UE_LOG("  Skin Deformers: %d", DeformerCount);
-
-    if (DeformerCount == 0)
-        return;
-
-    FbxSkin* Skin = static_cast<FbxSkin*>(FbxMeshNode->GetDeformer(0, FbxDeformer::eSkin));
-    int ClusterCount = Skin->GetClusterCount();
-    UE_LOG("  Clusters (Bones): %d", ClusterCount);
-
-    // 1. 스켈레톤 루트 노드 찾기
-    // Cluster의 링크 노드들 중 최상위 스켈레톤 노드를 찾습니다.
+    // 1. Scene에서 직접 스켈레톤 루트 노드 찾기
     TArray<FbxNode*> SkeletonRoots;
-    TSet<FbxNode*> AllBoneNodes;
-
-    // 모든 Cluster의 링크 노드를 수집
-    for (int ClusterIndex = 0; ClusterIndex < ClusterCount; ClusterIndex++)
-    {
-        FbxCluster* Cluster = Skin->GetCluster(ClusterIndex);
-        FbxNode* BoneNode = Cluster->GetLink();
-        if (BoneNode)
-        {
-            AllBoneNodes.Add(BoneNode);
-        }
-    }
-
-    // 각 본 노드의 최상위 스켈레톤 조상을 찾습니다
-    for (FbxNode* BoneNode : AllBoneNodes)
-    {
-        FbxNode* CurrentNode = BoneNode;
-        FbxNode* SkeletonRoot = CurrentNode;
-
-        // 부모를 따라 올라가며 스켈레톤 노드인 최상위 노드를 찾습니다
-        while (CurrentNode)
-        {
-            FbxNode* Parent = CurrentNode->GetParent();
-            if (Parent && Parent->GetNodeAttribute() &&
-                Parent->GetNodeAttribute()->GetAttributeType() == FbxNodeAttribute::eSkeleton)
-            {
-                SkeletonRoot = Parent;
-                CurrentNode = Parent;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        if (SkeletonRoot && !SkeletonRoots.Contains(SkeletonRoot))
-        {
-            SkeletonRoots.Add(SkeletonRoot);
-        }
-    }
+    FindSkeletonRootNodes(Scene->GetRootNode(), SkeletonRoots);
 
     if (SkeletonRoots.IsEmpty())
     {
