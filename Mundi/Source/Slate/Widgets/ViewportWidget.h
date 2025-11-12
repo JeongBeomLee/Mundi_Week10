@@ -63,6 +63,7 @@ public:
 private:
 	// Viewport 렌더링
 	void RenderViewportToolbar();
+	void RenderViewModeDropdown();
 
 	// 툴바 아이콘 지연 로드 (최초 1회만 실행)
 	void LoadToolbarIcons();
@@ -82,6 +83,10 @@ private:
 	// 드래그 시작 시 타겟의 원래 회전 저장 (World 모드 Rotate에서 사용)
 	FQuat DragStartRotation = FQuat::Identity();
 
+	// ViewMode 관련 상태 저장
+	int CurrentLitSubMode = 0; // 0=default(Phong) 1=Gouraud, 2=Lambert, 3=Phong [기본값: default(Phong)]
+	int CurrentBufferVisSubMode = 1; // 0=SceneDepth, 1=WorldNormal (기본값: WorldNormal)
+
 	// 툴바 아이콘 텍스처 (메인 뷰포트와 동일)
 	class UTexture* IconSelect = nullptr;
 	class UTexture* IconMove = nullptr;
@@ -89,4 +94,10 @@ private:
 	class UTexture* IconScale = nullptr;
 	class UTexture* IconWorldSpace = nullptr;
 	class UTexture* IconLocalSpace = nullptr;
+
+	// 뷰모드 아이콘 텍스처
+	class UTexture* IconViewMode_Lit = nullptr;
+	class UTexture* IconViewMode_Unlit = nullptr;
+	class UTexture* IconViewMode_Wireframe = nullptr;
+	class UTexture* IconViewMode_BufferVis = nullptr;
 };
